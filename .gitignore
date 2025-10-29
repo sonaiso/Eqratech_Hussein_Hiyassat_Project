@@ -1,0 +1,30 @@
+# Generated artifacts and OS metadata
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.dll
+*.log
+*.tmp
+*.zip
+
+# Virtual environments
+.venv/
+.env/
+.env*/
+
+# Jupyter artifacts
+.ipynb_checkpoints/
+.hypothesis/
+
+# OS metadata
+Desktop.ini
+desktop.ini
+Thumbs.db
+
+# Editor artifacts
+.vscode/
+
+# Temporary workbook files
+~$*
