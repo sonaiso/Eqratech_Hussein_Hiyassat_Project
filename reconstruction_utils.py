@@ -23,17 +23,17 @@ HARAKA_PATTERN = re.compile(r'[\u064B-\u0652\u0670]')  # يشمل المد (أل
 
 
 def _full_unicode(token: str) -> str:
-    t = str(token)
-    if not t:
+    token_str = str(token)
+    if not token_str:
         return ''
-    return ' '.join(f"U+{ord(ch):04X}" for ch in t)
+    return ' '.join(f"U+{ord(char):04X}" for char in token_str)
 
 
 def _full_utf8(token: str) -> str:
-    t = str(token)
-    if not t:
+    token_str = str(token)
+    if not token_str:
         return ''
-    return ' '.join(str(ch.encode('utf-8')) for ch in t)
+    return ' '.join(str(char.encode('utf-8')) for char in token_str)
 
 
 def load_maps() -> Tuple[Dict[str, str], Dict[str, str]]:
@@ -59,21 +59,21 @@ def load_maps() -> Tuple[Dict[str, str], Dict[str, str]]:
 
 
 def _map_haraka_names_to_marks(tokens: List[str]) -> List[str]:
-    out = []
-    for t in tokens:
-        t_clean = t.strip()
-        if not t_clean:
+    output_marks = []
+    for token in tokens:
+        token_clean = token.strip()
+        if not token_clean:
             continue
         # تطبيع بعض الصيغ الشائعة (مسكون => سكون)
-        if t_clean == 'مسكون':
-            t_clean = 'سكون'
-        mark = HARAKA_NAME_TO_MARK.get(t_clean, '')
+        if token_clean == 'مسكون':
+            token_clean = 'سكون'
+        mark = HARAKA_NAME_TO_MARK.get(token_clean, '')
         if mark:
-            out.append(mark)
-        elif HARAKA_PATTERN.match(t_clean):
-            out.append(t_clean)
+            output_marks.append(mark)
+        elif HARAKA_PATTERN.match(token_clean):
+            output_marks.append(token_clean)
         # otherwise ignore unknown token
-    return out
+    return output_marks
 
 
 def reconstruct_from_base_df(base_df: pd.DataFrame) -> pd.DataFrame:
@@ -81,9 +81,9 @@ def reconstruct_from_base_df(base_df: pd.DataFrame) -> pd.DataFrame:
 
     required_cols = ["الأداة", "الفونيمات", "الحركات", "Unicode", "UTF-8", "عدد الفونيمات",
                      "نوع الحركة الأولى", "UTF-8 للحروف", "UTF-8 للحركات"]
-    for c in required_cols:
-        if c not in base_df.columns:
-            base_df[c] = ''
+    for col in required_cols:
+        if col not in base_df.columns:
+            base_df[col] = ''
 
     rows = []
     base_order = list(base_df.columns)
@@ -116,7 +116,7 @@ def reconstruct_from_base_df(base_df: pd.DataFrame) -> pd.DataFrame:
 
         # إعادة التركيب بالاعتماد على UTF-8 المخزن لكل فونيم/حركة لضمان أن الناتج مشتق فعلياً من الترميز
         reconstructed = ''
-        for i, letter in enumerate(phonemes_list):
+        for index, letter in enumerate(phonemes_list):
             # احصل على تمثيل UTF-8 كسلسلة (مثل b'\xd8\xb9') ثم حوّله إلى بايتات ثم فك ترميزه
             mapped_bytes_str = phoneme_utf8_map.get(letter, '')
             decoded_letter = letter
@@ -128,8 +128,8 @@ def reconstruct_from_base_df(base_df: pd.DataFrame) -> pd.DataFrame:
                 except Exception:
                     decoded_letter = letter  # في حالة الفشل نستعمل الحرف الأصلي
             reconstructed += decoded_letter
-            if i < len(harakat_list):
-                haraka_symbol = harakat_list[i]
+            if index < len(harakat_list):
+                haraka_symbol = harakat_list[index]
                 mapped_haraka_bytes = harakat_utf8_map.get(haraka_symbol, '')
                 decoded_haraka = haraka_symbol
                 if mapped_haraka_bytes and mapped_haraka_bytes.startswith("b'"):
@@ -153,10 +153,10 @@ def reconstruct_from_base_df(base_df: pd.DataFrame) -> pd.DataFrame:
 
         unicode_val = _full_unicode(reconstructed)
         utf8_val = _full_utf8(reconstructed)
-        utf8_letters_seq = ','.join(phoneme_utf8_map.get(ch, str(ch.encode('utf-8'))) for ch in phonemes_list)
-        utf8_harakat_seq = ','.join(harakat_utf8_map.get(h, str(h.encode('utf-8'))) for h in harakat_list)
+        utf8_letters_seq = ','.join(phoneme_utf8_map.get(char, str(char.encode('utf-8'))) for char in phonemes_list)
+        utf8_harakat_seq = ','.join(harakat_utf8_map.get(haraka, str(haraka.encode('utf-8'))) for haraka in harakat_list)
 
-        new_row = {c: row.get(c, '') for c in base_order}
+        new_row = {col: row.get(col, '') for col in base_order}
         # عيّن القيم المعاد بناؤها في الأعمدة الأساسية
         # نملأ أعمدة الفونيمات/الحركات إذا أمكن الاستنتاج (مع الحفاظ على حالة التعابير المركبة ذات المسافات فارغة كما هي)
         if phonemes_list:
@@ -205,15 +205,15 @@ def reconstruct_from_base_df(base_df: pd.DataFrame) -> pd.DataFrame:
         out_df.loc[still_empty, 'الحركات'] = out_df.loc[still_empty, 'الفونيمات'].apply(_auto_harakat)
 
     ordered = []
-    for c in base_order:
-        if c in out_df.columns and c not in ordered:
-            ordered.append(c)
-    for c in ["عدد الفونيمات", "نوع الحركة الأولى", "UTF-8 للحروف", "UTF-8 للحركات"]:
-        if c in out_df.columns and c not in ordered:
-            ordered.append(c)
-    for c in out_df.columns:
-        if c not in ordered:
-            ordered.append(c)
+    for col in base_order:
+        if col in out_df.columns and col not in ordered:
+            ordered.append(col)
+    for col in ["عدد الفونيمات", "نوع الحركة الأولى", "UTF-8 للحروف", "UTF-8 للحركات"]:
+        if col in out_df.columns and col not in ordered:
+            ordered.append(col)
+    for col in out_df.columns:
+        if col not in ordered:
+            ordered.append(col)
     return out_df[ordered]
 
 
