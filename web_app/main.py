@@ -27,7 +27,6 @@ class Activity(BaseModel):
     """Model for a single activity."""
     name: str = Field(..., description="Name of the activity (sheet name)")
     engine_class: str = Field(..., description="Engine class name")
-    
 
 class ActivitiesResponse(BaseModel):
     """Response model for /api/activities endpoint."""
@@ -71,7 +70,7 @@ async def startup_event():
             # Log engine names for debugging
             for engine in ENGINES:
                 sheet_name = getattr(engine, 'SHEET_NAME', 'Unknown')
-                logger.debug(f"  - {engine.__name__}: {sheet_name}")
+                logger.debug("  - %s: %s", engine.__name__, sheet_name)
                 
     except ImportError as e:
         logger.error(
