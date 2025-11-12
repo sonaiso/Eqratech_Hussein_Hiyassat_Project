@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Eqratech Arabic Diana Project - Activities</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+        
+        .info-bar {
+            display: flex;
+            justify-content: space-around;
+            padding: 20px;
+            background: #f8f9fa;
+            border-bottom: 2px solid #e9ecef;
+        }
+        
+        .info-item {
+            text-align: center;
+        }
+        
+        .info-item .label {
+            font-size: 0.9em;
+            color: #6c757d;
+            margin-bottom: 5px;
+        }
+        
+        .info-item .value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .activities-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+            padding: 30px;
+        }
+        
+        .activity-card {
+            background: white;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            padding: 20px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .activity-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.3);
+            border-color: #667eea;
+        }
+        
+        .activity-name {
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+            word-wrap: break-word;
+        }
+        
+        .activity-sheet {
+            font-size: 1.2em;
+            color: #667eea;
+            margin-bottom: 5px;
+            direction: rtl;
+            text-align: right;
+        }
+        
+        .activity-module {
+            font-size: 0.85em;
+            color: #6c757d;
+            font-family: monospace;
+        }
+        
+        .footer {
+            text-align: center;
+            padding: 20px;
+            background: #f8f9fa;
+            color: #6c757d;
+            border-top: 2px solid #e9ecef;
+        }
+        
+        .api-link {
+            display: inline-block;
+            margin-top: 10px;
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            transition: background 0.3s ease;
+        }
+        
+        .api-link:hover {
+            background: #764ba2;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>مشروع إقرأتك للغة العربية - ديانا</h1>
+            <p>Eqratech Arabic Diana Project - Grammar Activities</p>
+        </div>
+        
+        <div class="info-bar">
+            <div class="info-item">
+                <div class="label">التاريخ / Date</div>
+                <div class="value">{{ today }}</div>
+            </div>
+            <div class="info-item">
+                <div class="label">إجمالي الأنشطة / Total Activities</div>
+                <div class="value">{{ total_activities }}</div>
+            </div>
+        </div>
+        
+        <div class="activities-grid">
+            {% for activity in activities %}
+            <div class="activity-card">
+                <div class="activity-sheet">{{ activity.sheet_name }}</div>
+                <div class="activity-name">{{ activity.name }}</div>
+                <div class="activity-module">{{ activity.module }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <div class="footer">
+            <p>محرك القواعد العربية - Arabic Grammar Engine</p>
+            <a href="/api/activities" class="api-link">View JSON API</a>
+        </div>
+    </div>
+</body>
+</html>
