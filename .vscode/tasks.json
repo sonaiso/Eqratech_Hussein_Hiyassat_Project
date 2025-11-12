@@ -1,0 +1,30 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Install requirements",
+      "type": "shell",
+      "command": "python -m pip install -r requirements.txt",
+      "group": "none",
+      "problemMatcher": []
+    },
+    {
+      "label": "Run server (run_server.py)",
+      "type": "shell",
+      "command": "python run_server.py",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "Run uvicorn with PYTHONPATH",
+      "type": "shell",
+      "command": "PYTHONPATH=. uvicorn web_app.main:app --reload --host 127.0.0.1 --port 8000",
+      "presentation": { "reveal": "always" }
+    }
+  ]
+}
