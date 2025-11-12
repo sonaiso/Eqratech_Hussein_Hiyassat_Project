@@ -1,0 +1,21 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Python: Run run_server.py",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/run_server.py",
+      "console": "integratedTerminal",
+      "env": { "PYTHONPATH": "${workspaceFolder}" }
+    },
+    {
+      "name": "Python: Uvicorn (module)",
+      "type": "python",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": ["web_app.main:app", "--reload", "--host", "127.0.0.1", "--port", "8000"],
+      "env": { "PYTHONPATH": "${workspaceFolder}" }
+    }
+  ]
+}
