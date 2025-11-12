@@ -2,6 +2,7 @@
 This version loads available engine classes once at application startup,
 uses structured Pydantic models for the API response, and logs errors.
 """
+from contextlib import asynccontextmanager
 from datetime import datetime
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
@@ -12,10 +13,6 @@ import os
 from typing import List
 
 logger = logging.getLogger("eqratech")
-app = FastAPI(title="Eqratech Arabic Diana Project - Activities")
-
-# Load templates from the package templates directory
-templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "templates"))
 
 # Cache of engine classes loaded at startup
 ENGINES: List[type] = []
@@ -30,8 +27,8 @@ class ActivitiesResponse(BaseModel):
     total_activities: int
     activities: List[ActivityOut]
 
-@app.on_event("startup")
-def load_engines():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     """Load engine classes once when the application starts.
 
     This function expects a collect_engines() function available from
@@ -49,17 +46,25 @@ def load_engines():
     try:
         engine_classes = collect_engines()
         if not isinstance(engine_classes, (list, tuple)):
-            logger.warning("collect_engines did not return a list/tuple. Got: %%s", type(engine_classes))
+            logger.warning("collect_engines did not return a list/tuple. Got: %s", type(engine_classes))
             engine_classes = list(engine_classes)
 
         for e in engine_classes:
             if isinstance(e, type):
                 ENGINES.append(e)
             else:
-                logger.warning("collect_engines returned non-class item: %%s", type(e))
+                logger.warning("collect_engines returned non-class item: %s", type(e))
     except Exception:
         logger.exception("Error while collecting engines")
         raise
+    
+    yield
+    # Cleanup code can go here if needed
+
+app = FastAPI(title="Eqratech Arabic Diana Project - Activities", lifespan=lifespan)
+
+# Load templates from the package templates directory
+templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "templates"))
 
 
 @app.get("/", response_class=HTMLResponse)
