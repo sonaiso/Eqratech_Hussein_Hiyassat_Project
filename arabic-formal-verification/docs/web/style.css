@@ -1,0 +1,514 @@
+/* SFGCOQ - نظام التحقق الرسمي للنحو العربي
+ * Systemic Functional Grammar - COQ Formal Verification
+ */
+
+:root {
+    --primary-color: #2c3e50;
+    --secondary-color: #3498db;
+    --accent-color: #e74c3c;
+    --success-color: #27ae60;
+    --warning-color: #f39c12;
+    --light-bg: #ecf0f1;
+    --dark-text: #2c3e50;
+    --light-text: #ffffff;
+    --border-color: #bdc3c7;
+    --shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', 'Arial', 'Tahoma', sans-serif;
+    line-height: 1.8;
+    color: var(--dark-text);
+    background-color: var(--light-bg);
+    direction: rtl;
+}
+
+/* Header Styles */
+header {
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+    color: var(--light-text);
+    padding: 2rem;
+    text-align: center;
+    box-shadow: var(--shadow);
+}
+
+header h1 {
+    font-size: 3rem;
+    margin-bottom: 0.5rem;
+    letter-spacing: 2px;
+}
+
+header .subtitle {
+    font-size: 1.3rem;
+    margin-bottom: 0.3rem;
+    opacity: 0.95;
+}
+
+header .description {
+    font-size: 1rem;
+    opacity: 0.8;
+    font-style: italic;
+}
+
+/* Navigation Styles */
+nav {
+    background-color: var(--primary-color);
+    padding: 0;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    box-shadow: var(--shadow);
+}
+
+nav ul {
+    list-style: none;
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+nav ul li {
+    margin: 0;
+}
+
+nav ul li a {
+    display: block;
+    color: var(--light-text);
+    text-decoration: none;
+    padding: 1rem 2rem;
+    transition: all 0.3s ease;
+    border-bottom: 3px solid transparent;
+}
+
+nav ul li a:hover,
+nav ul li a.active {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-bottom-color: var(--secondary-color);
+}
+
+/* Main Content */
+main {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+/* Section Styles */
+.section {
+    display: none;
+    background: white;
+    border-radius: 10px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+    box-shadow: var(--shadow);
+    animation: fadeIn 0.5s ease;
+}
+
+.section.active {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.section h2 {
+    color: var(--primary-color);
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 3px solid var(--secondary-color);
+}
+
+/* Home Section - Intro Grid */
+.intro-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-top: 1.5rem;
+}
+
+.intro-card {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    padding: 1.5rem;
+    border-radius: 10px;
+    text-align: center;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    border: 1px solid var(--border-color);
+}
+
+.intro-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
+}
+
+.intro-card h3 {
+    color: var(--secondary-color);
+    margin-bottom: 0.5rem;
+    font-size: 1.3rem;
+}
+
+.intro-card p {
+    color: #666;
+    font-size: 0.95rem;
+}
+
+/* Grammar Section */
+.grammar-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.grammar-filters {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.grammar-filters label {
+    font-weight: bold;
+    color: var(--primary-color);
+}
+
+.grammar-filters select {
+    padding: 0.5rem 1rem;
+    border: 2px solid var(--border-color);
+    border-radius: 5px;
+    font-size: 1rem;
+    background: white;
+    cursor: pointer;
+    transition: border-color 0.3s ease;
+}
+
+.grammar-filters select:focus {
+    outline: none;
+    border-color: var(--secondary-color);
+}
+
+.grammar-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.grammar-item {
+    background: #f8f9fa;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1.5rem;
+    transition: all 0.3s ease;
+}
+
+.grammar-item:hover {
+    border-color: var(--secondary-color);
+    box-shadow: 0 3px 15px rgba(0, 0, 0, 0.1);
+}
+
+.grammar-item h4 {
+    color: var(--primary-color);
+    margin-bottom: 0.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.grammar-item .category-badge {
+    background: var(--secondary-color);
+    color: white;
+    padding: 0.2rem 0.8rem;
+    border-radius: 15px;
+    font-size: 0.8rem;
+}
+
+.grammar-item .pattern {
+    background: var(--primary-color);
+    color: white;
+    padding: 0.3rem 0.8rem;
+    border-radius: 5px;
+    display: inline-block;
+    margin: 0.5rem 0;
+    font-family: monospace;
+}
+
+.grammar-item .examples {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: white;
+    border-radius: 5px;
+    border-right: 3px solid var(--secondary-color);
+}
+
+.grammar-item .example {
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px dashed var(--border-color);
+}
+
+.grammar-item .example:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.grammar-item .example .sentence {
+    font-size: 1.1rem;
+    color: var(--primary-color);
+    font-weight: bold;
+}
+
+.grammar-item .example .analysis {
+    font-size: 0.9rem;
+    color: #666;
+    margin-top: 0.3rem;
+}
+
+.grammar-item .coq-proof {
+    margin-top: 1rem;
+    padding: 0.8rem;
+    background: #2c3e50;
+    color: #27ae60;
+    border-radius: 5px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
+    direction: ltr;
+    text-align: left;
+    overflow-x: auto;
+}
+
+/* Verification Section */
+.verification-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+}
+
+@media (max-width: 768px) {
+    .verification-container {
+        grid-template-columns: 1fr;
+    }
+}
+
+.input-area {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.input-area label {
+    font-weight: bold;
+    color: var(--primary-color);
+}
+
+.input-area textarea {
+    padding: 1rem;
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 1.1rem;
+    font-family: inherit;
+    resize: vertical;
+    transition: border-color 0.3s ease;
+}
+
+.input-area textarea:focus {
+    outline: none;
+    border-color: var(--secondary-color);
+}
+
+.btn-primary {
+    background: var(--secondary-color);
+    color: white;
+    border: none;
+    padding: 1rem 2rem;
+    font-size: 1.1rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-primary:hover {
+    background: var(--primary-color);
+    transform: translateY(-2px);
+}
+
+.result-area {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 1.5rem;
+    border: 1px solid var(--border-color);
+}
+
+.result-area h3 {
+    color: var(--primary-color);
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid var(--secondary-color);
+}
+
+.result-area .placeholder {
+    color: #999;
+    font-style: italic;
+}
+
+.result-area .success {
+    color: var(--success-color);
+}
+
+.result-area .error {
+    color: var(--accent-color);
+}
+
+.result-item {
+    background: white;
+    padding: 1rem;
+    border-radius: 5px;
+    margin-bottom: 0.5rem;
+    border-right: 3px solid var(--secondary-color);
+}
+
+/* API Section */
+.api-docs {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.endpoint {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 1.5rem;
+    border: 1px solid var(--border-color);
+}
+
+.endpoint h3 {
+    color: var(--success-color);
+    font-family: monospace;
+    margin-bottom: 0.5rem;
+}
+
+.endpoint p {
+    color: #666;
+    margin-bottom: 1rem;
+}
+
+.endpoint code {
+    display: block;
+    background: var(--primary-color);
+    color: #27ae60;
+    padding: 1rem;
+    border-radius: 5px;
+    font-family: 'Courier New', monospace;
+    direction: ltr;
+    text-align: left;
+    overflow-x: auto;
+}
+
+/* Documentation Section */
+.docs-container {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+
+.docs-container article {
+    background: #f8f9fa;
+    padding: 1.5rem;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+}
+
+.docs-container article h3 {
+    color: var(--primary-color);
+    margin-bottom: 1rem;
+}
+
+.docs-container article p {
+    color: #555;
+    margin-bottom: 0.5rem;
+}
+
+.docs-container article ul {
+    margin: 1rem 2rem;
+}
+
+.docs-container article li {
+    margin-bottom: 0.5rem;
+    color: #555;
+}
+
+.docs-container article li strong {
+    color: var(--primary-color);
+}
+
+/* Footer */
+footer {
+    background: var(--primary-color);
+    color: var(--light-text);
+    text-align: center;
+    padding: 1.5rem;
+    margin-top: 2rem;
+}
+
+footer p {
+    margin: 0.3rem 0;
+    opacity: 0.9;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    header h1 {
+        font-size: 2rem;
+    }
+    
+    header .subtitle {
+        font-size: 1rem;
+    }
+    
+    nav ul {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    nav ul li a {
+        text-align: center;
+        padding: 0.8rem 1rem;
+    }
+    
+    main {
+        padding: 1rem;
+    }
+    
+    .section {
+        padding: 1.5rem;
+    }
+}
+
+/* Loading Animation */
+.loading {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid var(--border-color);
+    border-top-color: var(--secondary-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}

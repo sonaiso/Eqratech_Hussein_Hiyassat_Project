@@ -1,0 +1,223 @@
+{
+  "project": {
+    "name": "SFGCOQ",
+    "version": "1.0.0",
+    "description": "نظام التحقق الرسمي للقواعد النحوية الوظيفية العربية",
+    "description_en": "Systemic Functional Grammar - COQ Formal Verification for Arabic"
+  },
+  "grammar_rules": [
+    {
+      "id": "nominal_001",
+      "category": "nominal",
+      "name_ar": "المبتدأ والخبر",
+      "name_en": "Subject and Predicate",
+      "pattern": "مبتدأ + خبر",
+      "description": "الجملة الاسمية تتكون من مبتدأ مرفوع وخبر مرفوع",
+      "examples": [
+        {"sentence": "الكتابُ جديدٌ", "analysis": "الكتابُ: مبتدأ مرفوع، جديدٌ: خبر مرفوع"},
+        {"sentence": "الطالبُ مجتهدٌ", "analysis": "الطالبُ: مبتدأ مرفوع، مجتهدٌ: خبر مرفوع"}
+      ],
+      "coq_proof": "Theorem nominal_sentence : forall s p, is_mubtada s -> is_khabar p -> valid_sentence (Nominal s p)."
+    },
+    {
+      "id": "nominal_002",
+      "category": "nominal",
+      "name_ar": "كان وأخواتها",
+      "name_en": "Kana and Sisters",
+      "pattern": "كان + اسم كان (مرفوع) + خبر كان (منصوب)",
+      "description": "الأفعال الناسخة ترفع الاسم وتنصب الخبر",
+      "examples": [
+        {"sentence": "كان الجوُّ جميلاً", "analysis": "كان: فعل ناسخ، الجوُّ: اسم كان مرفوع، جميلاً: خبر كان منصوب"},
+        {"sentence": "أصبح الطالبُ نشيطاً", "analysis": "أصبح: فعل ناسخ، الطالبُ: اسم أصبح مرفوع، نشيطاً: خبر أصبح منصوب"}
+      ],
+      "coq_proof": "Theorem kana_sisters : forall k n kh, is_naasikh k -> is_ism_kana n -> is_khabar_kana kh -> valid_sentence (Kana k n kh)."
+    },
+    {
+      "id": "nominal_003",
+      "category": "nominal",
+      "name_ar": "إن وأخواتها",
+      "name_en": "Inna and Sisters",
+      "pattern": "إنّ + اسم إنّ (منصوب) + خبر إنّ (مرفوع)",
+      "description": "الحروف الناسخة تنصب الاسم وترفع الخبر",
+      "examples": [
+        {"sentence": "إنّ العلمَ نورٌ", "analysis": "إنّ: حرف ناسخ، العلمَ: اسم إنّ منصوب، نورٌ: خبر إنّ مرفوع"},
+        {"sentence": "لعلّ الخيرَ قادمٌ", "analysis": "لعلّ: حرف ناسخ، الخيرَ: اسم لعلّ منصوب، قادمٌ: خبر لعلّ مرفوع"}
+      ],
+      "coq_proof": "Theorem inna_sisters : forall i n kh, is_harf_naasikh i -> is_ism_inna n -> is_khabar_inna kh -> valid_sentence (Inna i n kh)."
+    },
+    {
+      "id": "verbal_001",
+      "category": "verbal",
+      "name_ar": "الجملة الفعلية الأساسية",
+      "name_en": "Basic Verbal Sentence",
+      "pattern": "فعل + فاعل",
+      "description": "الجملة الفعلية تتكون من فعل وفاعل مرفوع",
+      "examples": [
+        {"sentence": "جاء الطالبُ", "analysis": "جاء: فعل ماضٍ، الطالبُ: فاعل مرفوع"},
+        {"sentence": "يكتب المعلمُ", "analysis": "يكتب: فعل مضارع، المعلمُ: فاعل مرفوع"}
+      ],
+      "coq_proof": "Theorem verbal_basic : forall v f, is_verb v -> is_faail f -> valid_sentence (Verbal v f)."
+    },
+    {
+      "id": "verbal_002",
+      "category": "verbal",
+      "name_ar": "الجملة الفعلية المتعدية",
+      "name_en": "Transitive Verbal Sentence",
+      "pattern": "فعل + فاعل + مفعول به",
+      "description": "الجملة الفعلية مع مفعول به منصوب",
+      "examples": [
+        {"sentence": "قرأ الطالبُ الكتابَ", "analysis": "قرأ: فعل ماضٍ، الطالبُ: فاعل مرفوع، الكتابَ: مفعول به منصوب"},
+        {"sentence": "يشرح المعلمُ الدرسَ", "analysis": "يشرح: فعل مضارع، المعلمُ: فاعل مرفوع، الدرسَ: مفعول به منصوب"}
+      ],
+      "coq_proof": "Theorem verbal_transitive : forall v f m, is_verb v -> is_faail f -> is_mafoul_bih m -> valid_sentence (Transitive v f m)."
+    },
+    {
+      "id": "verbal_003",
+      "category": "verbal",
+      "name_ar": "المبني للمجهول",
+      "name_en": "Passive Voice",
+      "pattern": "فعل مبني للمجهول + نائب فاعل",
+      "description": "في المبني للمجهول يحل نائب الفاعل محل الفاعل ويكون مرفوعاً",
+      "examples": [
+        {"sentence": "كُتب الدرسُ", "analysis": "كُتب: فعل ماضٍ مبني للمجهول، الدرسُ: نائب فاعل مرفوع"},
+        {"sentence": "يُقرأ الكتابُ", "analysis": "يُقرأ: فعل مضارع مبني للمجهول، الكتابُ: نائب فاعل مرفوع"}
+      ],
+      "coq_proof": "Theorem passive_voice : forall v nf, is_passive_verb v -> is_naib_faail nf -> valid_sentence (Passive v nf)."
+    },
+    {
+      "id": "particles_001",
+      "category": "particles",
+      "name_ar": "حروف الجر",
+      "name_en": "Prepositions",
+      "pattern": "حرف جر + اسم مجرور",
+      "description": "حرف الجر يجر الاسم الذي يليه",
+      "examples": [
+        {"sentence": "في البيتِ", "analysis": "في: حرف جر، البيتِ: اسم مجرور"},
+        {"sentence": "على الطاولةِ", "analysis": "على: حرف جر، الطاولةِ: اسم مجرور"}
+      ],
+      "coq_proof": "Theorem preposition : forall p n, is_harf_jar p -> is_majrour n -> valid_phrase (Jarr p n)."
+    },
+    {
+      "id": "particles_002",
+      "category": "particles",
+      "name_ar": "حروف العطف",
+      "name_en": "Conjunctions",
+      "pattern": "معطوف عليه + حرف عطف + معطوف",
+      "description": "حرف العطف يربط بين معطوف عليه ومعطوف بنفس الإعراب",
+      "examples": [
+        {"sentence": "جاء محمدٌ وعليٌّ", "analysis": "محمدٌ: معطوف عليه مرفوع، و: حرف عطف، عليٌّ: معطوف مرفوع"},
+        {"sentence": "قرأتُ الكتابَ والمجلةَ", "analysis": "الكتابَ: معطوف عليه منصوب، و: حرف عطف، المجلةَ: معطوف منصوب"}
+      ],
+      "coq_proof": "Theorem conjunction : forall ma ha m, same_irab ma m -> is_harf_atf ha -> valid_phrase (Atf ma ha m)."
+    },
+    {
+      "id": "morphology_001",
+      "category": "morphology",
+      "name_ar": "المثنى",
+      "name_en": "Dual Form",
+      "pattern": "اسم + ان/ين",
+      "description": "المثنى يرفع بالألف وينصب ويجر بالياء",
+      "examples": [
+        {"sentence": "جاء الطالبان", "analysis": "الطالبان: فاعل مرفوع بالألف (مثنى)"},
+        {"sentence": "رأيتُ الطالبَين", "analysis": "الطالبَين: مفعول به منصوب بالياء (مثنى)"}
+      ],
+      "coq_proof": "Theorem dual_form : forall n, is_muthanna n -> (marfou_bi_alif n /\\ mansoub_bi_ya n /\\ majrour_bi_ya n)."
+    },
+    {
+      "id": "morphology_002",
+      "category": "morphology",
+      "name_ar": "جمع المذكر السالم",
+      "name_en": "Sound Masculine Plural",
+      "pattern": "اسم + ون/ين",
+      "description": "جمع المذكر السالم يرفع بالواو وينصب ويجر بالياء",
+      "examples": [
+        {"sentence": "جاء المعلمون", "analysis": "المعلمون: فاعل مرفوع بالواو (جمع مذكر سالم)"},
+        {"sentence": "رأيتُ المعلمين", "analysis": "المعلمين: مفعول به منصوب بالياء (جمع مذكر سالم)"}
+      ],
+      "coq_proof": "Theorem masculine_plural : forall n, is_jam_muthakkar_salim n -> (marfou_bi_waw n /\\ mansoub_bi_ya n /\\ majrour_bi_ya n)."
+    },
+    {
+      "id": "morphology_003",
+      "category": "morphology",
+      "name_ar": "جمع المؤنث السالم",
+      "name_en": "Sound Feminine Plural",
+      "pattern": "اسم + ات",
+      "description": "جمع المؤنث السالم يرفع بالضمة وينصب ويجر بالكسرة",
+      "examples": [
+        {"sentence": "جاءت المعلماتُ", "analysis": "المعلماتُ: فاعل مرفوع بالضمة (جمع مؤنث سالم)"},
+        {"sentence": "رأيتُ المعلماتِ", "analysis": "المعلماتِ: مفعول به منصوب بالكسرة (جمع مؤنث سالم)"}
+      ],
+      "coq_proof": "Theorem feminine_plural : forall n, is_jam_muannath_salim n -> (marfou_bi_damma n /\\ mansoub_bi_kasra n /\\ majrour_bi_kasra n)."
+    }
+  ],
+  "metafunctions": {
+    "ideational": {
+      "name_ar": "الوظيفة الفكرية",
+      "name_en": "Ideational Metafunction",
+      "description": "تتعلق بتمثيل الخبرات والأفكار - من يفعل ماذا لمن وأين ومتى",
+      "components": ["العمليات", "المشاركون", "الظروف"]
+    },
+    "interpersonal": {
+      "name_ar": "الوظيفة البينشخصية",
+      "name_en": "Interpersonal Metafunction",
+      "description": "تتعلق بالعلاقات الاجتماعية والتفاعل بين المتحدثين",
+      "components": ["المزاج", "الجهة", "التقييم"]
+    },
+    "textual": {
+      "name_ar": "الوظيفة النصية",
+      "name_en": "Textual Metafunction",
+      "description": "تتعلق بتنظيم الرسالة وتدفق المعلومات",
+      "components": ["الموضوع والتعليق", "المعلوم والجديد", "الترابط"]
+    }
+  },
+  "case_markers": {
+    "nominative": {
+      "name_ar": "الرفع",
+      "marker": "ضمة",
+      "uses": ["المبتدأ", "الخبر", "الفاعل", "نائب الفاعل", "اسم كان", "خبر إنّ"]
+    },
+    "accusative": {
+      "name_ar": "النصب",
+      "marker": "فتحة",
+      "uses": ["المفعول به", "خبر كان", "اسم إنّ", "الحال", "التمييز", "المفعول المطلق"]
+    },
+    "genitive": {
+      "name_ar": "الجر",
+      "marker": "كسرة",
+      "uses": ["المجرور بحرف الجر", "المضاف إليه"]
+    }
+  },
+  "api_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/grammar",
+      "description": "استرجاع قائمة القواعد النحوية",
+      "response_type": "array"
+    },
+    {
+      "method": "GET",
+      "path": "/api/grammar/{id}",
+      "description": "استرجاع قاعدة نحوية محددة",
+      "response_type": "object"
+    },
+    {
+      "method": "POST",
+      "path": "/api/verify",
+      "description": "التحقق من صحة جملة عربية",
+      "request_body": {"sentence": "string"},
+      "response_type": "object"
+    },
+    {
+      "method": "GET",
+      "path": "/api/parse/{sentence}",
+      "description": "تحليل جملة عربية",
+      "response_type": "object"
+    },
+    {
+      "method": "GET",
+      "path": "/api/metafunctions",
+      "description": "استرجاع معلومات الوظائف الثلاث",
+      "response_type": "object"
+    }
+  ]
+}

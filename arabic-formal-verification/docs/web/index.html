@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SFGCOQ - نظام التحقق الرسمي للنحو العربي</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1>SFGCOQ</h1>
+        <p class="subtitle">نظام التحقق الرسمي للقواعد النحوية الوظيفية العربية</p>
+        <p class="description">Systemic Functional Grammar - COQ Formal Verification</p>
+    </header>
+
+    <nav>
+        <ul>
+            <li><a href="#home" class="active" data-section="home">الرئيسية</a></li>
+            <li><a href="#grammar" data-section="grammar">القواعد النحوية</a></li>
+            <li><a href="#verification" data-section="verification">التحقق الرسمي</a></li>
+            <li><a href="#api" data-section="api">واجهة البرمجة</a></li>
+            <li><a href="#docs" data-section="docs">التوثيق</a></li>
+        </ul>
+    </nav>
+
+    <main>
+        <section id="home" class="section active">
+            <h2>مرحباً بك في SFGCOQ</h2>
+            <div class="intro-grid">
+                <div class="intro-card">
+                    <h3>🔍 التحليل النحوي</h3>
+                    <p>تحليل الجمل العربية باستخدام نظرية النحو الوظيفي النظامي</p>
+                </div>
+                <div class="intro-card">
+                    <h3>✓ التحقق الرسمي</h3>
+                    <p>إثبات صحة القواعد النحوية باستخدام COQ</p>
+                </div>
+                <div class="intro-card">
+                    <h3>📚 قاعدة بيانات شاملة</h3>
+                    <p>مكتبة واسعة من القواعد والأمثلة العربية</p>
+                </div>
+                <div class="intro-card">
+                    <h3>🔗 واجهة برمجة</h3>
+                    <p>API متكاملة للتكامل مع التطبيقات الأخرى</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="grammar" class="section">
+            <h2>القواعد النحوية الوظيفية</h2>
+            <div class="grammar-container">
+                <div class="grammar-filters">
+                    <label for="category-filter">تصفية حسب الفئة:</label>
+                    <select id="category-filter">
+                        <option value="all">جميع الفئات</option>
+                        <option value="nominal">الجملة الاسمية</option>
+                        <option value="verbal">الجملة الفعلية</option>
+                        <option value="particles">الحروف</option>
+                        <option value="morphology">الصرف</option>
+                    </select>
+                </div>
+                <div id="grammar-list" class="grammar-list">
+                    <!-- Grammar items will be loaded dynamically -->
+                </div>
+            </div>
+        </section>
+
+        <section id="verification" class="section">
+            <h2>التحقق الرسمي</h2>
+            <div class="verification-container">
+                <div class="input-area">
+                    <label for="sentence-input">أدخل الجملة العربية:</label>
+                    <textarea id="sentence-input" placeholder="اكتب الجملة هنا..." rows="4"></textarea>
+                    <button id="verify-btn" class="btn-primary">تحقق من الجملة</button>
+                </div>
+                <div id="verification-result" class="result-area">
+                    <h3>نتيجة التحقق</h3>
+                    <div id="result-content">
+                        <!-- Results will be displayed here -->
+                        <p class="placeholder">أدخل جملة للتحقق من صحتها النحوية</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="api" class="section">
+            <h2>واجهة البرمجة (API)</h2>
+            <div class="api-docs">
+                <div class="endpoint">
+                    <h3>GET /api/grammar</h3>
+                    <p>استرجاع قائمة القواعد النحوية</p>
+                    <code>curl -X GET https://api.sfgcoq.example/grammar</code>
+                </div>
+                <div class="endpoint">
+                    <h3>POST /api/verify</h3>
+                    <p>التحقق من صحة جملة عربية</p>
+                    <code>curl -X POST https://api.sfgcoq.example/verify -d '{"sentence": "الكتاب على الطاولة"}'</code>
+                </div>
+                <div class="endpoint">
+                    <h3>GET /api/parse/{sentence}</h3>
+                    <p>تحليل جملة عربية</p>
+                    <code>curl -X GET https://api.sfgcoq.example/parse/الكتاب%20على%20الطاولة</code>
+                </div>
+            </div>
+        </section>
+
+        <section id="docs" class="section">
+            <h2>التوثيق</h2>
+            <div class="docs-container">
+                <article>
+                    <h3>مقدمة</h3>
+                    <p>SFGCOQ هو نظام للتحقق الرسمي من القواعد النحوية العربية باستخدام نظرية النحو الوظيفي النظامي (Systemic Functional Grammar) ونظام COQ للإثبات الرياضي.</p>
+                </article>
+                <article>
+                    <h3>النحو الوظيفي النظامي</h3>
+                    <p>النحو الوظيفي النظامي هو نظرية لغوية طورها مايكل هاليداي، تركز على اللغة كنظام اجتماعي-دلالي. يقسم هذا النظام المعاني إلى ثلاث وظائف رئيسية:</p>
+                    <ul>
+                        <li><strong>الوظيفة الفكرية:</strong> تتعلق بتمثيل الخبرات والأفكار</li>
+                        <li><strong>الوظيفة البينشخصية:</strong> تتعلق بالعلاقات الاجتماعية</li>
+                        <li><strong>الوظيفة النصية:</strong> تتعلق بتنظيم الرسالة</li>
+                    </ul>
+                </article>
+                <article>
+                    <h3>التحقق الرسمي بـ COQ</h3>
+                    <p>نستخدم نظام COQ لإثبات صحة القواعد النحوية رياضياً، مما يضمن دقة التحليل النحوي وخلوه من التناقضات.</p>
+                </article>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>© 2024 SFGCOQ - نظام التحقق الرسمي للنحو العربي</p>
+        <p>جزء من مشروع Eqratech Arabic Diana</p>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>
