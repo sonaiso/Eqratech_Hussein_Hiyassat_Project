@@ -33,7 +33,6 @@ async function loadData() {
             throw new Error('Failed to load data');
         }
         appData = await response.json();
-        console.log('SFGCOQ Data loaded successfully:', appData.project.name);
     } catch (error) {
         console.error('Error loading data:', error);
         showError('فشل في تحميل البيانات. يرجى تحديث الصفحة.');
@@ -220,10 +219,10 @@ function verifySentence(sentence) {
             result.matchedRules.push('verbal_001');
         }
         
-        // Check for particles
-        const commonParticles = ['في', 'على', 'من', 'إلى', 'عن', 'مع', 'ب', 'ل', 'ك'];
+        // Check for particles (using Set for O(1) lookup)
+        const commonParticles = new Set(['في', 'على', 'من', 'إلى', 'عن', 'مع', 'ب', 'ل', 'ك']);
         words.forEach((word, index) => {
-            if (commonParticles.includes(word)) {
+            if (commonParticles.has(word)) {
                 result.analysis.push({
                     type: 'particle',
                     description: `"${word}" - حرف جر في الموضع ${index + 1}`
@@ -349,16 +348,6 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
-}
-
-/**
- * Format COQ proof for display
- */
-function formatCoqProof(proof) {
-    return proof
-        .replace(/Theorem/g, '<span class="coq-keyword">Theorem</span>')
-        .replace(/forall/g, '<span class="coq-keyword">forall</span>')
-        .replace(/->/g, '→');
 }
 
 // Export functions for testing
