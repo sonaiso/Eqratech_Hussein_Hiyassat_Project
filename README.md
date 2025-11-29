@@ -43,8 +43,8 @@ pip install -r requirements.txt
 # Run the server
 python run_server.py
 
-# Or using FastAPI directly
-uvicorn main:app --reload
+# Or using uvicorn directly
+uvicorn web_app.main:app --reload
 ```
 
 ---
