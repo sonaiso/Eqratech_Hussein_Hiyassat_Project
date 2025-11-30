@@ -1191,4 +1191,292 @@ Proof. reflexivity. Qed.
 Lemma fib_check_6 : F6_DISCOURSE = F4_SYNTAX + F5_SEMANTICS.
 Proof. reflexivity. Qed.
 
+(** ========================================================== *)
+(**  Part 25: ربط الأحرف الزائدة بـ C1/C2/C3 عبر فيبوناتشي     *)
+(**  Extra Letters - C1/C2/C3 Fibonacci Relation                *)
+(** ========================================================== *)
+
+(* 
+   الأحرف الزائدة العشرة: س ء ل ت م و ن ي ه ا
+   تُضاف حول الجذر (C1-C2-C3) لتكوين الصيغ الصرفية
+   
+   المقادير:
+   - n_b: عدد الأحرف الزائدة قبل C2
+   - n_a: عدد الأحرف الزائدة بعد C2
+   - n_extra = n_b + n_a: المجموع الكلي
+*)
+
+(* الأحرف الزائدة العشرة *)
+Inductive ExtraLetter :=
+| EL_Sin    (* س = 13 *)
+| EL_Hamza  (* ء = 1 *)
+| EL_Lam    (* ل = 24 *)
+| EL_Ta     (* ت = 4 *)
+| EL_Mim    (* م = 25 *)
+| EL_Waw    (* و = 28 *)
+| EL_Nun    (* ن = 26 *)
+| EL_Ya     (* ي = 29 *)
+| EL_Ha     (* ه = 27 *)
+| EL_Alif.  (* ا = 2 *)
+
+(* قيمة كل حرف زائد *)
+Definition extra_letter_value (e : ExtraLetter) : nat :=
+  match e with
+  | EL_Sin => 13   | EL_Hamza => 1  | EL_Lam => 24 | EL_Ta => 4
+  | EL_Mim => 25   | EL_Waw => 28   | EL_Nun => 26 | EL_Ya => 29
+  | EL_Ha => 27    | EL_Alif => 2
+  end.
+
+(* مجموع قيم الأحرف الزائدة = 179 *)
+Definition total_extra_letters_value : nat :=
+  13 + 1 + 24 + 4 + 25 + 28 + 26 + 29 + 27 + 2.
+
+Lemma extra_letters_sum_179 : total_extra_letters_value = 179.
+Proof. reflexivity. Qed.
+
+(* بنية الصيغة الصرفية مع الأحرف الزائدة *)
+Record MorphPattern := {
+  mp_root : FractalTriad;              (* الجذر: C1-C2-C3 *)
+  mp_extra_before : list ExtraLetter;  (* الأحرف الزائدة قبل C2 *)
+  mp_extra_after  : list ExtraLetter   (* الأحرف الزائدة بعد C2 *)
+}.
+
+(* عدد الأحرف الزائدة قبل C2 *)
+Definition n_before (mp : MorphPattern) : nat :=
+  length mp.(mp_extra_before).
+
+(* عدد الأحرف الزائدة بعد C2 *)
+Definition n_after (mp : MorphPattern) : nat :=
+  length mp.(mp_extra_after).
+
+(* مجموع الأحرف الزائدة *)
+Definition n_extra (mp : MorphPattern) : nat :=
+  n_before mp + n_after mp.
+
+(** ========================================================== *)
+(**  Part 26: دالة التعقيد الصرفي الفراكتالي                    *)
+(**  Morphological Fractal Complexity Function                  *)
+(** ========================================================== *)
+
+(*
+   الصيغة الفراكتالية للتعقيد الصرفي:
+   
+   F_morph(mp) = Fib(n_extra + 2) + (n_before × fk_rca) + (n_after × fk_rba)
+   
+   حيث:
+   - Fib: متوالية فيبوناتشي
+   - n_extra: مجموع الأحرف الزائدة
+   - fk_rca: علاقة C2→C3 (مركزية C2)
+   - fk_rba: علاقة C1→C3
+*)
+
+(* دالة فيبوناتشي القياسية *)
+Fixpoint fib (n : nat) : nat :=
+  match n with
+  | 0 => 0
+  | S n' =>
+    match n' with
+    | 0 => 1
+    | S n'' => fib n' + fib n''
+    end
+  end.
+
+(* التحقق من قيم فيبوناتشي *)
+Lemma fib_0 : fib 0 = 0. Proof. reflexivity. Qed.
+Lemma fib_1 : fib 1 = 1. Proof. reflexivity. Qed.
+Lemma fib_2 : fib 2 = 1. Proof. reflexivity. Qed.
+Lemma fib_3 : fib 3 = 2. Proof. reflexivity. Qed.
+Lemma fib_4 : fib 4 = 3. Proof. reflexivity. Qed.
+Lemma fib_5 : fib 5 = 5. Proof. reflexivity. Qed.
+Lemma fib_6 : fib 6 = 8. Proof. reflexivity. Qed.
+Lemma fib_7 : fib 7 = 13. Proof. reflexivity. Qed.
+
+(* دالة التعقيد الصرفي الفراكتالي *)
+Definition morphological_complexity (mp : MorphPattern) : nat :=
+  let kernel := make_kernel mp.(mp_root) 0 in
+  let base_fib := fib (n_extra mp + 2) in
+  let c2_weight := n_before mp * kernel.(fk_rca) in
+  let c3_weight := n_after mp * kernel.(fk_rba) in
+  base_fib + c2_weight + c3_weight.
+
+(** ========================================================== *)
+(**  Part 27: أمثلة الصيغ الصرفية                               *)
+(**  Morphological Pattern Examples                             *)
+(** ========================================================== *)
+
+(* 1. فعل مجرد: كَتَبَ - لا زوائد *)
+Definition mp_kataba : MorphPattern := {|
+  mp_root := triad_ktb;
+  mp_extra_before := [];
+  mp_extra_after := []
+|}.
+
+(* 2. فعل مزيد: استكتب - زوائد: ا س ت قبل الجذر *)
+Definition mp_istaktaba : MorphPattern := {|
+  mp_root := triad_ktb;
+  mp_extra_before := [EL_Alif; EL_Sin; EL_Ta];
+  mp_extra_after := []
+|}.
+
+(* 3. فعل مزيد: كاتَبَ - زوائد: ا بعد C1 *)
+Definition mp_kaataba : MorphPattern := {|
+  mp_root := triad_ktb;
+  mp_extra_before := [EL_Alif];
+  mp_extra_after := []
+|}.
+
+(* 4. فعل مزيد: تكاتَبَ - زوائد: ت + ا *)
+Definition mp_takaataba : MorphPattern := {|
+  mp_root := triad_ktb;
+  mp_extra_before := [EL_Ta; EL_Alif];
+  mp_extra_after := []
+|}.
+
+(* 5. اسم مفعول: مكتوب - زوائد: م قبل + و بعد *)
+Definition mp_maktoob : MorphPattern := {|
+  mp_root := triad_ktb;
+  mp_extra_before := [EL_Mim];
+  mp_extra_after := [EL_Waw]
+|}.
+
+(* اختبار عدد الزوائد *)
+Lemma kataba_n_extra_0 : n_extra mp_kataba = 0. Proof. reflexivity. Qed.
+Lemma istaktaba_n_extra_3 : n_extra mp_istaktaba = 3. Proof. reflexivity. Qed.
+Lemma kaataba_n_extra_1 : n_extra mp_kaataba = 1. Proof. reflexivity. Qed.
+Lemma takaataba_n_extra_2 : n_extra mp_takaataba = 2. Proof. reflexivity. Qed.
+Lemma maktoob_n_extra_2 : n_extra mp_maktoob = 2. Proof. reflexivity. Qed.
+
+(* حساب التعقيد الصرفي *)
+Lemma kataba_complexity : morphological_complexity mp_kataba = 1.
+Proof. reflexivity. Qed.  (* fib(2) + 0 + 0 = 1 *)
+
+Lemma istaktaba_complexity : morphological_complexity mp_istaktaba = 26.
+Proof. reflexivity. Qed.  (* fib(5) + 3×7 + 0 = 5 + 21 = 26 *)
+
+Lemma maktoob_complexity : morphological_complexity mp_maktoob = 36.
+Proof. reflexivity. Qed.  (* fib(4) + 1×7 + 1×26 = 3 + 7 + 26 = 36 *)
+
+(** ========================================================== *)
+(**  Part 28: سلسلة الاشتقاق الكاملة                            *)
+(**  Complete Derivation Chain                                  *)
+(** ========================================================== *)
+
+(*
+   سلسلة التوليد:
+   
+   الجذر (C1-C2-C3)
+      ↓
+   ربط C2 مع C1 (rcb)
+      ↓
+   ربط (C2+C1) مع C3 (rba)
+      ↓
+   إضافة الأحرف الزائدة حول C2
+      ↓
+   الكلمة المشتقة
+*)
+
+(* مراحل الاشتقاق *)
+Inductive DerivationStage :=
+| DS_Root           (* الجذر الأصلي *)
+| DS_C2_C1_Link     (* ربط C2 مع C1 *)
+| DS_C2C1_C3_Link   (* ربط (C2+C1) مع C3 *)
+| DS_AddExtras      (* إضافة الأحرف الزائدة *)
+| DS_Complete.      (* الكلمة الكاملة *)
+
+(* بنية سلسلة الاشتقاق *)
+Record DerivationChain := {
+  dc_root    : FractalTriad;
+  dc_stage   : DerivationStage;
+  dc_extras  : list ExtraLetter;
+  dc_value   : nat  (* القيمة الفراكتالية التراكمية *)
+}.
+
+(* بناء سلسلة الاشتقاق خطوة بخطوة *)
+Definition start_chain (t : FractalTriad) : DerivationChain := {|
+  dc_root := t;
+  dc_stage := DS_Root;
+  dc_extras := [];
+  dc_value := triad_total_value t
+|}.
+
+Definition link_c2_c1 (dc : DerivationChain) : DerivationChain := {|
+  dc_root := dc.(dc_root);
+  dc_stage := DS_C2_C1_Link;
+  dc_extras := dc.(dc_extras);
+  dc_value := dc.(dc_value) + relation_value dc.(dc_root) FR_rcb
+|}.
+
+Definition link_c2c1_c3 (dc : DerivationChain) : DerivationChain := {|
+  dc_root := dc.(dc_root);
+  dc_stage := DS_C2C1_C3_Link;
+  dc_extras := dc.(dc_extras);
+  dc_value := dc.(dc_value) + relation_value dc.(dc_root) FR_rba
+|}.
+
+Definition add_extras (dc : DerivationChain) (extras : list ExtraLetter) : DerivationChain := {|
+  dc_root := dc.(dc_root);
+  dc_stage := DS_AddExtras;
+  dc_extras := extras;
+  dc_value := dc.(dc_value) + fib (length extras + 2)
+|}.
+
+Definition complete_chain (dc : DerivationChain) : DerivationChain := {|
+  dc_root := dc.(dc_root);
+  dc_stage := DS_Complete;
+  dc_extras := dc.(dc_extras);
+  dc_value := dc.(dc_value)
+|}.
+
+(* مثال: سلسلة اشتقاق استكتب *)
+Definition chain_istaktaba_1 := start_chain triad_ktb.
+Definition chain_istaktaba_2 := link_c2_c1 chain_istaktaba_1.
+Definition chain_istaktaba_3 := link_c2c1_c3 chain_istaktaba_2.
+Definition chain_istaktaba_4 := add_extras chain_istaktaba_3 [EL_Alif; EL_Sin; EL_Ta].
+Definition chain_istaktaba_5 := complete_chain chain_istaktaba_4.
+
+(* التحقق من قيم السلسلة *)
+Lemma chain_1_value : chain_istaktaba_1.(dc_value) = 30.
+Proof. reflexivity. Qed.  (* الجذر ك-ت-ب *)
+
+Lemma chain_2_value : chain_istaktaba_2.(dc_value) = 57.
+Proof. reflexivity. Qed.  (* 30 + 27 (rcb) *)
+
+Lemma chain_3_value : chain_istaktaba_3.(dc_value) = 83.
+Proof. reflexivity. Qed.  (* 57 + 26 (rba) *)
+
+Lemma chain_4_value : chain_istaktaba_4.(dc_value) = 88.
+Proof. reflexivity. Qed.  (* 83 + fib(5) = 83 + 5 *)
+
+Lemma chain_5_value : chain_istaktaba_5.(dc_value) = 88.
+Proof. reflexivity. Qed.  (* القيمة النهائية *)
+
+(** ========================================================== *)
+(**  Part 29: جدول التعقيد الصرفي لصيغ الفعل                    *)
+(**  Verb Pattern Morphological Complexity Table                *)
+(** ========================================================== *)
+
+(*
+   | الصيغة     | الزوائد      | n_b | n_a | n_extra | Complexity |
+   |------------|--------------|-----|-----|---------|------------|
+   | كَتَبَ      | (لا زوائد)   | 0   | 0   | 0       | 1          |
+   | كاتَبَ     | ا            | 1   | 0   | 1       | 9          |
+   | تكاتَبَ    | ت، ا         | 2   | 0   | 2       | 16         |
+   | استكتب     | ا، س، ت      | 3   | 0   | 3       | 26         |
+   | مكتوب     | م، و         | 1   | 1   | 2       | 36         |
+   
+   الملاحظة: التعقيد يزداد مع:
+   1. عدد الأحرف الزائدة (عبر فيبوناتشي)
+   2. موقع الأحرف الزائدة (قبل أو بعد C2)
+   3. قيم العلاقات الفراكتالية (rca، rba)
+*)
+
+(* إثبات تزايد التعقيد *)
+Lemma complexity_increases_with_extras :
+  morphological_complexity mp_kataba < morphological_complexity mp_kaataba.
+Proof. reflexivity. Qed.
+
+Lemma complexity_kaataba_lt_takaataba :
+  morphological_complexity mp_kaataba < morphological_complexity mp_takaataba.
+Proof. reflexivity. Qed.
+
 End AGT_Mathematical.
