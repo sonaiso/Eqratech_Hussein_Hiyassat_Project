@@ -1479,4 +1479,418 @@ Lemma complexity_kaataba_lt_takaataba :
   morphological_complexity mp_kaataba < morphological_complexity mp_takaataba.
 Proof. reflexivity. Qed.
 
+(** ========================================================== *)
+(**  Part 30: مواقع الأحرف الزائدة حول C1/C2/C3                   *)
+(**  Extra Letter Positions Relative to C1/C2/C3                  *)
+(** ========================================================== *)
+
+(* تقسيم مواقع الأحرف الزائدة حول الجذر *)
+Inductive ExtraPosition :=
+| EP_BeforeC1     (* قبل C1: مثل الهمزة في أَفْعَلَ، استـ في استفعل *)
+| EP_BetweenC1C2  (* بين C1 و C2: مثل الألف في فاعَلَ *)
+| EP_BetweenC2C3  (* بين C2 و C3: مثل الواو في مَفْعُول *)
+| EP_AfterC3.     (* بعد C3: مثل التاء في كاتِبة، النون في يكتبون *)
+
+(* الأحرف الزائدة العشرة مع مواقعها الممكنة *)
+Record ExtraLetterProfile := {
+  elp_letter   : ArabicLetter;
+  elp_position : ExtraPosition;
+  elp_value    : nat
+}.
+
+(* أمثلة على الأحرف الزائدة في مواقعها *)
+Definition extra_hamza_istifal := {|
+  elp_letter := L_Hamza;
+  elp_position := EP_BeforeC1;
+  elp_value := 1
+|}.
+
+Definition extra_sin_istifal := {|
+  elp_letter := L_Sin;
+  elp_position := EP_BeforeC1;
+  elp_value := 13
+|}.
+
+Definition extra_alif_faa3il := {|
+  elp_letter := L_Alif;
+  elp_position := EP_BetweenC1C2;
+  elp_value := 2
+|}.
+
+Definition extra_waw_maf3ul := {|
+  elp_letter := L_Waw;
+  elp_position := EP_BetweenC2C3;
+  elp_value := 28
+|}.
+
+Definition extra_nun_jama3 := {|
+  elp_letter := L_Nun;
+  elp_position := EP_AfterC3;
+  elp_value := 26
+|}.
+
+(** ========================================================== *)
+(**  Part 31: الوظائف الأربع للأحرف الزائدة                       *)
+(**  Four Functional Categories of Extra Letters                  *)
+(** ========================================================== *)
+
+(* التصنيف الوظيفي للأحرف الزائدة *)
+Inductive ExtraFunction :=
+(* 1. وظائف اشتقاقية - تغيّر معنى الجذر *)
+| EF_Derivational_Causative    (* تعدية: أَفْعَلَ *)
+| EF_Derivational_Reflexive    (* مطاوعة: انفعل، افتعل *)
+| EF_Derivational_Request      (* طلب: استفعل *)
+| EF_Derivational_Reciprocal   (* مشاركة: فاعَلَ، تفاعَلَ *)
+| EF_Derivational_Intensive    (* مبالغة: فَعَّلَ *)
+
+(* 2. وظائف تصريفية - تغيّر صيغة الكلمة *)
+| EF_Inflectional_Tense        (* زمن: أحرف المضارعة أ/ن/ي/ت *)
+| EF_Inflectional_Person       (* شخص: ضمائر الرفع المتصلة *)
+| EF_Inflectional_Number       (* عدد: ألف الاثنين، واو الجماعة، نون النسوة *)
+| EF_Inflectional_Gender       (* جنس: تاء التأنيث *)
+| EF_Inflectional_Passive      (* مبني للمجهول *)
+
+(* 3. وظائف منطقية/أسلوبية *)
+| EF_Logical_Negation          (* نفي: ما، لا، لم *)
+| EF_Logical_Interrogative     (* استفهام: أ، هل *)
+| EF_Logical_Condition         (* شرط: إن *)
+| EF_Logical_Emphasis          (* توكيد: نون التوكيد *)
+
+(* 4. وظائف صوتية/فونولوجية *)
+| EF_Phonological_Ease         (* تسهيل: همزة الوصل *)
+| EF_Phonological_Extension    (* مد: الألف، الواو، الياء *)
+| EF_Phonological_Assimilation.(* إدغام *)
+
+(* ربط الأحرف الزائدة بوظائفها *)
+Record FunctionalExtra := {
+  fe_letter   : ArabicLetter;
+  fe_position : ExtraPosition;
+  fe_function : ExtraFunction;
+  fe_value    : nat
+}.
+
+(* أمثلة على الأحرف الزائدة مع وظائفها *)
+Definition fe_hamza_causative := {|
+  fe_letter := L_Hamza;
+  fe_position := EP_BeforeC1;
+  fe_function := EF_Derivational_Causative;
+  fe_value := 1
+|}.
+
+Definition fe_ta_reflexive := {|
+  fe_letter := L_Ta;
+  fe_position := EP_BeforeC1;
+  fe_function := EF_Derivational_Reflexive;
+  fe_value := 4
+|}.
+
+Definition fe_waw_jama3 := {|
+  fe_letter := L_Waw;
+  fe_position := EP_AfterC3;
+  fe_function := EF_Inflectional_Number;
+  fe_value := 28
+|}.
+
+(** ========================================================== *)
+(**  Part 32: طبقات الحركات الثلاث                               *)
+(**  Three Layers of Vowel Functions                              *)
+(** ========================================================== *)
+
+(* تقسيم وظائف الحركات إلى ثلاث طبقات *)
+Inductive VowelLayer :=
+| VL_Derivational    (* طبقة اشتقاقية: تحدد باب الفعل *)
+| VL_Inflectional    (* طبقة تصريفية: تحدد الإعراب والبناء *)
+| VL_Phonological.   (* طبقة صوتية: تحدد النطق والتسهيل *)
+
+(* سجل لتمثيل الحركة مع طبقتها الوظيفية *)
+Record LayeredVowel := {
+  lv_haraka : Haraka;
+  lv_layer  : VowelLayer;
+  lv_value  : nat
+}.
+
+(* أمثلة على الحركات في كل طبقة *)
+
+(* طبقة اشتقاقية: الفتحة في فَعَلَ تدل على الباب الأول *)
+Definition lv_fatha_bab1 := {|
+  lv_haraka := H_Fatha;
+  lv_layer := VL_Derivational;
+  lv_value := 1
+|}.
+
+(* طبقة تصريفية: الضمة في يَكْتُبُ تدل على الرفع *)
+Definition lv_damma_raf3 := {|
+  lv_haraka := H_Damma;
+  lv_layer := VL_Inflectional;
+  lv_value := 14
+|}.
+
+(* طبقة صوتية: السكون في اكْتُبْ للجزم *)
+Definition lv_sukun_jazm := {|
+  lv_haraka := H_Sukun;
+  lv_layer := VL_Phonological;
+  lv_value := 0
+|}.
+
+(* دالة لحساب قيمة الحركة المُرَكَّبة *)
+Definition layered_vowel_complexity (lv : LayeredVowel) : nat :=
+  let layer_weight := match lv.(lv_layer) with
+    | VL_Derivational => 5    (* الطبقة الاشتقاقية: وزن 5 *)
+    | VL_Inflectional => 3    (* الطبقة التصريفية: وزن 3 *)
+    | VL_Phonological => 1    (* الطبقة الصوتية: وزن 1 *)
+  end in
+  lv.(lv_value) * layer_weight.
+
+(** ========================================================== *)
+(**  Part 33: العدد والجنس والتعريف والتنكير                     *)
+(**  Number, Gender, Definiteness Categories                      *)
+(** ========================================================== *)
+
+(* العدد: مفرد، مثنى، جمع *)
+Inductive GramNumber :=
+| GN_Singular   (* مفرد *)
+| GN_Dual       (* مثنى *)
+| GN_Plural.    (* جمع *)
+
+(* الجنس: مذكر، مؤنث *)
+Inductive GramGender :=
+| GG_Masculine  (* مذكر *)
+| GG_Feminine.  (* مؤنث *)
+
+(* التعريف والتنكير *)
+Inductive Definiteness :=
+| Def_Definite    (* معرفة: بـ أل التعريف أو الإضافة *)
+| Def_Indefinite. (* نكرة: بالتنوين *)
+
+(* الشخص *)
+Inductive GramPerson :=
+| GP_First    (* متكلم *)
+| GP_Second   (* مخاطب *)
+| GP_Third.   (* غائب *)
+
+(* سجل شامل للسمات الصرفية *)
+Record MorphFeatures := {
+  mf_number : GramNumber;
+  mf_gender : GramGender;
+  mf_person : GramPerson;
+  mf_definiteness : Definiteness
+}.
+
+(* أمثلة على السمات *)
+Definition features_huwa := {|  (* هو *)
+  mf_number := GN_Singular;
+  mf_gender := GG_Masculine;
+  mf_person := GP_Third;
+  mf_definiteness := Def_Definite
+|}.
+
+Definition features_hum := {|  (* هم *)
+  mf_number := GN_Plural;
+  mf_gender := GG_Masculine;
+  mf_person := GP_Third;
+  mf_definiteness := Def_Definite
+|}.
+
+Definition features_kitaabun := {|  (* كتابٌ *)
+  mf_number := GN_Singular;
+  mf_gender := GG_Masculine;
+  mf_person := GP_Third;
+  mf_definiteness := Def_Indefinite
+|}.
+
+Definition features_alkitaabu := {|  (* الكتابُ *)
+  mf_number := GN_Singular;
+  mf_gender := GG_Masculine;
+  mf_person := GP_Third;
+  mf_definiteness := Def_Definite
+|}.
+
+(** ========================================================== *)
+(**  Part 34: توليد الضمائر من السمات                           *)
+(**  Pronoun Generation from Features                             *)
+(** ========================================================== *)
+
+(* الضمائر المنفصلة *)
+Inductive SeparatePronoun :=
+| SP_Ana      (* أنا *)
+| SP_Anta     (* أنتَ *)
+| SP_Anti     (* أنتِ *)
+| SP_Huwa     (* هو *)
+| SP_Hiya     (* هي *)
+| SP_Nahnu    (* نحن *)
+| SP_Antum    (* أنتم *)
+| SP_Antunna  (* أنتنّ *)
+| SP_Hum      (* هم *)
+| SP_Hunna    (* هنّ *)
+| SP_Antumaa  (* أنتما *)
+| SP_Humaa.   (* هما *)
+
+(* دالة توليد الضمير من السمات *)
+Definition generate_pronoun (mf : MorphFeatures) : SeparatePronoun :=
+  match mf.(mf_person), mf.(mf_number), mf.(mf_gender) with
+  | GP_First, GN_Singular, _ => SP_Ana
+  | GP_First, GN_Plural, _ => SP_Nahnu
+  | GP_First, GN_Dual, _ => SP_Nahnu  (* العربية لا تفرق في المتكلم *)
+  | GP_Second, GN_Singular, GG_Masculine => SP_Anta
+  | GP_Second, GN_Singular, GG_Feminine => SP_Anti
+  | GP_Second, GN_Dual, _ => SP_Antumaa
+  | GP_Second, GN_Plural, GG_Masculine => SP_Antum
+  | GP_Second, GN_Plural, GG_Feminine => SP_Antunna
+  | GP_Third, GN_Singular, GG_Masculine => SP_Huwa
+  | GP_Third, GN_Singular, GG_Feminine => SP_Hiya
+  | GP_Third, GN_Dual, _ => SP_Humaa
+  | GP_Third, GN_Plural, GG_Masculine => SP_Hum
+  | GP_Third, GN_Plural, GG_Feminine => SP_Hunna
+  end.
+
+(* إثبات صحة توليد الضمير *)
+Lemma generate_huwa_correct :
+  generate_pronoun features_huwa = SP_Huwa.
+Proof. reflexivity. Qed.
+
+Lemma generate_hum_correct :
+  generate_pronoun features_hum = SP_Hum.
+Proof. reflexivity. Qed.
+
+(** ========================================================== *)
+(**  Part 35: توليد علامات الإعراب من السمات                    *)
+(**  Case Marker Generation from Features                         *)
+(** ========================================================== *)
+
+(* الإعراب *)
+Inductive CaseType :=
+| CT_Nominative  (* رفع *)
+| CT_Accusative  (* نصب *)
+| CT_Genitive.   (* جر *)
+
+(* علامات الإعراب *)
+Inductive CaseMarker :=
+| CM_Damma       (* ضمة - علامة الرفع الأصلية *)
+| CM_Fatha       (* فتحة - علامة النصب الأصلية *)
+| CM_Kasra       (* كسرة - علامة الجر الأصلية *)
+| CM_Waw         (* واو - رفع الأسماء الخمسة وجمع المذكر السالم *)
+| CM_Alif        (* ألف - نصب الأسماء الخمسة ورفع المثنى *)
+| CM_Ya          (* ياء - جر المثنى وجمع المذكر السالم *)
+| CM_TanweenDamm (* تنوين ضم *)
+| CM_TanweenFath (* تنوين فتح *)
+| CM_TanweenKasr.(* تنوين كسر *)
+
+(* دالة توليد علامة الإعراب *)
+Definition generate_case_marker (ct : CaseType) (mf : MorphFeatures) : CaseMarker :=
+  match ct, mf.(mf_definiteness), mf.(mf_number) with
+  (* المفرد المعرفة *)
+  | CT_Nominative, Def_Definite, GN_Singular => CM_Damma
+  | CT_Accusative, Def_Definite, GN_Singular => CM_Fatha
+  | CT_Genitive, Def_Definite, GN_Singular => CM_Kasra
+  (* المفرد النكرة - بالتنوين *)
+  | CT_Nominative, Def_Indefinite, GN_Singular => CM_TanweenDamm
+  | CT_Accusative, Def_Indefinite, GN_Singular => CM_TanweenFath
+  | CT_Genitive, Def_Indefinite, GN_Singular => CM_TanweenKasr
+  (* المثنى *)
+  | CT_Nominative, _, GN_Dual => CM_Alif
+  | CT_Accusative, _, GN_Dual => CM_Ya
+  | CT_Genitive, _, GN_Dual => CM_Ya
+  (* الجمع المذكر السالم *)
+  | CT_Nominative, _, GN_Plural => CM_Waw
+  | CT_Accusative, _, GN_Plural => CM_Ya
+  | CT_Genitive, _, GN_Plural => CM_Ya
+  end.
+
+(* إثبات صحة توليد علامة الإعراب *)
+Lemma case_kitaabun_raf3 :
+  generate_case_marker CT_Nominative features_kitaabun = CM_TanweenDamm.
+Proof. reflexivity. Qed.
+
+Lemma case_alkitaabu_raf3 :
+  generate_case_marker CT_Nominative features_alkitaabu = CM_Damma.
+Proof. reflexivity. Qed.
+
+(** ========================================================== *)
+(**  Part 36: النموذج التوليدي الشامل                           *)
+(**  Complete Generative Model                                    *)
+(** ========================================================== *)
+
+(* سجل شامل لتمثيل الكلمة العربية المولّدة *)
+Record GeneratedWord := {
+  gw_root : FractalTriad;           (* الجذر الثلاثي *)
+  gw_extras : list FunctionalExtra; (* الأحرف الزائدة *)
+  gw_vowels : list LayeredVowel;    (* الحركات *)
+  gw_features : MorphFeatures;      (* السمات الصرفية *)
+  gw_complexity : nat               (* مؤشر التعقيد *)
+}.
+
+(* دالة حساب تعقيد الكلمة المولّدة *)
+Definition generated_word_complexity (gw : GeneratedWord) : nat :=
+  let root_value := gw.(gw_root).(ft_total) in
+  let extras_value := fold_left (fun acc fe => acc + fe.(fe_value)) gw.(gw_extras) 0 in
+  let vowels_value := fold_left (fun acc lv => acc + layered_vowel_complexity lv) gw.(gw_vowels) 0 in
+  root_value + extras_value + vowels_value.
+
+(* مثال: توليد كلمة "مُسْتَكْتَب" *)
+Definition root_ktb_triad := {|
+  ft_before := L_Kaf;
+  ft_center := L_Ta;
+  ft_after := L_Ba;
+  ft_total := 30
+|}.
+
+Definition extra_mim_mustaktab := {|
+  fe_letter := L_Mim;
+  fe_position := EP_BeforeC1;
+  fe_function := EF_Derivational_Request;
+  fe_value := 25
+|}.
+
+Definition extra_sin_mustaktab := {|
+  fe_letter := L_Sin;
+  fe_position := EP_BeforeC1;
+  fe_function := EF_Derivational_Request;
+  fe_value := 13
+|}.
+
+Definition extra_ta_mustaktab := {|
+  fe_letter := L_Ta;
+  fe_position := EP_BeforeC1;
+  fe_function := EF_Derivational_Request;
+  fe_value := 4
+|}.
+
+Definition vowel_damma_mustaktab := {|
+  lv_haraka := H_Damma;
+  lv_layer := VL_Derivational;
+  lv_value := 14
+|}.
+
+Definition mustaktab := {|
+  gw_root := root_ktb_triad;
+  gw_extras := [extra_mim_mustaktab; extra_sin_mustaktab; extra_ta_mustaktab];
+  gw_features := features_kitaabun;
+  gw_vowels := [vowel_damma_mustaktab];
+  gw_complexity := 0  (* سيُحسب *)
+|}.
+
+(* حساب تعقيد مُسْتَكْتَب *)
+Definition mustaktab_complexity := generated_word_complexity mustaktab.
+
+(* 
+   ملخص النموذج التوليدي:
+   ====================
+   
+   1. الجذر (C1-C2-C3) يُحدد المعنى الأساسي
+   2. مواقع الزوائد (قبل C1، بين C1-C2، بين C2-C3، بعد C3)
+   3. وظائف الزوائد:
+      - اشتقاقية: تغيّر المعنى (أفعل، استفعل، تفاعل...)
+      - تصريفية: تغيّر الصيغة (زمن، عدد، جنس، شخص)
+      - منطقية: نفي، استفهام، شرط، توكيد
+      - صوتية: تسهيل، مد، إدغام
+   4. طبقات الحركات:
+      - اشتقاقية: تحدد الباب والوزن
+      - تصريفية: تحدد الإعراب
+      - صوتية: تحدد النطق
+   5. السمات (عدد، جنس، شخص، تعريف) تُولّد:
+      - الضمائر
+      - علامات الإعراب
+      - لواحق الجمع والتثنية والتأنيث
+*)
+
 End AGT_Mathematical.
