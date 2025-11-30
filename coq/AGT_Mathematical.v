@@ -2288,4 +2288,184 @@ Lemma vws_has_segmentation : forall vws : VocabWordState,
   exists seg, vws.(vws_segmentation) = seg.
 Proof. intros. exists (vws.(vws_segmentation)). reflexivity. Qed.
 
+(* ============================================================ *)
+(*   PART 46: النظام الرقمي الصارم - C2-C3 Relation + Vowels    *)
+(* ============================================================ *)
+
+(* نظام رقمي بدون جذور: *)
+(* - لا نهتم بهوية الحرف، فقط المواقع (C2, C3) *)
+(* - قيم الحركات: القصيرة = H، الطويلة = H/2، السكون = 0 *)
+
+(* === أنواع الحركات والصوائت === *)
+Inductive VowelType :=
+| VT_Fatha           (* فتحة - حركة قصيرة *)
+| VT_Damma           (* ضمة - حركة قصيرة *)
+| VT_Kasra           (* كسرة - حركة قصيرة *)
+| VT_Alif_Long       (* ا - مد طويل *)
+| VT_Waw_Long        (* و - مد طويل *)
+| VT_Ya_Long         (* ي - مد طويل *)
+| VT_Sukun           (* سكون - صفر *)
+| VT_None.           (* لا حركة *)
+
+(* === البارامتر الأساسي H للحركة القصيرة === *)
+(* نستخدم H = 2 حتى تكون H/2 = 1 صحيحة *)
+Definition base_vowel_value : nat := 2.  (* H = 2 *)
+
+(* === دالة قيمة الحركة vval === *)
+Definition vowel_value (vt : VowelType) : nat :=
+  match vt with
+  | VT_Fatha => base_vowel_value          (* H = 2 *)
+  | VT_Damma => base_vowel_value          (* H = 2 *)
+  | VT_Kasra => base_vowel_value          (* H = 2 *)
+  | VT_Alif_Long => base_vowel_value / 2  (* H/2 = 1 *)
+  | VT_Waw_Long => base_vowel_value / 2   (* H/2 = 1 *)
+  | VT_Ya_Long => base_vowel_value / 2    (* H/2 = 1 *)
+  | VT_Sukun => 0                         (* 0 *)
+  | VT_None => 0                          (* 0 *)
+  end.
+
+(* ============================================================ *)
+(*    PART 47: C-Slot Positions بدون هوية الحرف                 *)
+(* ============================================================ *)
+
+(* مواقع C في الكلمة - أرقام فقط، بدون معرفة الحرف *)
+Record CSlotPositions := {
+  csp_c1_index : option nat;    (* موقع C1 في الكلمة *)
+  csp_c2_index : option nat;    (* موقع C2 في الكلمة - المركز *)
+  csp_c3_index : option nat     (* موقع C3 في الكلمة *)
+}.
+
+(* حالة الحركة لكل موقع C *)
+Record CSlotVowelState := {
+  csvs_positions : CSlotPositions;
+  csvs_v_on_c1 : VowelType;     (* الحركة على C1 *)
+  csvs_v_on_c2 : VowelType;     (* الحركة على C2 - المركزية *)
+  csvs_v_on_c3 : VowelType      (* الحركة على C3 *)
+}.
+
+(* === حساب القيمة الرقمية للـ WordState === *)
+Definition word_vowel_sum (csvs : CSlotVowelState) : nat :=
+  vowel_value csvs.(csvs_v_on_c1) +
+  vowel_value csvs.(csvs_v_on_c2) +
+  vowel_value csvs.(csvs_v_on_c3).
+
+(* ============================================================ *)
+(*      PART 48: العلاقة C2-C3 بدون هوية الحروف                  *)
+(* ============================================================ *)
+
+(* 
+   النظام يهتم فقط بـ:
+   - موقع C2 (المركز)
+   - علاقته بـ C3
+   - الحركات على هذه المواقع
+   - لا نهتم بهوية الحرف نفسه (ك، ت، ب... كلهم سواء)
+*)
+
+(* قيمة علاقة C2-C3 الرقمية *)
+Definition c2_c3_relation_value (csvs : CSlotVowelState) : nat :=
+  let v_c2 := vowel_value csvs.(csvs_v_on_c2) in
+  let v_c3 := vowel_value csvs.(csvs_v_on_c3) in
+  v_c2 + v_c3.  (* مجموع الحركات على C2 و C3 *)
+
+(* قيمة WordState الكاملة بدون جذور *)
+Record RootlessWordValue := {
+  rwv_c_slot_vowels : CSlotVowelState;
+  rwv_total_vowel_value : nat;       (* مجموع قيم الحركات *)
+  rwv_c2_c3_value : nat              (* قيمة علاقة C2-C3 *)
+}.
+
+Definition compute_rootless_word_value (csvs : CSlotVowelState) : RootlessWordValue := {|
+  rwv_c_slot_vowels := csvs;
+  rwv_total_vowel_value := word_vowel_sum csvs;
+  rwv_c2_c3_value := c2_c3_relation_value csvs
+|}.
+
+(* ============================================================ *)
+(*        PART 49: أمثلة وإثباتات للنظام الرقمي                  *)
+(* ============================================================ *)
+
+(* مثال: كَتَبَ (فتحة على كل موقع) *)
+Definition example_kataba_vowels : CSlotVowelState := {|
+  csvs_positions := {| csp_c1_index := Some 0; csp_c2_index := Some 1; csp_c3_index := Some 2 |};
+  csvs_v_on_c1 := VT_Fatha;
+  csvs_v_on_c2 := VT_Fatha;
+  csvs_v_on_c3 := VT_Fatha
+|}.
+
+(* مثال: كِتَابٌ (كسرة + فتحة + مد بالألف) *)
+Definition example_kitaab_vowels : CSlotVowelState := {|
+  csvs_positions := {| csp_c1_index := Some 0; csp_c2_index := Some 1; csp_c3_index := Some 3 |};
+  csvs_v_on_c1 := VT_Kasra;
+  csvs_v_on_c2 := VT_Alif_Long;
+  csvs_v_on_c3 := VT_Damma
+|}.
+
+(* مثال: مَكْتُوب (سكون على C2) *)
+Definition example_maktub_vowels : CSlotVowelState := {|
+  csvs_positions := {| csp_c1_index := Some 1; csp_c2_index := Some 2; csp_c3_index := Some 4 |};
+  csvs_v_on_c1 := VT_Fatha;
+  csvs_v_on_c2 := VT_Sukun;
+  csvs_v_on_c3 := VT_Waw_Long
+|}.
+
+(* === الإثباتات === *)
+
+(* إثبات: الحركة القصيرة = H = 2 *)
+Lemma short_vowel_is_H : vowel_value VT_Fatha = 2.
+Proof. reflexivity. Qed.
+
+(* إثبات: الحركة الطويلة = H/2 = 1 *)
+Lemma long_vowel_is_half_H : vowel_value VT_Alif_Long = 1.
+Proof. reflexivity. Qed.
+
+(* إثبات: السكون = 0 *)
+Lemma sukun_is_zero : vowel_value VT_Sukun = 0.
+Proof. reflexivity. Qed.
+
+(* إثبات: كَتَبَ = 3 × H = 6 *)
+Lemma kataba_vowel_sum : word_vowel_sum example_kataba_vowels = 6.
+Proof. reflexivity. Qed.
+
+(* إثبات: كِتَاب = كسرة + ألف_طويل + ضمة = 2 + 1 + 2 = 5 *)
+Lemma kitaab_vowel_sum : word_vowel_sum example_kitaab_vowels = 5.
+Proof. reflexivity. Qed.
+
+(* إثبات: مَكْتُوب = فتحة + سكون + واو_طويل = 2 + 0 + 1 = 3 *)
+Lemma maktub_vowel_sum : word_vowel_sum example_maktub_vowels = 3.
+Proof. reflexivity. Qed.
+
+(* إثبات: علاقة C2-C3 لـ كَتَبَ = فتحة + فتحة = 4 *)
+Lemma kataba_c2_c3_relation : c2_c3_relation_value example_kataba_vowels = 4.
+Proof. reflexivity. Qed.
+
+(* إثبات: الحركة الطويلة = نصف الحركة القصيرة *)
+Lemma long_is_half_short : 
+  vowel_value VT_Alif_Long = vowel_value VT_Fatha / 2.
+Proof. reflexivity. Qed.
+
+(* === ملخص النظام الرقمي === *)
+(*
+   النظام الرقمي Root-less:
+   
+   1. لا نهتم بهوية الحرف (C1, C2, C3 أي حرف كان)
+   2. نهتم فقط بالمواقع والحركات
+   
+   3. قيم الحركات:
+      - فتحة = H = 2
+      - ضمة = H = 2  
+      - كسرة = H = 2
+      - ألف طويل = H/2 = 1
+      - واو طويل = H/2 = 1
+      - ياء طويل = H/2 = 1
+      - سكون = 0
+   
+   4. قيمة الكلمة = مجموع قيم الحركات على C1 + C2 + C3
+   5. علاقة C2-C3 = قيمة حركة C2 + قيمة حركة C3
+   
+   أمثلة:
+   - كَتَبَ = 6 (3 فتحات × 2)
+   - كِتَاب = 5 (كسرة 2 + ألف 1 + ضمة 2)
+   - مَكْتُوب = 3 (فتحة 2 + سكون 0 + واو 1)
+*)
+
 End AGT_Mathematical.
