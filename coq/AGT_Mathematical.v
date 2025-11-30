@@ -2187,4 +2187,105 @@ Proof. simpl. auto. Qed.
                                     الكلمة المُولَّدة
 *)
 
+
+
+(* ============================================================ *)
+(*             PART 41: VocabRaw - الطبقة الخام                  *)
+(* ============================================================ *)
+
+Record VocabRaw := {
+  vr_surface : nat;
+  vr_frequency : nat
+}.
+
+Definition vocab_raw_kitab : VocabRaw := {|
+  vr_surface := 1001;
+  vr_frequency := 5420
+|}.
+
+(* ============================================================ *)
+(*          PART 42: Segmentation - التقطيع السطحي              *)
+(* ============================================================ *)
+
+Inductive PrefixType :=
+| PFX_None | PFX_Wa | PFX_Fa | PFX_Ba | PFX_La | PFX_Sa | PFX_Al | PFX_WaAl | PFX_BiAl.
+
+Inductive SuffixType :=
+| SFX_None | SFX_Ha | SFX_Haa | SFX_Hum | SFX_Naa | SFX_An | SFX_Wn | SFX_At | SFX_Ta | SFX_Uu.
+
+Record Segmentation := {
+  seg_prefix : PrefixType;
+  seg_stem_start : nat;
+  seg_stem_end : nat;
+  seg_suffix : SuffixType
+}.
+
+Definition shallow_segment (surface_len : nat) : Segmentation := {|
+  seg_prefix := PFX_None;
+  seg_stem_start := 0;
+  seg_stem_end := surface_len;
+  seg_suffix := SFX_None
+|}.
+
+(* ============================================================ *)
+(*      PART 43: VocabWordState - حالة الكلمة بدون جذر          *)
+(* ============================================================ *)
+
+Inductive ShallowPOS := SPOS_Noun | SPOS_Verb | SPOS_Particle | SPOS_Unknown.
+
+Inductive ShallowInflection := SI_Nominative | SI_Accusative | SI_Genitive | SI_Unknown.
+
+Inductive ShallowLogicRole := SLR_Subject | SLR_Object | SLR_Modifier | SLR_Unknown.
+
+Record GraphHooks := {
+  gh_can_be_subject : bool;
+  gh_can_be_object : bool;
+  gh_can_be_predicate : bool
+}.
+
+Record VocabWordState := {
+  vws_raw : VocabRaw;
+  vws_segmentation : Segmentation;
+  vws_pos : ShallowPOS;
+  vws_inflection : ShallowInflection;
+  vws_logic_role : ShallowLogicRole;
+  vws_hooks : GraphHooks;
+  vws_definiteness : Definiteness
+}.
+
+(* ============================================================ *)
+(*       PART 44: Pattern Families - عائلات الأنماط             *)
+(* ============================================================ *)
+
+Inductive SlotType :=
+| ST_Conjunction | ST_FutureMarker | ST_VerbStem | ST_NounStem | ST_DefiniteMarker | ST_ObjPronoun | ST_PluralMarker.
+
+Definition PatternTemplate := list SlotType.
+
+Record PatternFamily := {
+  pf_template : PatternTemplate;
+  pf_example_count : nat;
+  pf_description : nat
+}.
+
+Definition pf_al_noun_aat : PatternFamily := {|
+  pf_template := ST_DefiniteMarker :: ST_NounStem :: ST_PluralMarker :: nil;
+  pf_example_count := 8500;
+  pf_description := 5002
+|}.
+
+(* ============================================================ *)
+(*      PART 45: VocabMultiState - التحليلات المتعددة           *)
+(* ============================================================ *)
+
+Record VocabMultiState := {
+  vms_surface : nat;
+  vms_analyses : list VocabWordState;
+  vms_best_analysis : option VocabWordState
+}.
+
+Lemma vws_has_segmentation : forall vws : VocabWordState,
+  exists seg, vws.(vws_segmentation) = seg.
+Proof. intros. exists (vws.(vws_segmentation)). reflexivity. Qed.
+
 End AGT_Mathematical.
