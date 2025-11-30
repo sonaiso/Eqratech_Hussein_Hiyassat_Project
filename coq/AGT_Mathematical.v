@@ -403,6 +403,142 @@ Definition word_kataba : Word := {|
 Definition kataba_value : nat := word_value [kataba_c1; kataba_c2; kataba_c3].
 (* = (23+1) + (4+1) + (3+1) = 24 + 5 + 4 = 33 *)
 
+(* ========================================================== *)
+(*  أمثلة إضافية (عشرة جذور)                                    *)
+(*  Extended Examples (10 Roots Total)                          *)
+(* ========================================================== *)
+
+(* مثال 3: جذر ق-ر-أ (قرأ) *)
+Definition root_qr2 : Root := {|
+  r_c1 := L_Qaf;
+  r_c2 := L_Ra;
+  r_c3 := Some L_Hamza;
+  r_c4 := None;
+  r_type := RT_Thulathi
+|}.
+Definition qr2_value : nat := root_value root_qr2.
+(* = 22 + 11 + 1 = 34 *)
+
+(* مثال 4: جذر س-م-ع (سمع) *)
+Definition root_sm3 : Root := {|
+  r_c1 := L_Sin;
+  r_c2 := L_Mim;
+  r_c3 := Some L_Ain;
+  r_c4 := None;
+  r_type := RT_Thulathi
+|}.
+Definition sm3_value : nat := root_value root_sm3.
+(* = 13 + 25 + 19 = 57 *)
+
+(* مثال 5: جذر ف-ه-م (فهم) *)
+Definition root_fhm : Root := {|
+  r_c1 := L_Fa;
+  r_c2 := L_Ha2;
+  r_c3 := Some L_Mim;
+  r_c4 := None;
+  r_type := RT_Thulathi
+|}.
+Definition fhm_value : nat := root_value root_fhm.
+(* = 21 + 27 + 25 = 73 *)
+
+(* مثال 6: جذر ذ-ه-ب (ذهب) *)
+Definition root_dhb : Root := {|
+  r_c1 := L_Dhal;
+  r_c2 := L_Ha2;
+  r_c3 := Some L_Ba;
+  r_c4 := None;
+  r_type := RT_Thulathi
+|}.
+Definition dhb_value : nat := root_value root_dhb.
+(* = 10 + 27 + 3 = 40 *)
+
+(* مثال 7: جذر ج-ل-س (جلس) *)
+Definition root_jls : Root := {|
+  r_c1 := L_Jim;
+  r_c2 := L_Lam;
+  r_c3 := Some L_Sin;
+  r_c4 := None;
+  r_type := RT_Thulathi
+|}.
+Definition jls_value : nat := root_value root_jls.
+(* = 6 + 24 + 13 = 43 *)
+
+(* مثال 8: جذر ن-ظ-ر (نظر) *)
+Definition root_nzr : Root := {|
+  r_c1 := L_Nun;
+  r_c2 := L_Zaa;
+  r_c3 := Some L_Ra;
+  r_c4 := None;
+  r_type := RT_Thulathi
+|}.
+Definition nzr_value : nat := root_value root_nzr.
+(* = 26 + 18 + 11 = 55 *)
+
+(* مثال 9: جذر خ-ر-ج (خرج) *)
+Definition root_xrj : Root := {|
+  r_c1 := L_Kha;
+  r_c2 := L_Ra;
+  r_c3 := Some L_Jim;
+  r_c4 := None;
+  r_type := RT_Thulathi
+|}.
+Definition xrj_value : nat := root_value root_xrj.
+(* = 8 + 11 + 6 = 25 *)
+
+(* مثال 10: جذر د-خ-ل (دخل) *)
+Definition root_dxl : Root := {|
+  r_c1 := L_Dal;
+  r_c2 := L_Kha;
+  r_c3 := Some L_Lam;
+  r_c4 := None;
+  r_type := RT_Thulathi
+|}.
+Definition dxl_value : nat := root_value root_dxl.
+(* = 9 + 8 + 24 = 41 *)
+
+(* ========================================================== *)
+(*  جدول قيم العينات العشر                                      *)
+(*  Ten Samples Value Table                                     *)
+(* ========================================================== *)
+
+(*
+   | # | الجذر | C1  | C2  | C3  | المجموع |
+   |---|-------|-----|-----|-----|---------|
+   | 1 | ك-ت-ب | 23  | 4   | 3   | 30      |
+   | 2 | ع-ل-م | 19  | 24  | 25  | 68      |
+   | 3 | ق-ر-أ | 22  | 11  | 1   | 34      |
+   | 4 | س-م-ع | 13  | 25  | 19  | 57      |
+   | 5 | ف-ه-م | 21  | 27  | 25  | 73      |
+   | 6 | ذ-ه-ب | 10  | 27  | 3   | 40      |
+   | 7 | ج-ل-س | 6   | 24  | 13  | 43      |
+   | 8 | ن-ظ-ر | 26  | 18  | 11  | 55      |
+   | 9 | خ-ر-ج | 8   | 11  | 6   | 25      |
+   |10 | د-خ-ل | 9   | 8   | 24  | 41      |
+   |---|-------|-----|-----|-----|---------|
+   | المجموع الكلي:                | 466     |
+   | متوسط القيمة:                 | 46.6    |
+*)
+
+(* إثبات قيم العينات *)
+Lemma ktb_val_30 : root_value root_ktb = 30. Proof. reflexivity. Qed.
+Lemma alm_val_68 : root_value root_3lm = 68. Proof. reflexivity. Qed.
+Lemma qr2_val_34 : root_value root_qr2 = 34. Proof. reflexivity. Qed.
+Lemma sm3_val_57 : root_value root_sm3 = 57. Proof. reflexivity. Qed.
+Lemma fhm_val_73 : root_value root_fhm = 73. Proof. reflexivity. Qed.
+Lemma dhb_val_40 : root_value root_dhb = 40. Proof. reflexivity. Qed.
+Lemma jls_val_43 : root_value root_jls = 43. Proof. reflexivity. Qed.
+Lemma nzr_val_55 : root_value root_nzr = 55. Proof. reflexivity. Qed.
+Lemma xrj_val_25 : root_value root_xrj = 25. Proof. reflexivity. Qed.
+Lemma dxl_val_41 : root_value root_dxl = 41. Proof. reflexivity. Qed.
+
+(* مجموع القيم العشر *)
+Definition ten_samples_total : nat :=
+  ktb_value + alm_value + qr2_value + sm3_value + fhm_value +
+  dhb_value + jls_value + nzr_value + xrj_value + dxl_value.
+
+Lemma ten_samples_sum_466 : ten_samples_total = 466.
+Proof. reflexivity. Qed.
+
 (** ========================================================== *)
 (**  Part 12: إثباتات رياضية                                   *)
 (**  Mathematical Proofs                                        *)
@@ -620,19 +756,122 @@ Definition triad_ktb : FractalTriad := {|
 Definition kernel_ktb : FractalKernel := make_kernel triad_ktb 0.
 
 (* مثال: جذر ع-ل-م *)
-(* b=ع (18), c=ل (24), a=م (25) *)
+(* b=ع (19), c=ل (24), a=م (25) *)
 Definition triad_3lm : FractalTriad := {|
-  ft_before := 18;  (* ع *)
+  ft_before := 19;  (* ع *)
   ft_center := 24;  (* ل *)
   ft_after  := 25   (* م *)
 |}.
 
 Definition kernel_3lm : FractalKernel := make_kernel triad_3lm 0.
 
+(* ========================================================== *)
+(*  أمثلة إضافية لنواة الفراكتال (عشرة ثلاثيات)                  *)
+(*  Extended Fractal Kernel Examples (10 Triads)                *)
+(* ========================================================== *)
+
+(* مثال 3: جذر ق-ر-أ *)
+Definition triad_qr2 : FractalTriad := {|
+  ft_before := 22;  (* ق *)
+  ft_center := 11;  (* ر *)
+  ft_after  := 1    (* ء *)
+|}.
+Definition kernel_qr2 : FractalKernel := make_kernel triad_qr2 0.
+
+(* مثال 4: جذر س-م-ع *)
+Definition triad_sm3 : FractalTriad := {|
+  ft_before := 13;  (* س *)
+  ft_center := 25;  (* م *)
+  ft_after  := 19   (* ع *)
+|}.
+Definition kernel_sm3 : FractalKernel := make_kernel triad_sm3 0.
+
+(* مثال 5: جذر ف-ه-م *)
+Definition triad_fhm : FractalTriad := {|
+  ft_before := 21;  (* ف *)
+  ft_center := 27;  (* ه *)
+  ft_after  := 25   (* م *)
+|}.
+Definition kernel_fhm : FractalKernel := make_kernel triad_fhm 0.
+
+(* مثال 6: جذر ذ-ه-ب *)
+Definition triad_dhb : FractalTriad := {|
+  ft_before := 10;  (* ذ *)
+  ft_center := 27;  (* ه *)
+  ft_after  := 3    (* ب *)
+|}.
+Definition kernel_dhb : FractalKernel := make_kernel triad_dhb 0.
+
+(* مثال 7: جذر ج-ل-س *)
+Definition triad_jls : FractalTriad := {|
+  ft_before := 6;   (* ج *)
+  ft_center := 24;  (* ل *)
+  ft_after  := 13   (* س *)
+|}.
+Definition kernel_jls : FractalKernel := make_kernel triad_jls 0.
+
+(* مثال 8: جذر ن-ظ-ر *)
+Definition triad_nzr : FractalTriad := {|
+  ft_before := 26;  (* ن *)
+  ft_center := 18;  (* ظ *)
+  ft_after  := 11   (* ر *)
+|}.
+Definition kernel_nzr : FractalKernel := make_kernel triad_nzr 0.
+
+(* مثال 9: جذر خ-ر-ج *)
+Definition triad_xrj : FractalTriad := {|
+  ft_before := 8;   (* خ *)
+  ft_center := 11;  (* ر *)
+  ft_after  := 6    (* ج *)
+|}.
+Definition kernel_xrj : FractalKernel := make_kernel triad_xrj 0.
+
+(* مثال 10: جذر د-خ-ل *)
+Definition triad_dxl : FractalTriad := {|
+  ft_before := 9;   (* د *)
+  ft_center := 8;   (* خ *)
+  ft_after  := 24   (* ل *)
+|}.
+Definition kernel_dxl : FractalKernel := make_kernel triad_dxl 0.
+
+(* ========================================================== *)
+(*  جدول قيم العلاقات الفراكتالية للعينات العشر                  *)
+(*  Ten Samples Fractal Relations Table                         *)
+(* ========================================================== *)
+
+(*
+   | # | الجذر | b(C1)| c(C2)| a(C3)| rcb  | rca  | rba  | Σrel | 2×Σtriad |
+   |---|-------|------|------|------|------|------|------|------|----------|
+   | 1 | ك-ت-ب | 23   | 4    | 3    | 27   | 7    | 26   | 60   | 60 ✓     |
+   | 2 | ع-ل-م | 19   | 24   | 25   | 43   | 49   | 44   | 136  | 136 ✓    |
+   | 3 | ق-ر-أ | 22   | 11   | 1    | 33   | 12   | 23   | 68   | 68 ✓     |
+   | 4 | س-م-ع | 13   | 25   | 19   | 38   | 44   | 32   | 114  | 114 ✓    |
+   | 5 | ف-ه-م | 21   | 27   | 25   | 48   | 52   | 46   | 146  | 146 ✓    |
+   | 6 | ذ-ه-ب | 10   | 27   | 3    | 37   | 30   | 13   | 80   | 80 ✓     |
+   | 7 | ج-ل-س | 6    | 24   | 13   | 30   | 37   | 19   | 86   | 86 ✓     |
+   | 8 | ن-ظ-ر | 26   | 18   | 11   | 44   | 29   | 37   | 110  | 110 ✓    |
+   | 9 | خ-ر-ج | 8    | 11   | 6    | 19   | 17   | 14   | 50   | 50 ✓     |
+   |10 | د-خ-ل | 9    | 8    | 24   | 17   | 32   | 33   | 82   | 82 ✓     |
+   
+   التحقق: مجموع العلاقات دائماً = 2 × مجموع الثلاثي ✓
+*)
+
+(* إثبات قيم العلاقات للعينات العشر *)
+Lemma ktb_relations_60 : all_relations_value triad_ktb = 60. Proof. reflexivity. Qed.
+Lemma alm_relations_136 : all_relations_value triad_3lm = 136. Proof. reflexivity. Qed.
+Lemma qr2_relations_68 : all_relations_value triad_qr2 = 68. Proof. reflexivity. Qed.
+Lemma sm3_relations_114 : all_relations_value triad_sm3 = 114. Proof. reflexivity. Qed.
+Lemma fhm_relations_146 : all_relations_value triad_fhm = 146. Proof. reflexivity. Qed.
+Lemma dhb_relations_80 : all_relations_value triad_dhb = 80. Proof. reflexivity. Qed.
+Lemma jls_relations_86 : all_relations_value triad_jls = 86. Proof. reflexivity. Qed.
+Lemma nzr_relations_110 : all_relations_value triad_nzr = 110. Proof. reflexivity. Qed.
+Lemma xrj_relations_50 : all_relations_value triad_xrj = 50. Proof. reflexivity. Qed.
+Lemma dxl_relations_82 : all_relations_value triad_dxl = 82. Proof. reflexivity. Qed.
+
 (** ========================================================== *)
 (**  Part 17: إثباتات نواة الفراكتال                            *)
 (**  Fractal Kernel Proofs                                      *)
-(** ========================================================== *)
+(** ========================================================== *) *)
 
 (* إثبات: C1 = rcb *)
 Lemma c1_is_rcb : relation_to_c_slot FR_rcb = 1.
