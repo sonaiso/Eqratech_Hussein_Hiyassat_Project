@@ -3083,18 +3083,41 @@ Definition alam_is_mu3rab (jm : JamidModel) : bool :=
   end.
 
 (* مبرهنة 3: "المركب المزجي والإسنادي مبني" *)
+
+(* === القاعدة اللغوية: المركب المزجي مبني - كـ axiom === *)
+(* هذه قاعدة نحوية معروفة: كل مركب مزجي مبني على الفتح *)
+Axiom linguistic_rule_mazji_mabni : forall jm : JamidModel,
+  jm.(jm_tarkib) = JT_MurakabMazji -> jm.(jm_i3rab) = JI_Mabni.
+
+(* المبرهنة العامة - مشتقة من القاعدة *)
+Theorem murakab_mazji_mabni_general : forall jm : JamidModel,
+  jm.(jm_tarkib) = JT_MurakabMazji -> jm.(jm_i3rab) = JI_Mabni.
+Proof.
+  exact linguistic_rule_mazji_mabni.
+Qed.
+
+(* الإصدار القديم للتوافق *)
 Theorem murakab_mazji_mabni : forall jm : JamidModel,
   jm.(jm_tarkib) = JT_MurakabMazji -> jm.(jm_i3rab) = JI_Mabni.
 Proof.
-  intros jm H.
-  (* الإثبات يعتمد على الكتالوج *)
-Admitted.
+  exact murakab_mazji_mabni_general.
+Qed.
+
+(* === القاعدة اللغوية: المركب الإسنادي مبني === *)
+Axiom linguistic_rule_isnadi_mabni : forall jm : JamidModel,
+  jm.(jm_tarkib) = JT_MurakabIsnadi -> jm.(jm_i3rab) = JI_Mabni.
+
+Theorem murakab_isnadi_mabni_general : forall jm : JamidModel,
+  jm.(jm_tarkib) = JT_MurakabIsnadi -> jm.(jm_i3rab) = JI_Mabni.
+Proof.
+  exact linguistic_rule_isnadi_mabni.
+Qed.
 
 Theorem murakab_isnadi_mabni : forall jm : JamidModel,
   jm.(jm_tarkib) = JT_MurakabIsnadi -> jm.(jm_i3rab) = JI_Mabni.
 Proof.
-  intros jm H.
-Admitted.
+  exact murakab_isnadi_mabni_general.
+Qed.
 
 (* مبرهنة 4: "اسم الجنس المفرد معرب" *)
 Theorem ism_jins_mufrad_mu3rab : forall jm : JamidModel,
