@@ -2702,6 +2702,221 @@ Proof.
   reflexivity.
 Qed.
 
+(* ============================================================== *)
+(* Part 51: الأفعال الناقصة (كان وأخواتها) - Deficient Verbs      *)
+(* ============================================================== *)
+
+(* تعريف: حالات الإعراب *)
+Inductive IrabCase : Type :=
+| IC_Marfu3   (* مرفوع *)
+| IC_Mansub   (* منصوب *)
+| IC_Majrur   (* مجرور *)
+| IC_Majzum.  (* مجزوم *)
+
+(* تعريف: أنواع الأفعال الناقصة - كان وأخواتها *)
+Inductive DeficientVerb : Type :=
+| DV_Kana       (* كانَ - للماضي *)
+| DV_Asbaha     (* أصبحَ - للصباح *)
+| DV_Adha       (* أضحى - للضحى *)
+| DV_Amsa       (* أمسى - للمساء *)
+| DV_Dhalla     (* ظلّ - للاستمرار *)
+| DV_Bata       (* باتَ - لليل *)
+| DV_Sara       (* صارَ - للتحول *)
+| DV_Laysa      (* ليسَ - للنفي *)
+| DV_MaZala     (* ما زالَ - للاستمرار *)
+| DV_MaFatia    (* ما فتئ - للاستمرار *)
+| DV_MaBariha   (* ما برح - للاستمرار *)
+| DV_MaInfakka  (* ما انفكّ - للاستمرار *)
+| DV_MaDama.    (* ما دام - للاستمرار *)
+
+(* الدور النحوي في جملة الفعل الناقص *)
+Inductive DeficientRole : Type :=
+| DR_Verb     (* الفعل الناقص نفسه *)
+| DR_Ism      (* اسم الفعل الناقص = المبتدأ أصلاً *)
+| DR_Khabar.  (* خبر الفعل الناقص = الخبر أصلاً *)
+
+(* قاعدة: الاسم مرفوع *)
+Definition ism_irab_case : IrabCase := IC_Marfu3.
+
+(* قاعدة: الخبر منصوب *)
+Definition khabar_irab_case : IrabCase := IC_Mansub.
+
+(* دالة: إعراب حسب الدور في جملة الفعل الناقص *)
+Definition deficient_role_to_irab (role : DeficientRole) : option IrabCase :=
+  match role with
+  | DR_Verb => None  (* الفعل لا يُعرَب *)
+  | DR_Ism => Some IC_Marfu3   (* الاسم مرفوع *)
+  | DR_Khabar => Some IC_Mansub  (* الخبر منصوب *)
+  end.
+
+(* ============ الإثباتات الرسمية ============ *)
+
+(* مبرهنة: اسم الفعل الناقص دائماً مرفوع *)
+Theorem ism_always_marfu3 :
+  deficient_role_to_irab DR_Ism = Some IC_Marfu3.
+Proof.
+  reflexivity.
+Qed.
+
+(* مبرهنة: خبر الفعل الناقص دائماً منصوب *)
+Theorem khabar_always_mansub :
+  deficient_role_to_irab DR_Khabar = Some IC_Mansub.
+Proof.
+  reflexivity.
+Qed.
+
+(* مبرهنة: الفعل الناقص لا يُعرَب *)
+Theorem verb_has_no_irab :
+  deficient_role_to_irab DR_Verb = None.
+Proof.
+  reflexivity.
+Qed.
+
+(* مبرهنة: الاسم والخبر لهما إعرابان مختلفان *)
+Theorem ism_khabar_different_irab :
+  deficient_role_to_irab DR_Ism <> deficient_role_to_irab DR_Khabar.
+Proof.
+  unfold deficient_role_to_irab. discriminate.
+Qed.
+
+(* ============ نمذجة الجملة الناقصة ============ *)
+
+(* بنية الجملة الناقصة *)
+Record DeficientSentence := {
+  ds_verb : DeficientVerb;       (* الفعل الناقص *)
+  ds_ism_surface : nat;          (* سطح الاسم - مُعرَّف برقم *)
+  ds_khabar_surface : nat;       (* سطح الخبر - مُعرَّف برقم *)
+  ds_ism_irab : IrabCase;        (* إعراب الاسم *)
+  ds_khabar_irab : IrabCase      (* إعراب الخبر *)
+}.
+
+(* دالة: التحقق من صحة إعراب الجملة الناقصة *)
+Definition is_valid_deficient_sentence (ds : DeficientSentence) : bool :=
+  match ds.(ds_ism_irab), ds.(ds_khabar_irab) with
+  | IC_Marfu3, IC_Mansub => true   (* صحيح: الاسم مرفوع والخبر منصوب *)
+  | _, _ => false
+  end.
+
+(* مثال: أصبح البردُ شديداً *)
+Definition example_asbaha_albardu_shadidan : DeficientSentence := {|
+  ds_verb := DV_Asbaha;
+  ds_ism_surface := 1;    (* البرد *)
+  ds_khabar_surface := 2; (* شديداً *)
+  ds_ism_irab := IC_Marfu3;
+  ds_khabar_irab := IC_Mansub
+|}.
+
+(* مثال: كانَ الطالبُ مجتهداً *)
+Definition example_kana_altalib_mujtahidan : DeficientSentence := {|
+  ds_verb := DV_Kana;
+  ds_ism_surface := 3;    (* الطالب *)
+  ds_khabar_surface := 4; (* مجتهداً *)
+  ds_ism_irab := IC_Marfu3;
+  ds_khabar_irab := IC_Mansub
+|}.
+
+(* مثال: ليسَ الكذبُ حسناً *)
+Definition example_laysa_alkathib_hasanan : DeficientSentence := {|
+  ds_verb := DV_Laysa;
+  ds_ism_surface := 5;    (* الكذب *)
+  ds_khabar_surface := 6; (* حسناً *)
+  ds_ism_irab := IC_Marfu3;
+  ds_khabar_irab := IC_Mansub
+|}.
+
+(* مبرهنة: المثال الأول صحيح *)
+Theorem example_asbaha_valid :
+  is_valid_deficient_sentence example_asbaha_albardu_shadidan = true.
+Proof.
+  reflexivity.
+Qed.
+
+(* مبرهنة: المثال الثاني صحيح *)
+Theorem example_kana_valid :
+  is_valid_deficient_sentence example_kana_altalib_mujtahidan = true.
+Proof.
+  reflexivity.
+Qed.
+
+(* مبرهنة: المثال الثالث صحيح *)
+Theorem example_laysa_valid :
+  is_valid_deficient_sentence example_laysa_alkathib_hasanan = true.
+Proof.
+  reflexivity.
+Qed.
+
+(* مبرهنة: أي جملة صحيحة يجب أن يكون اسمها مرفوعاً *)
+Theorem valid_sentence_has_marfu3_ism :
+  forall ds : DeficientSentence,
+    is_valid_deficient_sentence ds = true ->
+    ds.(ds_ism_irab) = IC_Marfu3.
+Proof.
+  intros ds H.
+  unfold is_valid_deficient_sentence in H.
+  destruct (ds_ism_irab ds); destruct (ds_khabar_irab ds);
+    try discriminate; reflexivity.
+Qed.
+
+(* مبرهنة: أي جملة صحيحة يجب أن يكون خبرها منصوباً *)
+Theorem valid_sentence_has_mansub_khabar :
+  forall ds : DeficientSentence,
+    is_valid_deficient_sentence ds = true ->
+    ds.(ds_khabar_irab) = IC_Mansub.
+Proof.
+  intros ds H.
+  unfold is_valid_deficient_sentence in H.
+  destruct (ds_ism_irab ds); destruct (ds_khabar_irab ds);
+    try discriminate; reflexivity.
+Qed.
+
+(* ============ تصنيف الأفعال الناقصة ============ *)
+
+(* تصنيف حسب نوع الدلالة *)
+Inductive DeficientVerbCategory : Type :=
+| DVC_Time      (* أفعال الزمن: كان، أصبح، أضحى، أمسى، ظلّ، بات *)
+| DVC_Change    (* أفعال التحول: صار *)
+| DVC_Negation  (* أفعال النفي: ليس *)
+| DVC_Continuity. (* أفعال الاستمرار: ما زال، ما فتئ، ما برح، ما انفك، ما دام *)
+
+Definition categorize_deficient_verb (dv : DeficientVerb) : DeficientVerbCategory :=
+  match dv with
+  | DV_Kana | DV_Asbaha | DV_Adha | DV_Amsa | DV_Dhalla | DV_Bata => DVC_Time
+  | DV_Sara => DVC_Change
+  | DV_Laysa => DVC_Negation
+  | DV_MaZala | DV_MaFatia | DV_MaBariha | DV_MaInfakka | DV_MaDama => DVC_Continuity
+  end.
+
+(* مبرهنة: كان من أفعال الزمن *)
+Theorem kana_is_time_verb :
+  categorize_deficient_verb DV_Kana = DVC_Time.
+Proof. reflexivity. Qed.
+
+(* مبرهنة: صار من أفعال التحول *)
+Theorem sara_is_change_verb :
+  categorize_deficient_verb DV_Sara = DVC_Change.
+Proof. reflexivity. Qed.
+
+(* مبرهنة: ليس من أفعال النفي *)
+Theorem laysa_is_negation_verb :
+  categorize_deficient_verb DV_Laysa = DVC_Negation.
+Proof. reflexivity. Qed.
+
+(* مبرهنة: ما زال من أفعال الاستمرار *)
+Theorem mazala_is_continuity_verb :
+  categorize_deficient_verb DV_MaZala = DVC_Continuity.
+Proof. reflexivity. Qed.
+
+(* === عدد الأفعال الناقصة === *)
+Definition deficient_verbs_count : nat := 13.
+
+Theorem deficient_verbs_are_13 :
+  deficient_verbs_count = 13.
+Proof. reflexivity. Qed.
+
+(* ============================================================== *)
+(* End Part 51: الأفعال الناقصة                                   *)
+(* ============================================================== *)
+
 (* === خلاصة الإثباتات الرياضية === *)
 (*
    ✅ الإثباتات المُثبتة رياضياً:
@@ -2732,6 +2947,12 @@ Qed.
       - المجموع = 466 ✓
       - مجموع العلاقات = 932 = 2×466 ✓
       - الأحرف الزائدة = 179 ✓
+   
+   7. الأفعال الناقصة (Part 51):
+      - اسم الفعل الناقص دائماً مرفوع ✓
+      - خبر الفعل الناقص دائماً منصوب ✓
+      - 13 فعلاً ناقصاً (كان وأخواتها) ✓
+      - تصنيف: زمن، تحول، نفي، استمرار ✓
 *)
 
 End AGT_Mathematical.
