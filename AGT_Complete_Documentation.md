@@ -65,7 +65,7 @@ Including 40+ noun-related engines:
 - Mimetic nouns (`mimi_nouns_engine.py`) - الأسماء الميمية
 - Diminutive forms (`tasgheer_engine.py`) - التصغير
 - Relative adjectives (`nisba_engine.py`) - النسب
-- Industrial source (`masdar_sinai_engine.py`) - المصدر الصناعي
+- Synthetic/Derived source (`masdar_sinai_engine.py`) - المصدر الصناعي
 - Exaggeration forms (`mubalagh_sigha_engine.py`) - صيغ المبالغة
 - Instance nouns (`ism_marra_engine.py`) - اسم المرة
 - State nouns (`ism_hay_a_engine.py`) - اسم الهيئة
@@ -133,7 +133,7 @@ The project includes multiple sentence generation engines:
   - Generates comprehensive Arabic sentences
   - Uses all available engines
   - Implements algorithms to exclude grammatically incorrect constructions
-  - Maximum 5000+ sentences for comprehensive coverage
+  - Supports generation of up to 5000 sentences for comprehensive coverage
 
 - **`enhanced_sentence_generation_engine.py`** (387 lines):
   - Enhanced sentence generation with advanced features
