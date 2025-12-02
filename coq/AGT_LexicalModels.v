@@ -59,6 +59,10 @@ Inductive VerbTense : Type :=
   | Tense_Mudari3
   | Tense_Amr.
 
+(* Decidable equality for VerbTense *)
+Definition VerbTense_eq_dec (x y : VerbTense) : {x = y} + {x <> y}.
+Proof. decide equality. Defined.
+
 Inductive VerbVoice : Type :=
   | Voice_Ma3lum
   | Voice_Majhul.
@@ -93,6 +97,14 @@ Inductive IrabCase : Type :=
   | Case_Mansub
   | Case_Majrur
   | Case_Mabni.
+
+(* Decidable equality for NounKind *)
+Inductive NounKind : Type :=
+  | NounKind_Jamid
+  | NounKind_Mushtaq.
+
+Definition NounKind_eq_dec (x y : NounKind) : {x = y} + {x <> y}.
+Proof. decide equality. Defined.
 
 (**********************************************************
   Part 3: VerbModel - النموذج الكامل للفعل

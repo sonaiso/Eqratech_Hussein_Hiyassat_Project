@@ -56,6 +56,8 @@ Definition letter_makhraj (l : ArabicLetter) : Makhraj :=
   | L_Lam => MK_Janibiy
   | L_Ra => MK_Takarruri
   | L_Alif => MK_Halqi  (* الألف من الحلق *)
+  | L_Sad => MK_Asali   (* الصاد من الأسلي *)
+  | L_Dad => MK_Asali   (* الضاد من الأسلي *)
   end.
 
 (* صفات الحروف *)

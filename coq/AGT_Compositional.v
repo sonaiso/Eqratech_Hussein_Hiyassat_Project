@@ -156,7 +156,7 @@ Axiom sentence_fractal_property : forall (ct : CompositionTree),
 
 (* A phrase is well-formed if it has a pivot *)
 Definition WellFormedPhrase (p : PhraseNode) : Prop :=
-  p.(pn_pivot) <> 0 /\ length p.(pn_children) > 0.
+  p.(pn_pivot) <> 0 /\ (length p.(pn_children) > 0)%nat.
 
 (* A sentence is well-formed if complete *)
 Definition WellFormedSentence (s : SentenceNode) : Prop :=

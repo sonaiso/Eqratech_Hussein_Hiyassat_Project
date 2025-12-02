@@ -28,7 +28,7 @@ Inductive Definiteness : Type :=
   | Def_Ma3rifa_Alam   (* معرفة بالعلمية *)
   | Def_Ma3rifa_Damir  (* معرفة بالضمير *)
   | Def_Ma3rifa_Ishara (* معرفة بالإشارة *)
-  | Def_Ma3rifa_Mawsul.(* معرفة بالموصول *)
+  | Def_Ma3rifa_Mawsul. (* معرفة بالموصول *)
 
 (* العدد - Number *)
 Inductive GramNumber : Type :=
