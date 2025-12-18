@@ -40,3 +40,17 @@ Proof.
   unfold valid_hub.
   (* Proof to be completed *)
 Admitted.
+
+(** ** Position and Token Structures *)
+
+(** Atomic unit representing phonological position *)
+Record AtomicUnit := {
+  consonant_code : nat;
+  vowel_code : nat;
+  position_index : nat
+}.
+
+(** Position token wraps an atomic unit *)
+Record PositionToken := {
+  unpack_position : AtomicUnit
+}.

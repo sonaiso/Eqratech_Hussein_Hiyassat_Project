@@ -1,0 +1,6 @@
+-R theories FractalHub
+
+theories/FractalHubSpec.v
+theories/FractalHubGates.v
+theories/FractalHubDerivation.v
+theories/FractalHubPhonology.v

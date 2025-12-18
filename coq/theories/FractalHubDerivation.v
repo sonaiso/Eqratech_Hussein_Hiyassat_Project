@@ -6,6 +6,8 @@
 
 Require Import FractalHub.FractalHubSpec.
 Require Import FractalHub.FractalHubGates.
+Require Import List.
+Import ListNotations.
 
 (** ** Derivation Rules *)
 
@@ -18,6 +20,38 @@ Fixpoint apply_gate_sequence (gs : GateSequence) (h : Hub) : Hub :=
   | nil => h
   | g :: rest => apply_gate_sequence rest (apply_gate g h)
   end.
+
+(** ** Token and State Structures *)
+
+(** State represents a collection of position tokens *)
+Record State := {
+  st_tokens : list PositionToken
+}.
+
+(** Helper functions to extract codes from atomic units *)
+Definition consonant_code (au : AtomicUnit) : nat :=
+  AtomicUnit.(consonant_code) au.
+
+Definition vowel_code (au : AtomicUnit) : nat :=
+  AtomicUnit.(vowel_code) au.
+
+(** Check if a token has a consonant (consonant_code <> 0) *)
+Definition has_consonant (t : PositionToken) : Prop :=
+  consonant_code (unpack_position t) <> 0.
+
+(** Check if a token has a vowel (vowel_code <> 0) *)
+Definition has_vowel (t : PositionToken) : Prop :=
+  vowel_code (unpack_position t) <> 0.
+
+(** ** Derivation Relation *)
+
+(** Basic derivation relation between states *)
+Inductive Derives : State -> State -> Prop :=
+| Derives_refl : forall s, Derives s s
+| Derives_trans : forall s1 s2 s3,
+    Derives s1 s2 ->
+    Derives s2 s3 ->
+    Derives s1 s3.
 
 (** ** System Invariants *)
 
