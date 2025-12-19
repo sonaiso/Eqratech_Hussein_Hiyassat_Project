@@ -1,0 +1,426 @@
+# Spaces, Edges, Operators Configuration v0.1
+# Unified schema for FractalHub graph-based linguistic analysis
+
+# ==============================================================================
+# 1. SPACE DEFINITIONS
+# ==============================================================================
+# Spaces represent different linguistic layers or dimensions
+spaces:
+  phonological:
+    id: phono_space
+    description: "Phonological space for sound patterns and constraints"
+    dimensions:
+      - name: vowel_length
+        type: discrete
+        values: [0, 1, 2]  # null, short (V), long (VV)
+      - name: consonant_type
+        type: categorical
+        values: [none, stable, carrier_alif, carrier_waw, carrier_ya]
+      - name: nucleus_type
+        type: categorical
+        values: [none, sukun, fatha, damma, kasra]
+    
+  morphological:
+    id: morpho_space
+    description: "Morphological space for word formation and derivation"
+    dimensions:
+      - name: root_type
+        type: categorical
+        values: [jamid, mushtaq]  # solid/derived
+      - name: pattern
+        type: categorical
+        values: [mujarrad, mazid]  # base/augmented
+      - name: root_position
+        type: discrete
+        values: [0, 1, 2, 3]  # C0, C1, C2, C3
+      - name: transformation
+        type: categorical
+        values: [none, i3lal, idgham, ibdal]  # substitution, assimilation, replacement
+    
+  syntactic:
+    id: syntax_space
+    description: "Syntactic space for grammatical structure"
+    dimensions:
+      - name: role
+        type: categorical
+        values: [mubtada, khabar, fael, mafoul, mudaf, mudaf_ilayh, sifa, mousoof]
+      - name: case
+        type: categorical
+        values: [marfou3, mansub, majrour, mabniy]
+      - name: state
+        type: categorical
+        values: [ma3rifa, nakira, mudaf]
+    
+  semantic:
+    id: semantic_space
+    description: "Semantic space for meaning and pragmatics"
+    dimensions:
+      - name: animacy
+        type: categorical
+        values: [aqil, ghair_aqil]  # rational/non-rational
+      - name: definiteness
+        type: categorical
+        values: [definite, indefinite]
+      - name: semantic_role
+        type: categorical
+        values: [agent, patient, instrument, location, time, manner]
+
+# ==============================================================================
+# 2. NODE TYPES
+# ==============================================================================
+# Nodes represent linguistic units at different levels
+node_types:
+  position_token:
+    space: phonological
+    attributes:
+      - name: consonant_code
+        type: integer
+        required: true
+      - name: vowel_code
+        type: integer
+        required: true
+      - name: position_index
+        type: integer
+        required: true
+      - name: is_carrier
+        type: boolean
+        default: false
+    
+  morpheme:
+    space: morphological
+    attributes:
+      - name: root_consonants
+        type: list[integer]
+        required: true
+      - name: pattern_id
+        type: string
+        required: true
+      - name: form_number
+        type: integer
+        range: [1, 15]
+      - name: transformations_applied
+        type: list[string]
+        default: []
+    
+  word:
+    space: syntactic
+    attributes:
+      - name: surface_form
+        type: string
+        required: true
+      - name: syntactic_role
+        type: string
+        required: true
+      - name: case_ending
+        type: string
+        required: true
+      - name: gender
+        type: string
+        values: [mudhakkar, muannath]
+      - name: number
+        type: string
+        values: [mufrad, muthanna, jam3]
+    
+  phrase:
+    space: syntactic
+    attributes:
+      - name: phrase_type
+        type: string
+        values: [idafa, na3t_man3ut, jumla_ismiyya, jumla_fi3liyya]
+      - name: head_word_id
+        type: string
+        required: true
+      - name: dependents
+        type: list[string]
+        default: []
+    
+  concept:
+    space: semantic
+    attributes:
+      - name: meaning_id
+        type: string
+        required: true
+      - name: semantic_features
+        type: dict
+        default: {}
+      - name: pragmatic_context
+        type: string
+        default: ""
+
+# ==============================================================================
+# 3. EDGE TYPES (OPERATORS)
+# ==============================================================================
+# Edges represent transformations, derivations, and relationships
+operators:
+  # --- Phonological Operators ---
+  phono_onset_check:
+    source_type: position_token
+    target_type: position_token
+    space: phonological
+    direction: forward
+    preconditions:
+      - "source.position_index + 1 == target.position_index"
+    constraints:
+      - name: no_cc_cluster
+        check: |
+          NOT (source.consonant_code != 0 AND 
+               target.consonant_code != 0 AND
+               source.vowel_code IN [0, 1] AND
+               target.vowel_code IN [0, 1])
+        unless: exception_declared
+    effects: []
+    audit_trail:
+      operator_name: "phono_onset_check"
+      validates: "CC_onset_constraint"
+  
+  phono_long_vowel_formation:
+    source_type: position_token
+    target_type: position_token
+    space: phonological
+    direction: forward
+    preconditions:
+      - "source.position_index + 1 == target.position_index"
+      - "source.vowel_code IN [2, 3, 4]"  # fatha, damma, kasra
+    rules:
+      - condition: "source.vowel_code == 2 AND target.is_carrier AND target.consonant_code IN alif_carriers"
+        effect: {nucleus_length: 2, vowel_type: "VV_fatha_alif"}
+      - condition: "source.vowel_code == 3 AND target.is_carrier AND target.consonant_code IN waw_carriers"
+        effect: {nucleus_length: 2, vowel_type: "VV_damma_waw"}
+      - condition: "source.vowel_code == 4 AND target.is_carrier AND target.consonant_code IN ya_carriers"
+        effect: {nucleus_length: 2, vowel_type: "VV_kasra_ya"}
+    audit_trail:
+      operator_name: "phono_long_vowel_formation"
+      validates: "long_vowel_rules"
+  
+  # --- Morphological Operators ---
+  morpho_root_gate:
+    source_type: null
+    target_type: morpheme
+    space: morphological
+    direction: creation
+    preconditions:
+      - "gate_authorization_required"
+    constraints:
+      - name: root_validity
+        check: "len(target.root_consonants) IN [3, 4]"
+      - name: gate_sequence
+        check: "C1_gate_fired AND C2_gate_fired"
+        for_target: "C3_insertion"
+    effects:
+      - "create_morpheme_node"
+      - "register_root_consonants"
+    audit_trail:
+      operator_name: "morpho_root_gate"
+      validates: "no_root_without_gate"
+  
+  morpho_pattern_application:
+    source_type: morpheme
+    target_type: morpheme
+    space: morphological
+    direction: transformation
+    preconditions:
+      - "source.root_consonants IS NOT NULL"
+      - "gate_authorization_required"
+    rules:
+      - condition: "pattern == 'fa3ala'"
+        effect: {form_number: 1, pattern_type: "mujarrad_thulathi"}
+      - condition: "pattern == 'fa33ala'"
+        effect: {form_number: 2, pattern_type: "mazid_fih"}
+      - condition: "pattern == 'fa3ala_with_i3lal'"
+        effect: {form_number: 1, transformations_applied: ["i3lal"]}
+    audit_trail:
+      operator_name: "morpho_pattern_application"
+      validates: "no_pattern_without_gate"
+  
+  morpho_derivation_gate:
+    source_type: morpheme
+    target_type: morpheme
+    space: morphological
+    direction: derivation
+    preconditions:
+      - "source.root_type == 'mushtaq'"
+      - "gate_authorization_required"
+    constraints:
+      - name: derivation_order
+        check: "source.root_consonants[0] LOCKED AND source.root_consonants[1] LOCKED"
+        before_adding: "C3"
+    effects:
+      - "create_derived_morpheme"
+      - "inherit_root_consonants"
+      - "apply_derivation_transformation"
+    audit_trail:
+      operator_name: "morpho_derivation_gate"
+      validates: "C3_after_C1_C2_locked"
+  
+  # --- Syntactic Operators ---
+  syntax_case_assignment:
+    source_type: word
+    target_type: word
+    space: syntactic
+    direction: annotation
+    preconditions:
+      - "source.syntactic_role IS NOT NULL"
+    rules:
+      - condition: "syntactic_role IN ['mubtada', 'khabar', 'fael']"
+        effect: {case_ending: "marfou3"}
+      - condition: "syntactic_role IN ['mafoul_bih', 'tamyeez']"
+        effect: {case_ending: "mansub"}
+      - condition: "syntactic_role IN ['mudaf_ilayh', 'after_preposition']"
+        effect: {case_ending: "majrour"}
+    audit_trail:
+      operator_name: "syntax_case_assignment"
+      validates: "case_agreement"
+  
+  syntax_agreement:
+    source_type: word
+    target_type: word
+    space: syntactic
+    direction: constraint
+    preconditions:
+      - "relationship IN ['sifa_mousoof', 'khabar_mubtada']"
+    constraints:
+      - name: gender_agreement
+        check: "source.gender == target.gender"
+      - name: number_agreement
+        check: "source.number == target.number"
+      - name: case_agreement
+        check: "source.case_ending == target.case_ending"
+      - name: definiteness_agreement
+        check: "source.state == target.state"
+    audit_trail:
+      operator_name: "syntax_agreement"
+      validates: "syntactic_agreement_rules"
+  
+  # --- Semantic Operators ---
+  semantic_role_assignment:
+    source_type: word
+    target_type: concept
+    space: semantic
+    direction: mapping
+    preconditions:
+      - "source.surface_form IS NOT NULL"
+    rules:
+      - condition: "syntactic_role == 'fael'"
+        effect: {semantic_role: "agent"}
+      - condition: "syntactic_role == 'mafoul_bih'"
+        effect: {semantic_role: "patient"}
+      - condition: "syntactic_role IN ['zarf_zaman', 'zarf_makan']"
+        effect: {semantic_role: "location_or_time"}
+    audit_trail:
+      operator_name: "semantic_role_assignment"
+      validates: "syntax_semantics_mapping"
+
+# ==============================================================================
+# 4. PARAMETERS
+# ==============================================================================
+# Global parameters for the system
+parameters:
+  carrier_consonants:
+    alif_carriers: [1, 28]  # ا and ى codes
+    waw_carriers: [27]      # و code
+    ya_carriers: [28]       # ي code
+  
+  vowel_codes:
+    none: 0
+    sukun: 1
+    fatha: 2
+    damma: 3
+    kasra: 4
+  
+  morphological_forms:
+    mujarrad_thulathi: [1, 2, 3, 4, 5, 6]  # forms I-VI base patterns
+    mazid_thulathi: [7, 8, 9, 10, 11, 12, 13, 14, 15]  # forms VII-XV augmented
+  
+  gate_policies:
+    require_authorization: true
+    audit_all_operations: true
+    enforce_sequential_constraints: true
+  
+  validation_modes:
+    strict: true  # Fail on any constraint violation
+    permissive: false  # Allow exceptions with warnings
+    audit_only: false  # Log but don't block
+
+# ==============================================================================
+# 5. AUDIT TRAIL SCHEMA
+# ==============================================================================
+# Unified audit trail for all operations
+audit_trail_schema:
+  required_fields:
+    - operation_id        # UUID for the operation
+    - timestamp           # ISO 8601 timestamp
+    - operator_name       # Name of the operator applied
+    - source_node_id      # ID of source node (null for creation)
+    - target_node_id      # ID of target node
+    - space               # Space where operation occurred
+    - status              # success | failure | warning
+  
+  optional_fields:
+    - preconditions_met   # List of satisfied preconditions
+    - constraints_checked # List of constraint results
+    - effects_applied     # List of effects executed
+    - gate_authorization  # Gate ID if gate was required
+    - exception_declared  # Exception ID if exception applies
+    - validation_result   # Result of validation checks
+    - error_message       # Error description if failed
+    - metadata            # Additional operator-specific data
+  
+  indexing:
+    primary_key: operation_id
+    indices:
+      - operator_name
+      - timestamp
+      - source_node_id
+      - target_node_id
+      - space
+      - status
+  
+  retention:
+    policy: "keep_all"
+    archive_after_days: 365
+    compression: true
+
+# ==============================================================================
+# 6. VALIDATION RULES
+# ==============================================================================
+validation_rules:
+  global:
+    - rule: "All nodes must belong to exactly one space"
+    - rule: "All operators must have valid source and target types"
+    - rule: "Audit trail must be created for every operation"
+    - rule: "Gate authorization must be checked when required"
+  
+  phonological:
+    - rule: "No CC clusters without exception"
+    - rule: "Long vowels only with appropriate carrier"
+    - rule: "Position indices must be sequential"
+  
+  morphological:
+    - rule: "Root must be established before pattern"
+    - rule: "C1 and C2 must be locked before C3"
+    - rule: "Derivations require source morpheme"
+  
+  syntactic:
+    - rule: "All words must have syntactic role"
+    - rule: "Agreement must hold between related words"
+    - rule: "Case must match syntactic position"
+  
+  semantic:
+    - rule: "Semantic roles must map from syntactic roles"
+    - rule: "Animacy constraints must be satisfied"
+
+# ==============================================================================
+# METADATA
+# ==============================================================================
+metadata:
+  schema_version: "0.1"
+  created_date: "2025-12-19"
+  description: "Unified YAML schema for FractalHub linguistic graph engine"
+  authors: ["FractalHub Team"]
+  references:
+    - "FractalHubSpec.v - Core type definitions"
+    - "FractalHubPhonology.v - Phonological constraints"
+    - "FractalHubMorphology.v - Morphological derivations (planned)"
+  compatibility:
+    coq_modules: ["FractalHubSpec", "FractalHubGates", "FractalHubDerivation", "FractalHubPhonology"]
+    python_version: ">=3.8"
