@@ -178,6 +178,21 @@ coqc -q -R theories FractalHub theories/FractalHubSyntaxDerivation.v
 
 **ملاحظة**: في PowerShell، يُستخدم الرمز `` ` `` (backtick) لكسر الأمر على عدة أسطر.
 
+#### اختبار سريع للتحقق من البناء الناجح
+
+بعد البناء، يمكنك التحقق من أن جميع ملفات `.vo` تم إنشاؤها بنجاح:
+
+```powershell
+Get-ChildItem theories\*.vo | Select-Object Name
+```
+
+يجب أن ترى قائمة بخمسة ملفات:
+- FractalHubSpec.vo
+- FractalHubGates.vo
+- FractalHubDerivation.vo
+- FractalHubPhonology.vo
+- FractalHubSyntaxDerivation.vo
+
 ### معالجة الأخطاء
 
 إذا ظهرت أخطاء أثناء البناء:
