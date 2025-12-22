@@ -103,18 +103,33 @@ coqc --version
 
 ### بنية المشروع
 
-يحتوي مجلد `coq/` على:
+يحتوي مجلد `coq/` على بنية طبقية منظمة:
 ```
 coq/
+├── scripts/
+│   └── build_all.ps1                 # سكريبت بناء شامل
 ├── theories/
-│   ├── FractalHubSpec.v              # المواصفات الأساسية
-│   ├── FractalHubGates.v             # تعريفات البوابات والعمليات
-│   ├── FractalHubDerivation.v        # الاشتقاقات والبراهين
-│   ├── FractalHubPhonology.v         # القيود الفونولوجية والنطق
-│   └── FractalHubSyntaxDerivation.v  # الاشتقاق النحوي وبراهين البنية
+│   ├── Core/                         # الطبقة الأساسية
+│   │   ├── FractalHubSpec.v
+│   │   ├── FractalHubGates.v
+│   │   └── FractalHubDerivation.v
+│   ├── Phonology/                    # طبقة الفونولوجيا
+│   │   └── FractalHubPhonology.v
+│   ├── Syntax/                       # طبقة النحو
+│   │   └── FractalHubSyntaxDerivation.v
+│   ├── Codec/                        # طبقة الترميز
+│   │   └── FractalHubCodecRoundTrip.v
+│   ├── FractalHubSpec.v              # واجهة (facade)
+│   ├── FractalHubGates.v             # واجهة
+│   ├── FractalHubDerivation.v        # واجهة
+│   ├── FractalHubPhonology.v         # واجهة
+│   ├── FractalHubSyntaxDerivation.v  # واجهة
+│   └── FractalHubCodecRoundTrip.v    # واجهة
 ├── _CoqProject                       # ملف مشروع Coq
 └── README_WINDOWS_AR.md              # هذا الملف
 ```
+
+**ملاحظة**: ملفات الواجهة (facade files) في الجذر تحافظ على التوافق الخلفي مع الاستيرادات القديمة.
 
 ### أوامر البناء
 
@@ -126,25 +141,56 @@ coq/
 cd coq
 ```
 
-#### 2. بناء الملفات بالترتيب
+#### 2. بناء الملفات باستخدام السكريبت الشامل (الطريقة الموصى بها)
 
-يجب بناء الملفات بالترتيب التالي لأن بعض الملفات تعتمد على ملفات أخرى:
+استخدم السكريبت الشامل لبناء جميع الطبقات بالترتيب الصحيح:
 
 ```powershell
-# بناء المواصفات الأساسية (FractalHubSpec)
+# من داخل مجلد coq/
+.\scripts\build_all.ps1
+```
+
+السكريبت سيبني:
+1. **Core layer**: FractalHubSpec, FractalHubGates, FractalHubDerivation
+2. **Phonology layer**: FractalHubPhonology
+3. **Syntax layer**: FractalHubSyntaxDerivation
+4. **Codec layer**: FractalHubCodecRoundTrip
+5. **Facade files**: ملفات الواجهة للتوافق الخلفي
+
+#### 3. بناء الملفات يدوياً (متقدم)
+
+يمكنك بناء الطبقات يدوياً بالترتيب التالي:
+
+**Core layer:**
+```powershell
+coqc -q -R theories FractalHub theories/Core/FractalHubSpec.v
+coqc -q -R theories FractalHub theories/Core/FractalHubGates.v
+coqc -q -R theories FractalHub theories/Core/FractalHubDerivation.v
+```
+
+**Phonology layer:**
+```powershell
+coqc -q -R theories FractalHub theories/Phonology/FractalHubPhonology.v
+```
+
+**Syntax layer:**
+```powershell
+coqc -q -R theories FractalHub theories/Syntax/FractalHubSyntaxDerivation.v
+```
+
+**Codec layer:**
+```powershell
+coqc -q -R theories FractalHub theories/Codec/FractalHubCodecRoundTrip.v
+```
+
+**Facade files:**
+```powershell
 coqc -q -R theories FractalHub theories/FractalHubSpec.v
-
-# بناء تعريفات البوابات (FractalHubGates)
 coqc -q -R theories FractalHub theories/FractalHubGates.v
-
-# بناء الاشتقاقات والبراهين (FractalHubDerivation)
 coqc -q -R theories FractalHub theories/FractalHubDerivation.v
-
-# بناء القيود الفونولوجية (FractalHubPhonology)
 coqc -q -R theories FractalHub theories/FractalHubPhonology.v
-
-# بناء الاشتقاق النحوي (FractalHubSyntaxDerivation)
 coqc -q -R theories FractalHub theories/FractalHubSyntaxDerivation.v
+coqc -q -R theories FractalHub theories/FractalHubCodecRoundTrip.v
 ```
 
 **شرح الخيارات:**
@@ -153,27 +199,39 @@ coqc -q -R theories FractalHub theories/FractalHubSyntaxDerivation.v
   - هذا يسمح للملفات باستخدام `Require Import FractalHub...`
   - يجب أن يكون هذا الخيار متسقاً عبر جميع أوامر البناء
 
-#### 3. التحقق من نجاح البناء
+#### 4. التحقق من نجاح البناء
 
-إذا نجح البناء، ستجد ملفات `.vo` (Verified Object) في مجلد `theories/`:
-- `FractalHubSpec.vo`
-- `FractalHubGates.vo`
-- `FractalHubDerivation.vo`
-- `FractalHubPhonology.vo`
-- `FractalHubSyntaxDerivation.vo`
+إذا نجح البناء، ستجد ملفات `.vo` (Verified Object) في المجلدات المختلفة:
+- `theories/Core/*.vo`
+- `theories/Phonology/*.vo`
+- `theories/Syntax/*.vo`
+- `theories/Codec/*.vo`
+- `theories/*.vo` (facade files)
 
 هذه الملفات هي نتيجة عملية التحقق والبناء.
 
-### بناء جميع الملفات مرة واحدة
+### بناء جميع الملفات مرة واحدة (بدون السكريبت)
 
-يمكنك بناء جميع الملفات بأمر واحد:
+يمكنك بناء جميع الطبقات بأمر واحد إذا أردت:
 
 ```powershell
+# Core layer
+coqc -q -R theories FractalHub theories/Core/FractalHubSpec.v && `
+coqc -q -R theories FractalHub theories/Core/FractalHubGates.v && `
+coqc -q -R theories FractalHub theories/Core/FractalHubDerivation.v && `
+# Phonology layer
+coqc -q -R theories FractalHub theories/Phonology/FractalHubPhonology.v && `
+# Syntax layer
+coqc -q -R theories FractalHub theories/Syntax/FractalHubSyntaxDerivation.v && `
+# Codec layer
+coqc -q -R theories FractalHub theories/Codec/FractalHubCodecRoundTrip.v && `
+# Facades
 coqc -q -R theories FractalHub theories/FractalHubSpec.v && `
 coqc -q -R theories FractalHub theories/FractalHubGates.v && `
 coqc -q -R theories FractalHub theories/FractalHubDerivation.v && `
 coqc -q -R theories FractalHub theories/FractalHubPhonology.v && `
-coqc -q -R theories FractalHub theories/FractalHubSyntaxDerivation.v
+coqc -q -R theories FractalHub theories/FractalHubSyntaxDerivation.v && `
+coqc -q -R theories FractalHub theories/FractalHubCodecRoundTrip.v
 ```
 
 **ملاحظة**: في PowerShell، يُستخدم الرمز `` ` `` (backtick) لكسر الأمر على عدة أسطر.
@@ -183,15 +241,15 @@ coqc -q -R theories FractalHub theories/FractalHubSyntaxDerivation.v
 بعد البناء، يمكنك التحقق من أن جميع ملفات `.vo` تم إنشاؤها بنجاح:
 
 ```powershell
-Get-ChildItem theories\*.vo | Select-Object Name
+Get-ChildItem theories\*.vo -Recurse | Select-Object Name, Directory
 ```
 
-يجب أن ترى قائمة بخمسة ملفات:
-- FractalHubSpec.vo
-- FractalHubGates.vo
-- FractalHubDerivation.vo
-- FractalHubPhonology.vo
-- FractalHubSyntaxDerivation.vo
+يجب أن تشاهد جميع ملفات `.vo` في المجلدات الطبقية والواجهات، بما في ذلك:
+- Core layer: FractalHubSpec.vo, FractalHubGates.vo, FractalHubDerivation.vo
+- Phonology layer: FractalHubPhonology.vo
+- Syntax layer: FractalHubSyntaxDerivation.vo
+- Codec layer: FractalHubCodecRoundTrip.vo
+- Facade files في الجذر
 
 ### معالجة الأخطاء
 
