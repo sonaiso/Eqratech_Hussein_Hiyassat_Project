@@ -38,7 +38,16 @@ The formalization is structured into several modules:
 - Implements SlotsOf function for verbs, copulas, and particles
 - Provides extensible framework for new constructions
 
-### 4. All.v
+### 4. Policy.v
+**Tactic policy enforcement**
+
+- Defines allowed tactics for kernel proofs
+- Lists forbidden tactics (auto, admit, Admitted, etc.)
+- Provides policy enforcement mechanisms
+- Ensures kernel remains small and trustworthy
+- See "Tactic Policy" section below for details
+
+### 5. All.v
 **Main export module**
 
 ## Building
@@ -55,6 +64,10 @@ cd coq
 make
 ```
 
+The build process includes:
+1. **Tactic policy check**: Verifies only allowed tactics are used
+2. **Coq compilation**: Compiles all .v files
+
 Or using Coq directly:
 
 ```bash
@@ -62,6 +75,53 @@ cd coq
 coq_makefile -f _CoqProject -o Makefile.coq
 make -f Makefile.coq
 ```
+
+### Check Tactic Policy Only
+
+```bash
+cd coq
+python3 check_coq_tactics.py --dir theories
+```
+
+Options:
+- `--strict`: Treat warnings as errors
+- `--list-allowed`: Show allowed/forbidden tactics
+
+## Tactic Policy
+
+To keep the kernel **small and trustworthy**, we restrict the tactics used in proofs.
+
+### Allowed Tactics
+
+Only these tactics may be used in kernel proofs:
+- `exact`, `apply`, `intro/intros`
+- `split`, `left`, `right`, `exists`
+- `reflexivity`, `simpl`, `unfold`
+- `induction`, `destruct`, `rewrite`, `assumption`
+
+### Forbidden Tactics
+
+These tactics are **strictly forbidden**:
+- `admit`, `Admitted` - **UNSOUND**, never use
+- `auto`, `tauto` - Too opaque, unclear what they prove
+- `omega`, `lia`, `ring`, `field` - External decision procedures
+
+### Rationale
+
+**Why restrict tactics?**
+1. **Transparency**: All proofs should be human-reviewable
+2. **Trust**: Small kernel = fewer bugs = more confidence
+3. **Auditability**: Easy to verify correctness by inspection
+4. **Soundness**: No "magic" tactics that could hide errors
+
+### Enforcement
+
+The policy is enforced by:
+1. **Static check**: `check_coq_tactics.py` runs during build
+2. **CI integration**: Build fails if forbidden tactics detected
+3. **Code review**: All proofs reviewed for compliance
+
+See `theories/ArabicKernel/Policy.v` for detailed policy definition.
 
 ## Integration with Python Engines
 

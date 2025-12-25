@@ -8,3 +8,4 @@
 From ArabicKernel Require Export ArabicKernel.FractalCore.
 From ArabicKernel Require Export ArabicKernel.Roles.
 From ArabicKernel Require Export ArabicKernel.SlotsTable.
+From ArabicKernel Require Export ArabicKernel.Policy.
