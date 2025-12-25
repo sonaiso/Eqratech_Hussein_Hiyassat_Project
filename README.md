@@ -13,6 +13,25 @@
 - **التصنيف النحوي**: تصنيف آلي للعناصر النحوية والصرفية
 - **معالجة القرآن الكريم**: تطبيق نماذج التعلم العميق على النصوص القرآنية
 
+## البنية المعمارية المزدوجة / Dual Architecture
+
+يجمع المشروع بين نهجين متكاملين:
+
+1. **محركات Python العملية** (Practical NLP Engines): 68+ محرك لتحليل وتوليد النصوص
+2. **نواة Coq الرياضية** (Formal Verification Kernel): نظام إثبات رياضي يتحقق من صحة المخرجات
+
+The project combines two complementary approaches:
+
+1. **Python Practical Engines**: 68+ engines for text analysis and generation
+2. **Coq Mathematical Kernel**: Formal verification system ensuring correctness
+
+### نموذج التحقق / Verification Model
+
+```
+محرك Python → شهادة JSON → التحقق بـ Coq → قبول/رفض
+Python Engine → JSON Certificate → Coq Verification → Accept/Reject
+```
+
 ## الميزات الرئيسية / Key Features
 
 ### 1. محركات النحو الشاملة (68+ محرك متخصص)
@@ -156,6 +175,44 @@
 3. **المستوى النحوي**: تحليل التراكيب النحوية
 4. **المستوى البلاغي**: تحديد الأساليب البلاغية
 5. **التصدير والتوليد**: إنشاء البيانات والجمل
+6. **التحقق الرياضي** (اختياري): التحقق من صحة المخرجات بواسطة نواة Coq
+
+## التحقق الرسمي / Formal Verification
+
+### نواة Coq (Coq Kernel)
+
+المشروع يتضمن نواة رياضية مبنية على Coq لإثبات صحة التراكيب اللغوية:
+
+- **المبدأ الفراكتالي**: كل بنية لغوية تتبع نمط C1-C2-C3
+- **القيود الثابتة** (Invariants):
+  - لا صامت بدون صائت/حركة
+  - لا بداية مركبة (CC onset)
+  - مبدأ OCP (Obligatory Contour Principle)
+  - كل دور دلالي يجب أن يكون مرخصاً من C2
+  
+**الموقع**: `coq/theories/ArabicKernel/`
+
+**الاستخدام**:
+```python
+from coq_bridge import verify_construct, ConstructCertificate, Phoneme, C2Spec, RoleFilling
+
+cert = ConstructCertificate(
+    word="كَتَبَ",
+    phonemes=[Phoneme(consonant="ك", haraka="َ"), ...],
+    c2_spec=C2Spec(kind="VERB", voice="ACTIVE", valency="V1"),
+    roles=[RoleFilling(role="AGENT", filled=True), ...]
+)
+
+is_valid, message = verify_construct(cert)
+```
+
+**البناء** (Build):
+```bash
+cd coq
+make
+```
+
+**الوثائق**: انظر `coq/README.md` للتفاصيل الكاملة
 
 ## البدء السريع / Getting Started
 
@@ -210,6 +267,17 @@ python run_server.py --reload
 python scripts/prepare_quran_dataset.py
 ```
 
+#### 5. التحقق الرسمي (اختياري)
+```bash
+# Build Coq kernel
+cd coq
+make
+
+# Verify a construct from Python
+cd ..
+python -c "from coq_bridge import *; print(verify_construct(...))"
+```
+
 ## بنية المشروع / Project Layout
 
 ```
@@ -217,9 +285,18 @@ python scripts/prepare_quran_dataset.py
 ├── *_engine.py              # 68+ محرك نحوي متخصص
 ├── Main_engine.py            # المحرك الرئيسي لتجميع البيانات
 ├── reconstruction_utils.py   # أدوات إعادة البناء
+├── coq_bridge.py            # جسر Python-Coq للتحقق الرسمي
 ├── comprehensive_sentence_generator.py  # مولد الجمل الشامل
 ├── enhanced_sentence_generation_engine.py  # مولد الجمل المحسن
 ├── run_server.py            # خادم FastAPI
+├── coq/                     # نواة التحقق الرسمي Coq
+│   ├── theories/ArabicKernel/
+│   │   ├── FractalCore.v   # النمط الفراكتالي C1-C2-C3
+│   │   ├── Roles.v          # نظام الأدوار الدلالية
+│   │   ├── SlotsTable.v     # جدول الفتحات (Slots)
+│   │   └── All.v            # التصدير الشامل
+│   ├── Makefile             # بناء Coq
+│   └── README.md            # وثائق التحقق الرسمي
 ├── data/                    # بيانات المشروع
 │   └── quran/              # نصوص القرآن الكريم
 ├── scripts/                 # البرامج النصية

@@ -1,0 +1,7 @@
+-Q theories ArabicKernel
+-arg -w -arg -notation-overridden
+
+theories/ArabicKernel/FractalCore.v
+theories/ArabicKernel/Roles.v
+theories/ArabicKernel/SlotsTable.v
+theories/ArabicKernel/All.v
