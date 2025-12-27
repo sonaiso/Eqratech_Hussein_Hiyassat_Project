@@ -14,6 +14,7 @@ VFILES = $(THEORIES_DIR)/FractalCore.v \
          $(THEORIES_DIR)/Roles.v \
          $(THEORIES_DIR)/SlotsTable.v \
          $(THEORIES_DIR)/Policy.v \
+         $(THEORIES_DIR)/C1C2C3_Theorem.v \
          $(THEORIES_DIR)/All.v
 
 # Build using coq_makefile
@@ -42,6 +43,7 @@ direct: check-tactics
 	$(COQC) -Q theories ArabicKernel $(THEORIES_DIR)/Roles.v
 	$(COQC) -Q theories ArabicKernel $(THEORIES_DIR)/SlotsTable.v
 	$(COQC) -Q theories ArabicKernel $(THEORIES_DIR)/Policy.v
+	$(COQC) -Q theories ArabicKernel $(THEORIES_DIR)/C1C2C3_Theorem.v
 	$(COQC) -Q theories ArabicKernel $(THEORIES_DIR)/All.v
 
 # Help

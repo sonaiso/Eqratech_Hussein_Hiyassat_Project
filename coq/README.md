@@ -47,7 +47,17 @@ The formalization is structured into several modules:
 - Ensures kernel remains small and trustworthy
 - See "Tactic Policy" section below for details
 
-### 5. All.v
+### 5. C1C2C3_Theorem.v
+**Consciousness-inspired C1-C2-C3 architecture formalization**
+
+- Formalizes Reality (C2), Concept (C1), Language (C3) types
+- Proves structural constraints: no C3 without C2, no C1 without C2
+- Implements boolean predicates with soundness proofs
+- Main theorem: **Fractal_Arabic_Soundness** - validates C1-C2-C3 integrity
+- Phonetic soundness: consonant-vowel pairing constraints
+- Uses only safe tactics: reflexivity, exact, apply, destruct, lia
+
+### 6. All.v
 **Main export module**
 
 ## Building

@@ -5,4 +5,5 @@ theories/ArabicKernel/FractalCore.v
 theories/ArabicKernel/Roles.v
 theories/ArabicKernel/SlotsTable.v
 theories/ArabicKernel/Policy.v
+theories/ArabicKernel/C1C2C3_Theorem.v
 theories/ArabicKernel/All.v
