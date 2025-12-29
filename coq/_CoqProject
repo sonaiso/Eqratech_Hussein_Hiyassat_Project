@@ -9,4 +9,5 @@ theories/ArabicKernel/C1C2C3_Theorem.v
 theories/ArabicKernel/Morphology.v
 theories/ArabicKernel/SyntacticIntegration.v
 theories/ArabicKernel/Examples.v
+theories/ArabicKernel/FractalDigitalRoundTrip.v
 theories/ArabicKernel/All.v
