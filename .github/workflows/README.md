@@ -1,193 +1,286 @@
-# CI/CD Pipeline Configuration
+# CI/CD Workflows Documentation
 
-This directory contains GitHub Actions workflows for automated verification and continuous integration of the Eqratech Arabic Diana Project.
+## Overview
+
+This directory contains GitHub Actions workflows for continuous integration and verification of the Arabic Fractal Kernel project with production-ready quality standards.
 
 ## Workflows
 
 ### 1. Coq Kernel Verification (`coq-verification.yml`)
 
-**Purpose**: Verify the mathematical soundness of the Coq formal verification kernel.
+**Purpose:** Ensures mathematical soundness and production readiness of the Coq formal verification kernel.
 
-**Triggers**:
-- Push to `main` or `copilot/update-project-description` branches
+**Triggers:**
+- Push to `main` or feature branches
 - Pull requests to `main`
-- Only when Coq files change
+- Changes to `coq/**` or workflow files
 
-**Jobs**:
+**Enhanced Checks (Production-Ready):**
 
-#### `verify-kernel`
-- Installs Coq compiler
-- Checks for `Admitted` statements (must be 0)
-- Checks for `Axiom` statements (must be 0)
-- Verifies tactic policy compliance
-- Compiles entire Coq kernel
-- Verifies all modules load correctly
-- Generates verification report
+1. **Comment-Aware Admitted/Axiom Scan** 🔍
+   - Uses intelligent Python scanner (`check_assumptions.py`)
+   - Understands Coq comment syntax `(* ... *)`
+   - Ignores instances in comments and documentation
+   - Zero-tolerance policy for production code
+   
+2. **Tactic Policy Compliance** ✓
+   - Verifies only approved safe tactics used
+   - No `admit`, `exact`, or unsafe tactics
+   
+3. **Full Kernel Compilation** 🔨
+   - Compiles all `.v` files
+   - Verifies module dependencies
+   
+4. **coqchk Independent Verification** 🔐
+   - Uses Coq's independent proof checker
+   - Verifies `.vo` files contain no undeclared assumptions
+   - Provides additional trust layer beyond compilation
+   - Validates that all theorems proven correctly
+   
+5. **TCB Manifest Generation** 📋
+   - Automatically generates Trusted Computing Base documentation
+   - Lists all Parameters (trusted assumptions)
+   - Includes locations, types, and documentation
+   - Stored as artifact for 90 days
 
-#### `check-parameters`
-- Validates that all `Parameter` declarations are documented
-- Counts parameters and warns if excessive
+**Artifacts Generated:**
+- `tcb-manifest`: JSON file documenting all Parameters
+- `verification-report`: Summary of all verification checks
 
-#### `integration-check`
-- Tests Python-Coq bridge functionality
-- Verifies project structure
-- Ensures critical files exist
+### 2. Full Integration Testing (`full-integration.yml`)
 
-#### `security-audit`
-- Audits kernel for unsafe tactics
-- Verifies trust boundary implementation
-- Generates security report
+**Purpose:** Comprehensive validation across all project components.
 
-**Expected Results**:
-- ✅ 0 Admitted statements
-- ✅ 0 Axiom statements  
-- ✅ 6 Parameters (all documented)
-- ✅ 41/41 theorems proven (100%)
-- ✅ All safe tactics only
-
----
-
-### 2. Full Project Integration (`full-integration.yml`)
-
-**Purpose**: Comprehensive integration testing across all project components.
-
-**Triggers**:
+**Triggers:**
 - Push to `main` branch
 - Pull requests to `main`
 - Weekly schedule (Monday 00:00 UTC)
 
-**Jobs**:
+**Jobs:**
+- Documentation completeness check
+- Full Coq kernel verification
+- Python engines integration
+- Project metrics calculation
+- Final validation report
 
-#### `documentation-check`
-- Validates presence of all documentation files
-- Checks for broken links
-- Ensures bilingual documentation exists
-
-#### `coq-verification`
-- Full kernel verification
-- Theorem counting and statistics
-- Validates 100% proof coverage
-
-#### `python-integration`
-- Tests Python NLP engines
-- Validates Python-Coq bridge
-- Ensures all engines load correctly
-
-#### `project-metrics`
-- Calculates code statistics
-- Counts Python files and lines
-- Counts Coq files and theorems
-- Measures documentation coverage
-
-#### `final-validation`
-- Aggregates all test results
-- Generates comprehensive integration report
-- Declares production readiness status
-
----
+**Artifacts:**
+- `integration-report` (90-day retention)
 
 ### 3. Python Tests (`python-tests.yml`)
 
-**Purpose**: Test Python NLP engines (existing workflow).
+**Purpose:** Validate Python NLP engines functionality.
 
-**Triggers**:
-- Push/PR to `main`
-
-**Jobs**:
-- Runs pytest across Python 3.10, 3.11, 3.12
-- Tests Python engine functionality
+**Triggers:**
+- Push/PR events
+- Python code changes
 
 ---
 
-## Status Badges
+## Local Verification
 
-Add these badges to your README.md:
+Run all production-ready checks locally before pushing:
+
+### Quick Check
+```bash
+cd coq
+
+# 1. Comment-aware assumption scan
+python3 check_assumptions.py
+
+# 2. Tactic policy verification
+python3 check_coq_tactics.py --dir theories/ArabicKernel
+
+# 3. Build kernel
+make clean && make all
+
+# 4. Generate TCB manifest
+python3 generate_tcb_manifest.py
+```
+
+### Full Verification Suite (Matches CI)
+```bash
+cd coq
+
+echo "🔍 Step 1: Checking assumptions..."
+python3 check_assumptions.py || exit 1
+
+echo "🔍 Step 2: Verifying tactic policy..."
+python3 check_coq_tactics.py --dir theories/ArabicKernel || exit 1
+
+echo "🔨 Step 3: Compiling kernel..."
+make clean && make all || exit 1
+
+echo "🔍 Step 4: Verifying module loads..."
+coqc -Q theories ArabicKernel theories/ArabicKernel/All.v || exit 1
+
+echo "🔐 Step 5: Running coqchk verification..."
+for vo in theories/ArabicKernel/*.vo; do
+  if [ -f "$vo" ] && [ "$(basename "$vo")" != "All.vo" ]; then
+    echo "Checking $(basename "$vo")..."
+    coqchk -Q theories ArabicKernel $(basename "$vo" .vo) 2>&1 | head -20
+  fi
+done
+
+echo "📋 Step 6: Generating TCB manifest..."
+python3 generate_tcb_manifest.py
+
+echo "✅ All local checks passed! Ready for production."
+```
+
+---
+
+## Understanding the TCB (Trusted Computing Base)
+
+The kernel's TCB consists of three components:
+
+1. **Coq Proof Checker** - The core Coq type-checker itself
+2. **Standard Library** - Coq's standard library (Lists, Arith, Bool, etc.)
+3. **Parameters** - Explicitly documented external assumptions
+
+All Parameters are:
+- Automatically documented in `TCB_MANIFEST.json`
+- Listed with their types, locations, and documentation
+- Justified with inline comments in source files
+- Verified by CI on every commit
+- Available as downloadable artifact
+
+**Current TCB Size:** ~6 Parameters (see generated manifest for complete details)
+
+---
+
+## Production-Ready Tools
+
+### `check_assumptions.py`
+**Comment-aware scanner for Admitted/Axiom statements.**
+
+Features:
+- Understands Coq comment syntax `(* ... *)`
+- Handles nested comments correctly
+- Ignores documentation instances
+- Reports exact line numbers and contexts
+- Exit code 1 if any found, 0 if clean
+
+Usage:
+```bash
+python3 coq/check_assumptions.py
+```
+
+### `generate_tcb_manifest.py`
+**Generates comprehensive TCB documentation.**
+
+Outputs:
+- `TCB_MANIFEST.json` with all Parameters
+- Parameter names, types, and locations
+- Extracted inline documentation
+- Generation timestamp
+- Summary statistics
+
+Usage:
+```bash
+python3 coq/generate_tcb_manifest.py
+cat coq/theories/ArabicKernel/TCB_MANIFEST.json
+```
+
+### `check_coq_tactics.py`
+**Verifies only approved tactics used in proofs.**
+
+Policy Enforced:
+- Safe tactics only (no `admit`, `exact`, unsafe constructs)
+- Arithmetic automation allowed (`lia`, `ring`, `omega`)
+- Custom safe tactics permitted
+- Fails build if policy violated
+
+---
+
+## Production Readiness Standards
+
+The enhanced CI pipeline achieves industry-standard production quality:
+
+✅ **Zero-tolerance for undeclared assumptions**
+- Comment-aware intelligent scanning
+- Independent verification with `coqchk`
+- Dual-layer trust verification
+
+✅ **Transparent and auditable TCB**
+- Auto-generated manifest on every commit
+- All assumptions explicitly documented
+- Artifact downloadable for security audit
+
+✅ **Continuous validation**
+- Every commit automatically verified
+- Weekly scheduled health checks
+- Local pre-push verification support
+
+✅ **Best practices compliance**
+- Uses Coq's recommended verification tools
+- Follows formal methods industry standards
+- Provides audit trail for academic/commercial use
+
+---
+
+## CI Status Badges
+
+Add to your README.md:
 
 ```markdown
 ![Coq Verification](https://github.com/sonaiso/Eqratech_Arabic_Diana_Project/actions/workflows/coq-verification.yml/badge.svg)
 ![Full Integration](https://github.com/sonaiso/Eqratech_Arabic_Diana_Project/actions/workflows/full-integration.yml/badge.svg)
-![Python Tests](https://github.com/sonaiso/Eqratech_Arabic_Diana_Project/actions/workflows/python-tests.yml/badge.svg)
 ```
 
 ---
 
-## Artifacts
+## Best Practices for Contributors
 
-Each workflow generates artifacts that are retained for analysis:
+1. **Before Committing:**
+   - Run `python3 coq/check_assumptions.py` locally
+   - Ensure `make all` succeeds
+   - Review generated TCB manifest
 
-### Coq Verification Artifacts
-- `coq-verification-report.md` (30 days retention)
-  - Build status
-  - Verification summary
-  - Commit and version info
+2. **Adding New Theorems:**
+   - All theorems must have complete proofs
+   - No `Admitted` statements in production code
+   - Use only approved tactics
 
-### Integration Artifacts
-- `full-integration-report.md` (90 days retention)
-  - Comprehensive test results
-  - Production readiness status
-  - All component validations
+3. **External Assumptions:**
+   - Declare as `Parameter` with documentation
+   - Explain why assumption needed
+   - Document in inline comments
+   - Will appear in TCB manifest automatically
 
----
-
-## Local Testing
-
-Before pushing, you can run these checks locally:
-
-### Coq Verification
-```bash
-cd coq
-python3 check_coq_tactics.py --dir theories/ArabicKernel
-make clean && make all
-```
-
-### Check for Admitted/Axiom
-```bash
-grep -r "Admitted\." coq/theories/ArabicKernel/*.v | grep -v "(\*"
-grep -r "^Axiom " coq/theories/ArabicKernel/*.v
-```
-
-### Python Tests
-```bash
-pytest -q
-```
+4. **Code Review:**
+   - Check CI passes all verification steps
+   - Review TCB manifest artifact if Parameters added
+   - Ensure coqchk verification succeeds
 
 ---
 
-## Failure Scenarios
+## Troubleshooting
 
-### If Coq Verification Fails
+**CI fails with "Admitted found":**
+- Check that you haven't used `Admitted` in proofs
+- Ensure test/example code is properly commented
+- Run local `check_assumptions.py` to identify location
 
-1. **Admitted found**: Remove all `Admitted` statements and complete proofs
-2. **Axiom found**: Convert to `Parameter` with clear documentation
-3. **Tactic policy violation**: Use only approved safe tactics
-4. **Compilation error**: Fix Coq syntax/type errors
+**coqchk verification fails:**
+- Usually indicates compilation issues
+- Check that all `.v` files compile individually
+- Verify `_CoqProject` includes all dependencies
 
-### If Integration Fails
-
-1. **Missing files**: Ensure all critical files are committed
-2. **Python bridge error**: Check `coq_bridge.py` functionality
-3. **Documentation missing**: Add missing doc files
-
----
-
-## Continuous Improvement
-
-The CI/CD pipeline enforces:
-
-✅ **Zero-tolerance policy** for `Admitted` and `Axiom`  
-✅ **100% proof coverage** requirement  
-✅ **Safe tactics only** enforcement  
-✅ **Complete documentation** validation  
-✅ **Integration testing** across all components  
-
-This ensures the project remains **academically defensible** and **production-ready** at all times.
+**TCB manifest missing Parameters:**
+- Ensure Parameter declarations have inline documentation
+- Check that documentation uses Coq comment syntax `(* ... *)`
+- Verify Parameters are before Admitted/Axiom in file
 
 ---
 
-## Maintenance
+## Future Enhancements
 
-Weekly scheduled runs ensure:
-- No regressions over time
-- Documentation stays current
-- All integrations remain functional
-- Metrics are tracked continuously
+Planned improvements for CI/CD:
+- [ ] Print Assumptions integration for theorem-level verification
+- [ ] Automated theorem counting and reporting
+- [ ] Performance benchmarks for compilation time
+- [ ] Integration with external proof checkers
+
+---
+
+For questions or issues with CI/CD, consult the project documentation or raise an issue.

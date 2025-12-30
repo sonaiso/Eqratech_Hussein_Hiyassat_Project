@@ -1,0 +1,48 @@
+{
+  "generated_at": "2025-12-30T17:37:24.404577Z",
+  "kernel_directory": "/home/runner/work/Eqratech_Arabic_Diana_Project/Eqratech_Arabic_Diana_Project/coq/theories/ArabicKernel",
+  "total_parameters": 6,
+  "parameters": [
+    {
+      "name": "SlotsOf",
+      "type": "C2Spec -> list KRole.  (* ============================================    7) Fractal Invariants (Main Theorems)    ============================================ *)  (* Parameter: Phonetic constraint - consonants require vowels    This is a fundamental phonological rule enforced by the grammar *) Parameter consonant_needs_vowel : forall (fc : FractalCell Phoneme),   well_formed_phonetic fc",
+      "location": "FractalCore.v:205",
+      "documentation": "SlotsOf: function from C2Spec to available slots This will be defined in SlotsTable.v"
+    },
+    {
+      "name": "consonant_needs_vowel",
+      "type": "forall (fc : FractalCell Phoneme),   well_formed_phonetic fc",
+      "location": "FractalCore.v:213",
+      "documentation": "Parameter: Phonetic constraint - consonants require vowels This is a fundamental phonological rule enforced by the grammar"
+    },
+    {
+      "name": "c2_always_present",
+      "type": "forall (A : Type) (fc : FractalCell A),   exists x, c2 fc = x",
+      "location": "FractalCore.v:218",
+      "documentation": "Parameter: C2 is always present (fractal core invariant) This structural property is guaranteed by construction"
+    },
+    {
+      "name": "token_id_positive",
+      "type": "forall t:Token, token_id t > 0.  Theorem encode_preserves_nonempty :    forall s:Sentence,    C3_ok s = true ->    encode_sentence s > 0",
+      "location": "FractalDigitalRoundTrip.v:144",
+      "documentation": "Constraint: all token IDs must be positive"
+    },
+    {
+      "name": "policy_enforced",
+      "type": "kernel_policy.  (* ============================================    3) Proof Certificate    ============================================ *)  (* A proof certificate records which tactics were used *) Record ProofCertificate : Type := {   theorem_name : string;   tactics_used : list AllowedTactic;   proof_steps  : nat  (* number of proof steps *) }",
+      "location": "Policy.v:94",
+      "documentation": "Parameter: The policy is enforced through external CI checking This meta-level property is verified by check_coq_tactics.py"
+    },
+    {
+      "name": "passive_hides_agent",
+      "type": "forall spec used_roles,   voice spec = PASSIVE ->   ~ In AGENT used_roles",
+      "location": "Roles.v:92",
+      "documentation": "Parameter: Passive voice hides explicit agent from surface roles This is a linguistic constraint enforced by the grammar"
+    }
+  ],
+  "summary": {
+    "description": "Trusted Computing Base (TCB) for Arabic Fractal Kernel",
+    "trust_model": "All Parameters represent external assumptions that the kernel accepts as axioms",
+    "verification_status": "All theorems proven modulo these Parameters"
+  }
+}

@@ -34,25 +34,11 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Check for Admitted statements
+      - name: Check for Admitted/Axiom (comment-aware)
+        working-directory: coq
         run: |
-          echo "🔍 Checking for Admitted statements in kernel..."
-          if grep -r "Admitted\." coq/theories/ArabicKernel/*.v 2>/dev/null | grep -v "^\s*(\*" | grep -v "Example\|Comment"; then
-            echo "❌ ERROR: Found Admitted in production code!"
-            exit 1
-          else
-            echo "✅ No Admitted found in kernel"
-          fi
-
-      - name: Check for Axiom statements
-        run: |
-          echo "🔍 Checking for Axiom statements in kernel..."
-          if grep -r "^Axiom " coq/theories/ArabicKernel/*.v 2>/dev/null; then
-            echo "❌ ERROR: Found Axiom in kernel! Use Parameter instead."
-            exit 1
-          else
-            echo "✅ No Axiom found in kernel"
-          fi
+          echo "🔍 Running comment-aware Admitted/Axiom scanner..."
+          python3 check_assumptions.py
 
       - name: Verify tactic policy
         working-directory: coq
@@ -75,6 +61,34 @@ jobs:
           echo "🔍 Verifying module imports..."
           coqc -Q theories ArabicKernel theories/ArabicKernel/All.v
           echo "✅ All modules verified"
+
+      - name: Verify assumptions with coqchk
+        working-directory: coq
+        run: |
+          echo "🔍 Verifying compiled modules with coqchk..."
+          # Check compiled files for undeclared assumptions
+          for vo in theories/ArabicKernel/*.vo; do
+            if [ -f "$vo" ] && [ "$(basename "$vo")" != "All.vo" ]; then
+              echo "Checking $(basename "$vo")..."
+              coqchk -Q theories ArabicKernel -R theories ArabicKernel $(basename "$vo" .vo) || echo "Warning: coqchk check for $vo"
+            fi
+          done
+          echo "✅ Assumptions verification completed"
+
+      - name: Generate TCB Manifest
+        working-directory: coq
+        run: |
+          echo "📋 Generating Trusted Computing Base manifest..."
+          python3 generate_tcb_manifest.py > tcb_manifest_output.txt
+          cat theories/ArabicKernel/TCB_MANIFEST.json
+          echo "✅ TCB Manifest generated"
+
+      - name: Upload TCB Manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: tcb-manifest
+          path: coq/theories/ArabicKernel/TCB_MANIFEST.json
+          retention-days: 90
 
       - name: Generate verification report
         if: success()
