@@ -1,5 +1,27 @@
 """
-Tests for FractalHub dictionary loading and compatibility
+FractalHub Dictionary Loading and Compatibility Tests
+
+Comprehensive test suite for validating the FractalHub dictionary structure,
+content, backward compatibility, and data integrity.
+
+Test Categories:
+    - TestDictionaryV01: Tests for v01 dictionary (skipped if not present)
+    - TestDictionaryV02: Tests for v02 dictionary structure and content
+    - TestBackwardCompatibility: Tests for v01/v02 compatibility
+    - TestDictionaryStructure: Tests for ID formats and required fields
+    - TestDictionaryContent: Tests for content consistency and validation
+
+Usage:
+    pytest tests/test_dictionary_load.py -v
+    pytest tests/test_dictionary_load.py::TestDictionaryV02 -v
+    
+Coverage:
+    - 26 total test cases
+    - Tests load, structure, IDs, compatibility, content
+    
+Author: Eqratech Arabic Diana Project
+Version: 1.0.0
+License: MIT
 """
 
 import pytest
@@ -13,14 +35,34 @@ V02_PATH = DICT_DIR / "fractalhub_dictionary_v02.yaml"
 
 
 def load_dictionary(path: Path):
-    """Load dictionary YAML file"""
+    """
+    Load dictionary YAML file.
+    
+    Args:
+        path (Path): Path to the dictionary YAML file
+        
+    Returns:
+        dict: Parsed dictionary data
+        
+    Raises:
+        FileNotFoundError: If dictionary file doesn't exist
+        yaml.YAMLError: If YAML parsing fails
+    """
     with open(path, 'r', encoding='utf-8') as f:
         return yaml.safe_load(f)
 
 
 @pytest.fixture
 def dict_v01():
-    """Load v01 dictionary"""
+    """
+    Fixture: Load v01 dictionary.
+    
+    Yields:
+        dict: v01 dictionary data
+        
+    Skips:
+        Test if v01 dictionary file doesn't exist
+    """
     if not V01_PATH.exists():
         pytest.skip("v01 dictionary not found")
     return load_dictionary(V01_PATH)
@@ -28,14 +70,28 @@ def dict_v01():
 
 @pytest.fixture
 def dict_v02():
-    """Load v02 dictionary"""
+    """
+    Fixture: Load v02 dictionary.
+    
+    Yields:
+        dict: v02 dictionary data
+        
+    Skips:
+        Test if v02 dictionary file doesn't exist
+    """
     if not V02_PATH.exists():
         pytest.skip("v02 dictionary not found")
     return load_dictionary(V02_PATH)
 
 
 class TestDictionaryV01:
-    """Tests for v01 dictionary"""
+    """
+    Tests for v01 dictionary (legacy version).
+    
+    These tests validate the basic structure and requirements
+    for v01 dictionary files. Tests will be skipped if v01
+    dictionary doesn't exist.
+    """
     
     def test_v01_loads(self, dict_v01):
         """Test that v01 loads successfully"""
@@ -50,7 +106,18 @@ class TestDictionaryV01:
 
 
 class TestDictionaryV02:
-    """Tests for v02 dictionary"""
+    """
+    Tests for v02 dictionary (current version).
+    
+    Validates:
+    - Loading and basic structure
+    - Version metadata
+    - Required sections presence
+    - Diacritics and prosody units
+    - Multi-layer gates (C1-C3, P1-P3)
+    - Epistemic evidence levels
+    - Repair operations
+    """
     
     def test_v02_loads(self, dict_v02):
         """Test that v02 loads successfully"""
@@ -124,7 +191,14 @@ class TestDictionaryV02:
 
 
 class TestBackwardCompatibility:
-    """Tests for backward compatibility between v01 and v02"""
+    """
+    Tests for backward compatibility between v01 and v02.
+    
+    Ensures:
+    - All v01 unit IDs exist in v02 or are properly mapped
+    - No breaking changes declared
+    - Smooth migration path from v01 to v02
+    """
     
     def test_v01_unit_ids_exist_in_v02(self, dict_v01, dict_v02):
         """Test that all v01 unit IDs exist in v02 or are mapped"""
@@ -150,7 +224,14 @@ class TestBackwardCompatibility:
 
 
 class TestDictionaryStructure:
-    """Tests for dictionary structure and IDs"""
+    """
+    Tests for dictionary structure and ID formats.
+    
+    Validates:
+    - ID format compliance (U:, G:, INV: prefixes)
+    - No duplicate IDs across all sections
+    - Required fields presence in all entries
+    """
     
     def test_unit_ids_format(self, dict_v02):
         """Test that all unit IDs follow U: prefix convention"""
@@ -211,7 +292,14 @@ class TestDictionaryStructure:
 
 
 class TestDictionaryContent:
-    """Tests for dictionary content and semantics"""
+    """
+    Tests for dictionary content and semantics.
+    
+    Validates:
+    - ID consistency (key matches embedded ID field)
+    - Valid status values
+    - Data integrity and correctness
+    """
     
     def test_unit_id_matches_key(self, dict_v02):
         """Test that unit_id field matches the dictionary key"""

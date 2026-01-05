@@ -1,5 +1,29 @@
+# ============================================================================
 # FractalHub Dictionary v02
 # القاموس الموحد للمشروع العربي - الإصدار الثاني
+# ============================================================================
+#
+# Description:
+#   Unified dictionary for Arabic linguistic processing following the TAQI
+#   framework (Constrained Acoustic Energy Flow). Contains atomic linguistic
+#   units, processing gates, invariants, and epistemic evidence levels.
+#
+# Structure:
+#   - meta:               Version control and compatibility metadata
+#   - units:              Atomic linguistic units (19 items)
+#   - gates:              Processing gates across 6 layers (12 items)
+#   - evidence:           Epistemic levels and anchor rules
+#   - invariants:         Immutable constraints (5 items)
+#   - tags:               Classification metadata
+#   - mappings:           Backward compatibility mappings
+#   - repair_operations:  Automatic repair operations (3 items)
+#   - unit_delta_ops:     Unit transformation operations
+#
+# Version: v02
+# Date: 2026-01-05
+# License: MIT
+# Author: Eqratech Arabic Diana Project
+# ============================================================================
 
 meta:
   dict_version: 2
