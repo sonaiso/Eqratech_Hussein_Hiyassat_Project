@@ -23,6 +23,11 @@ from .speech_acts import (
     KhabarSubtype, TalabSubtype, IstifhamSubtype,
     Ta3ajjubSubtype, TamanniSubtype, TarajjiSubtype
 )
+from .consciousness import (
+    ConsciousnessVector, AttentionState, MemoryStore, SelfState, ValueState,
+    AttentionScope, EpistemicLevel, Perspective, ValueDimension,
+    gate_attend, gate_memory_write, gate_memory_read
+)
 
 __version__ = "1.1.0"
 __all__ = [
@@ -44,4 +49,16 @@ __all__ = [
     "Ta3ajjubSubtype",
     "TamanniSubtype",
     "TarajjiSubtype",
+    "ConsciousnessVector",
+    "AttentionState",
+    "MemoryStore",
+    "SelfState",
+    "ValueState",
+    "AttentionScope",
+    "EpistemicLevel",
+    "Perspective",
+    "ValueDimension",
+    "gate_attend",
+    "gate_memory_write",
+    "gate_memory_read",
 ]
