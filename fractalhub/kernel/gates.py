@@ -140,33 +140,37 @@ class SpeechActGate(Gate):
     G_SPEECH_ACT: Determine speech act type.
     
     Classifies utterance into: KHABAR/TALAB/ISTIFHAM/TA3AJJUB/TAMANNI/TARAJJI
+    Uses the SpeechActClassifier for full classification.
     """
+    
+    def __init__(self, gate_id: str, definition: Optional[GateDefinition] = None):
+        """Initialize with classifier"""
+        super().__init__(gate_id, definition)
+        # Import here to avoid circular dependency
+        from .speech_acts import SpeechActClassifier
+        self.classifier = SpeechActClassifier()
     
     def execute(self, inputs: List[Any], priors: List[str]) -> List[Any]:
         """
         Classify speech act.
         
         Args:
-            inputs: [tokens]
+            inputs: [tokens] or [tokens, features_dict]
             priors: Speech act rules IDs
             
         Returns:
-            [speech_act_type, subtype]
+            [speech_act_dict]
         """
+        if not inputs:
+            return [{"type": "KHABAR", "subtype": "ITHBAT"}]
+        
         tokens = inputs[0] if inputs else []
+        features = inputs[1] if len(inputs) > 1 else {}
         
-        # Simple heuristics - should use priors
-        # TODO: Implement full speech act classification
+        # Classify using full classifier
+        speech_act = self.classifier.classify(tokens, features)
         
-        # Check for interrogative particles
-        if any(t in ['هل', 'ما', 'من', 'أين', 'كيف', 'متى'] for t in tokens):
-            return ["ISTIFHAM", "TASAWUR"]
-        
-        # Check for imperative
-        # if starts with imperative verb...
-        
-        # Default to declarative
-        return ["KHABAR", "ITHBAT"]
+        return [speech_act.to_dict()]
 
 
 class MemoryWriteGate(Gate):

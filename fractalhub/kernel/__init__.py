@@ -18,6 +18,11 @@ from .codec import FormCodec, MeaningCodec
 from .gates import Gate, GateRegistry
 from .trace import TraceEntry, C2Trace
 from .graph import SignifierGraph, SignifiedGraph
+from .speech_acts import (
+    SpeechAct, SpeechActType, SpeechActClassifier,
+    KhabarSubtype, TalabSubtype, IstifhamSubtype,
+    Ta3ajjubSubtype, TamanniSubtype, TarajjiSubtype
+)
 
 __version__ = "1.1.0"
 __all__ = [
@@ -30,4 +35,13 @@ __all__ = [
     "C2Trace",
     "SignifierGraph",
     "SignifiedGraph",
+    "SpeechAct",
+    "SpeechActType",
+    "SpeechActClassifier",
+    "KhabarSubtype",
+    "TalabSubtype",
+    "IstifhamSubtype",
+    "Ta3ajjubSubtype",
+    "TamanniSubtype",
+    "TarajjiSubtype",
 ]
