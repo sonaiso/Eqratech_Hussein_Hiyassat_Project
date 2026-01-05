@@ -118,6 +118,56 @@ class SignifierGraph:
         self.edges[edge_id] = edge
         return edge
     
+    def get_neighbors(self, node_id: str, edge_type: SignifierEdgeType = None) -> List[str]:
+        """
+        Get neighbor nodes.
+        
+        Args:
+            node_id: Node to get neighbors for
+            edge_type: Optional edge type filter
+            
+        Returns:
+            List of neighbor node IDs
+        """
+        neighbors = []
+        for edge in self.edges.values():
+            if edge.src == node_id:
+                if edge_type is None or edge.edge_type == edge_type:
+                    neighbors.append(edge.dst)
+        return neighbors
+    
+    def find_path(self, start: str, end: str) -> Optional[List[str]]:
+        """
+        Find path between two nodes.
+        
+        Args:
+            start: Start node ID
+            end: End node ID
+            
+        Returns:
+            List of node IDs forming path, or None if no path
+        """
+        if start not in self.nodes or end not in self.nodes:
+            return None
+        
+        # BFS
+        from collections import deque
+        queue = deque([(start, [start])])
+        visited = {start}
+        
+        while queue:
+            node, path = queue.popleft()
+            
+            if node == end:
+                return path
+            
+            for neighbor in self.get_neighbors(node):
+                if neighbor not in visited:
+                    visited.add(neighbor)
+                    queue.append((neighbor, path + [neighbor]))
+        
+        return None
+    
     def to_dict(self) -> dict:
         """Serialize to dictionary"""
         return {
@@ -280,6 +330,67 @@ class SignifiedGraph:
             Gate ID or None
         """
         return self.provenance.get(element_id)
+    
+    def get_nodes_by_type(self, node_type: SignifiedNodeType) -> List[SignifiedNode]:
+        """
+        Get all nodes of a specific type.
+        
+        Args:
+            node_type: Type to filter by
+            
+        Returns:
+            List of matching nodes
+        """
+        return [n for n in self.nodes.values() if n.node_type == node_type]
+    
+    def get_edges_by_type(self, edge_type: SignifiedEdgeType) -> List[SignifiedEdge]:
+        """
+        Get all edges of a specific type.
+        
+        Args:
+            edge_type: Type to filter by
+            
+        Returns:
+            List of matching edges
+        """
+        return [e for e in self.edges.values() if e.edge_type == edge_type]
+    
+    def get_relations(self, node_id: str, relation_type: SignifiedEdgeType = None) -> List[Dict[str, Any]]:
+        """
+        Get all relations for a node.
+        
+        Args:
+            node_id: Node to get relations for
+            relation_type: Optional relation type filter
+            
+        Returns:
+            List of relations with target nodes
+        """
+        relations = []
+        for edge in self.edges.values():
+            if edge.src == node_id:
+                if relation_type is None or edge.edge_type == relation_type:
+                    target = self.nodes.get(edge.dst)
+                    if target:
+                        relations.append({
+                            'edge_id': edge.edge_id,
+                            'relation': edge.edge_type.value,
+                            'target_id': edge.dst,
+                            'target_type': target.node_type.value,
+                            'target_features': target.features,
+                            'properties': edge.properties
+                        })
+        return relations
+    
+    def verify_provenance(self) -> bool:
+        """
+        Verify all elements have provenance.
+        
+        Returns:
+            True if all elements have provenance
+        """
+        all_elements = set(self.nodes.keys()) | set(self.edges.keys())
+        return all(elem_id in self.provenance for elem_id in all_elements)
     
     def to_dict(self) -> dict:
         """Serialize to dictionary"""

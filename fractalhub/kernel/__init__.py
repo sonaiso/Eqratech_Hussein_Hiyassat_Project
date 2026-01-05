@@ -28,6 +28,11 @@ from .consciousness import (
     AttentionScope, EpistemicLevel, Perspective, ValueDimension,
     gate_attend, gate_memory_write, gate_memory_read
 )
+from .invariants import (
+    InvariantManager, ConservationChecker, SymmetryChecker,
+    ConservationRule, ConservationType, SymmetryRule, SymmetryType,
+    LinguisticInvariants
+)
 
 __version__ = "1.1.0"
 __all__ = [
@@ -61,4 +66,12 @@ __all__ = [
     "gate_attend",
     "gate_memory_write",
     "gate_memory_read",
+    "InvariantManager",
+    "ConservationChecker",
+    "SymmetryChecker",
+    "ConservationRule",
+    "ConservationType",
+    "SymmetryRule",
+    "SymmetryType",
+    "LinguisticInvariants",
 ]
