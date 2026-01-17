@@ -28,3 +28,14 @@ Thumbs.db
 
 # Temporary workbook files
 ~$*
+
+# Python packaging
+*.egg-info/
+build/
+dist/
+.eggs/
+
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
