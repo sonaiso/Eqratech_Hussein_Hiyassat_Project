@@ -1,0 +1,575 @@
+meta:
+  dict_version: 2
+  codec_version: 1
+  schema_version: 1
+  generated_at: "2026-01-17T16:37:00Z"
+  compatibility:
+    v01_supported: true
+    breaking_changes: false
+  changelog:
+    - "Added bilingual structure (Arabic/English)"
+    - "Added provenance schema for all entries"
+    - "Separated signifier-only vs signified entity types"
+    - "Added ruleset_ids mapping for C2 gates"
+    - "Eliminated redundancy (DRY principle)"
+    - "Added epistemic evidence levels"
+
+# Provenance schema
+provenance:
+  description: "Metadata about data sources and evidence"
+  schema:
+    source_type:
+      type: "enum"
+      values: ["corpus", "grammar_book", "expert_validation", "derived"]
+    confidence:
+      type: "enum"
+      values: ["yaqin", "zann", "shakk"]
+      mapping:
+        yaqin: 1.0
+        zann: 0.7
+        shakk: 0.4
+    attestation_count:
+      type: "integer"
+      min: 0
+    references:
+      type: "list"
+      item_type: "string"
+
+# Lexicon type definitions
+lexicon_types:
+  signifier_only:
+    description: "C1 entries with NO meaning - form only"
+    examples:
+      - "phonemes"
+      - "diacritics"
+      - "graphemes"
+    required_fields:
+      - "lexicon_id"
+      - "form"
+      - "type"
+      - "status"
+  
+  signified_entity:
+    description: "C3 entries with meaning and provenance"
+    examples:
+      - "nouns"
+      - "verbs"
+      - "semantic_roles"
+    required_fields:
+      - "lexicon_id"
+      - "signifier_link"
+      - "meaning"
+      - "provenance"
+      - "status"
+
+# YAML anchor for common diacritic provenance
+_diacritic_provenance: &diacritic_provenance
+  source_type: "grammar_book"
+  confidence: "yaqin"
+  attestation_count: 1000
+  references:
+    - "Sibawayh"
+    - "Al-Kitab"
+
+_prosody_provenance: &prosody_provenance
+  source_type: "expert_validation"
+  confidence: "yaqin"
+  attestation_count: 100
+  references:
+    - "Tajweed manuals"
+
+# Units: Phonological atoms and signifiers
+units:
+  # Diacritics (Harakat)
+  U:DIACRITIC:FATHA:
+    lexicon_id: "U:DIACRITIC:FATHA"
+    type: "signifier_only"
+    layer: "C1"
+    form:
+      arabic: "َ"
+      unicode: "U+064E"
+      ipa: "a"
+      name_ar: "فتحة"
+      name_en: "fatha"
+    features:
+      - "short_vowel"
+      - "open_front"
+      - "fatha"
+    status: "active"
+    provenance:
+      <<: *diacritic_provenance
+  
+  U:DIACRITIC:DAMMA:
+    lexicon_id: "U:DIACRITIC:DAMMA"
+    type: "signifier_only"
+    layer: "C1"
+    form:
+      arabic: "ُ"
+      unicode: "U+064F"
+      ipa: "u"
+      name_ar: "ضمة"
+      name_en: "damma"
+    features:
+      - "short_vowel"
+      - "close_back"
+      - "damma"
+    status: "active"
+    provenance:
+      <<: *diacritic_provenance
+  
+  U:DIACRITIC:KASRA:
+    lexicon_id: "U:DIACRITIC:KASRA"
+    type: "signifier_only"
+    layer: "C1"
+    form:
+      arabic: "ِ"
+      unicode: "U+0650"
+      ipa: "i"
+      name_ar: "كسرة"
+      name_en: "kasra"
+    features:
+      - "short_vowel"
+      - "close_front"
+      - "kasra"
+    status: "active"
+    provenance:
+      <<: *diacritic_provenance
+  
+  U:DIACRITIC:SUKUN:
+    lexicon_id: "U:DIACRITIC:SUKUN"
+    type: "signifier_only"
+    layer: "C1"
+    form:
+      arabic: "ْ"
+      unicode: "U+0652"
+      ipa: "∅"
+      name_ar: "سكون"
+      name_en: "sukun"
+    features:
+      - "no_vowel"
+      - "zero_vowel"
+      - "sukun"
+    status: "active"
+    provenance:
+      <<: *diacritic_provenance
+  
+  U:DIACRITIC:SHADDA:
+    lexicon_id: "U:DIACRITIC:SHADDA"
+    type: "signifier_only"
+    layer: "C1"
+    form:
+      arabic: "ّ"
+      unicode: "U+0651"
+      ipa: "ː"
+      name_ar: "شدة"
+      name_en: "shadda"
+    features:
+      - "gemination"
+      - "lengthening"
+      - "shadda"
+    status: "active"
+    provenance:
+      <<: *diacritic_provenance
+  
+  # Tanwin (nunation)
+  U:DIACRITIC:TANWIN_FATH:
+    lexicon_id: "U:DIACRITIC:TANWIN_FATH"
+    type: "signifier_only"
+    layer: "C1"
+    form:
+      arabic: "ً"
+      unicode: "U+064B"
+      ipa: "an"
+      name_ar: "تنوين الفتح"
+      name_en: "tanwin_fath"
+    features:
+      - "nunation"
+      - "tanwin_fath"
+      - "indefinite_marker"
+    status: "active"
+    provenance:
+      <<: *diacritic_provenance
+  
+  U:DIACRITIC:TANWIN_DAMM:
+    lexicon_id: "U:DIACRITIC:TANWIN_DAMM"
+    type: "signifier_only"
+    layer: "C1"
+    form:
+      arabic: "ٌ"
+      unicode: "U+064C"
+      ipa: "un"
+      name_ar: "تنوين الضم"
+      name_en: "tanwin_damm"
+    features:
+      - "nunation"
+      - "tanwin_damm"
+      - "indefinite_marker"
+    status: "active"
+    provenance:
+      <<: *diacritic_provenance
+  
+  U:DIACRITIC:TANWIN_KASR:
+    lexicon_id: "U:DIACRITIC:TANWIN_KASR"
+    type: "signifier_only"
+    layer: "C1"
+    form:
+      arabic: "ٍ"
+      unicode: "U+064D"
+      ipa: "in"
+      name_ar: "تنوين الكسر"
+      name_en: "tanwin_kasr"
+    features:
+      - "nunation"
+      - "tanwin_kasr"
+      - "indefinite_marker"
+    status: "active"
+    provenance:
+      <<: *diacritic_provenance
+  
+  # Prosody markers
+  U:PROSODY:WASL:
+    lexicon_id: "U:PROSODY:WASL"
+    type: "signifier_only"
+    layer: "C0"
+    form:
+      arabic: "وصل"
+      description_en: "liaison"
+      description_ar: "الوصل"
+    features:
+      - "prosody"
+      - "liaison"
+      - "boundary_phenomenon"
+    status: "active"
+    provenance:
+      <<: *prosody_provenance
+  
+  U:PROSODY:WAQF:
+    lexicon_id: "U:PROSODY:WAQF"
+    type: "signifier_only"
+    layer: "C0"
+    form:
+      arabic: "وقف"
+      description_en: "pause"
+      description_ar: "الوقف"
+    features:
+      - "prosody"
+      - "pause"
+      - "boundary_marker"
+    status: "active"
+    provenance:
+      <<: *prosody_provenance
+  
+  U:PROSODY:INTONATION_RISE:
+    lexicon_id: "U:PROSODY:INTONATION_RISE"
+    type: "signifier_only"
+    layer: "C0"
+    form:
+      description_en: "rising_intonation"
+      description_ar: "نغمة صاعدة"
+    features:
+      - "prosody"
+      - "intonation"
+      - "pitch_rise"
+    status: "active"
+    provenance:
+      source_type: "derived"
+      confidence: "zann"
+      attestation_count: 0
+      references: []
+  
+  U:PROSODY:INTONATION_FALL:
+    lexicon_id: "U:PROSODY:INTONATION_FALL"
+    type: "signifier_only"
+    layer: "C0"
+    form:
+      description_en: "falling_intonation"
+      description_ar: "نغمة هابطة"
+    features:
+      - "prosody"
+      - "intonation"
+      - "pitch_fall"
+    status: "active"
+    provenance:
+      source_type: "derived"
+      confidence: "zann"
+      attestation_count: 0
+      references: []
+
+# Gates: Processing stages with ruleset_ids
+gates:
+  # C1 Layer gates
+  G_C1_CODEC_VERIFY:
+    gate_id: "G_C1_CODEC_VERIFY"
+    layer: "C1"
+    description_en: "Verify encoding validity"
+    description_ar: "التحقق من صحة الترميز"
+    inputs:
+      - "raw_text"
+    outputs:
+      - "verified_units"
+    constraints:
+      - "utf8_valid"
+      - "arabic_codepoint_range"
+    four_conditions:
+      reality: "form_stream present"
+      brain: "codec executor active"
+      sensing: "text channel verified"
+      prior: "lexicon_ids for codepoints"
+    evidence_required: true
+    ruleset_ids:
+      - "RULESET:UTF8_VALIDATION"
+      - "RULESET:ARABIC_SCRIPT_RANGE"
+    status: "active"
+  
+  G_C1_DIACRITIC_ATTACH:
+    gate_id: "G_C1_DIACRITIC_ATTACH"
+    layer: "C1"
+    description_en: "Attach diacritics to base characters"
+    description_ar: "ربط الحركات بالأحرف الأساسية"
+    inputs:
+      - "base_char"
+      - "diacritic"
+    outputs:
+      - "vocalized_unit"
+    constraints:
+      - "diacritic_follows_base"
+      - "no_standalone_diacritic"
+    four_conditions:
+      reality: "base + diacritic forms present"
+      brain: "attachment processor active"
+      sensing: "sequential ordering verified"
+      prior: "diacritic_rules lexicon_ids"
+    evidence_required: true
+    ruleset_ids:
+      - "RULESET:DIACRITIC_ATTACHMENT"
+    status: "active"
+  
+  # C2 Layer gates
+  G_C2_INVARIANTS:
+    gate_id: "G_C2_INVARIANTS"
+    layer: "C2"
+    description_en: "Apply invariant constraints"
+    description_ar: "تطبيق القيود الثابتة"
+    inputs:
+      - "C1_output"
+    outputs:
+      - "validated_structure"
+    constraints:
+      - "all_invariants_satisfied"
+      - "conservation_laws_hold"
+    four_conditions:
+      reality: "C1 structure present"
+      brain: "invariant checker active"
+      sensing: "structural relations verified"
+      prior: "invariant_definitions from ruleset_ids"
+    evidence_required: true
+    ruleset_ids:
+      - "RULESET:CONSERVATION_LAWS"
+      - "RULESET:SYMMETRY_RULES"
+    status: "active"
+  
+  # P (Phonological) Layer gates
+  G_P1_DOUBLE_SUKUN:
+    gate_id: "G_P1_DOUBLE_SUKUN"
+    layer: "P1"
+    description_en: "Prevent consecutive sukuns"
+    description_ar: "منع السكونين المتتاليين"
+    inputs:
+      - "phoneme_sequence"
+    outputs:
+      - "corrected_sequence"
+    constraints:
+      - "no_consecutive_sukun"
+    four_conditions:
+      reality: "phoneme sequence present"
+      brain: "phonotactic processor active"
+      sensing: "adjacency relations verified"
+      prior: "sukun_prohibition ruleset_ids"
+    evidence_required: true
+    penalty: 0.9
+    ruleset_ids:
+      - "RULESET:PHONOTACTICS"
+      - "RULESET:DOUBLE_SUKUN_REPAIR"
+    status: "active"
+  
+  G_P2_WASL_BEGIN:
+    gate_id: "G_P2_WASL_BEGIN"
+    layer: "P2"
+    description_en: "Handle wasl at word boundary"
+    description_ar: "معالجة الوصل في بداية الكلمة"
+    inputs:
+      - "word_boundary"
+      - "first_phoneme"
+    outputs:
+      - "wasl_applied"
+    constraints:
+      - "word_initial_position"
+      - "wasl_conditions_met"
+    four_conditions:
+      reality: "boundary + phoneme present"
+      brain: "wasl processor active"
+      sensing: "boundary detection verified"
+      prior: "wasl_rules from ruleset_ids"
+    evidence_required: true
+    ruleset_ids:
+      - "RULESET:WASL_CONDITIONS"
+    status: "active"
+  
+  G_P3_PROSODY_ASSIGN:
+    gate_id: "G_P3_PROSODY_ASSIGN"
+    layer: "P3"
+    description_en: "Assign prosody and intonation"
+    description_ar: "تعيين النغمة والتنغيم"
+    inputs:
+      - "phonological_phrase"
+    outputs:
+      - "prosody_marked"
+    constraints:
+      - "intonation_contour_valid"
+      - "stress_pattern_legal"
+    four_conditions:
+      reality: "phrase structure present"
+      brain: "prosody processor active"
+      sensing: "phrase boundaries verified"
+      prior: "prosody_patterns from ruleset_ids"
+    evidence_required: false
+    ruleset_ids:
+      - "RULESET:PROSODY_PATTERNS"
+    status: "active"
+  
+  # C3 Layer gates
+  G_C3_REFERENCE:
+    gate_id: "G_C3_REFERENCE"
+    layer: "C3"
+    description_en: "Verify reference in corpus"
+    description_ar: "التحقق من المطابقة المرجعية"
+    inputs:
+      - "derived_form"
+      - "reference_corpus"
+    outputs:
+      - "reference_validated"
+    constraints:
+      - "corpus_attestation"
+      - "provenance_recorded"
+    four_conditions:
+      reality: "derived form + corpus present"
+      brain: "reference validator active"
+      sensing: "corpus query verified"
+      prior: "corpus_entries from lexicon_ids"
+    evidence_required: true
+    ruleset_ids:
+      - "RULESET:CORPUS_VALIDATION"
+    status: "active"
+
+# Repair operations
+repair_operations:
+  REPLACE:
+    op_type: "REPLACE"
+    description_en: "Replace one unit with another"
+    description_ar: "استبدال وحدة بوحدة أخرى"
+    apply_stage: "DERIVED_ONLY"
+    requires_evidence: true
+    params:
+      - "target_unit_id"
+      - "replacement_unit_id"
+      - "justification_prior_ids"
+  
+  INSERT_VIRTUAL:
+    op_type: "INSERT_VIRTUAL"
+    description_en: "Insert virtual unit (zero element)"
+    description_ar: "إدراج وحدة افتراضية"
+    apply_stage: "DERIVED_ONLY"
+    requires_evidence: true
+    params:
+      - "position"
+      - "virtual_unit_id"
+      - "justification_prior_ids"
+  
+  DELETE_VIRTUAL:
+    op_type: "DELETE_VIRTUAL"
+    description_en: "Delete virtual unit"
+    description_ar: "حذف وحدة افتراضية"
+    apply_stage: "DERIVED_ONLY"
+    requires_evidence: true
+    params:
+      - "virtual_unit_id"
+      - "justification_prior_ids"
+
+# Evidence levels
+evidence:
+  epistemic_levels:
+    YAQIN:
+      level: "YAQIN"
+      certainty: 1.0
+      description_en: "Absolute certainty"
+      description_ar: "اليقين - تأكيد كامل"
+      requirements:
+        - "corpus_attestation"
+        - "multiple_sources"
+        - "expert_consensus"
+    
+    ZANN:
+      level: "ZANN"
+      certainty: 0.7
+      description_en: "Strong probability"
+      description_ar: "الظن - ترجيح قوي"
+      requirements:
+        - "single_source"
+        - "rule_derived"
+        - "analogical_reasoning"
+    
+    SHAKK:
+      level: "SHAKK"
+      certainty: 0.4
+      description_en: "Weak probability / doubt"
+      description_ar: "الشك - احتمال ضعيف"
+      requirements:
+        - "inference_only"
+        - "no_direct_evidence"
+  
+  anchor_rules:
+    NO_MEANING_WITHOUT_EVIDENCE:
+      rule_id: "NO_MEANING_WITHOUT_EVIDENCE"
+      description_en: "Cannot produce meaning without evidence or prior_ids"
+      description_ar: "لا يمكن إنتاج معنى بدون دليل أو معرف سابق"
+      enforcement: "strict"
+      applies_to:
+        - "semantic_gates"
+        - "interpretation_gates"
+        - "C3_operations"
+    
+    EVIDENCE_PROPAGATION:
+      rule_id: "EVIDENCE_PROPAGATION"
+      description_en: "Evidence must propagate through trace chain"
+      description_ar: "يجب انتقال الأدلة عبر سلسلة التتبع"
+      enforcement: "soft"
+      applies_to:
+        - "all_gates"
+
+# Tags for categorization
+tags:
+  categories:
+    - "phonology"
+    - "morphology"
+    - "syntax"
+    - "semantics"
+    - "pragmatics"
+  
+  layers:
+    - "C0"
+    - "C1"
+    - "C2"
+    - "C3"
+  
+  types:
+    - "signifier_only"
+    - "signified_entity"
+    - "gate"
+    - "invariant"
+    - "repair_op"
+
+# Mappings for backward compatibility
+mappings:
+  renames: {}
+  deprecations: []
+  aliases: {}

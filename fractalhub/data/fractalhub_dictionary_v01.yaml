@@ -1,0 +1,40 @@
+meta:
+  dict_version: 1
+  codec_version: 1
+  schema_version: 1
+  generated_at: "2026-01-01T00:00:00Z"
+  compatibility:
+    v02_available: true
+    migration_recommended: true
+  notes:
+    - "This is a stub v01 dictionary for backward compatibility"
+    - "Please migrate to v02 for full provenance and bilingual support"
+
+units:
+  U:DIACRITIC:FATHA:
+    unit_id: "U:DIACRITIC:FATHA"
+    type: "diacritic"
+    form: "َ"
+    unicode: "U+064E"
+    status: "active"
+  
+  U:DIACRITIC:DAMMA:
+    unit_id: "U:DIACRITIC:DAMMA"
+    type: "diacritic"
+    form: "ُ"
+    unicode: "U+064F"
+    status: "active"
+  
+  U:DIACRITIC:KASRA:
+    unit_id: "U:DIACRITIC:KASRA"
+    type: "diacritic"
+    form: "ِ"
+    unicode: "U+0650"
+    status: "active"
+
+gates:
+  G_C1_CODEC_VERIFY:
+    gate_id: "G_C1_CODEC_VERIFY"
+    layer: "C1"
+    description: "Verify encoding validity"
+    status: "active"
