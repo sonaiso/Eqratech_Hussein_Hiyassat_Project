@@ -1,0 +1,17 @@
+# Include documentation
+include README.md
+include RELEASE_NOTES.md
+include LICENSE
+
+# Include data files
+recursive-include fractalhub/data *.yaml *.yml
+
+# Exclude development files
+exclude .gitignore
+exclude pyproject.toml
+recursive-exclude tests *
+recursive-exclude docs *.md
+prune .git
+prune .github
+prune __pycache__
+prune *.egg-info

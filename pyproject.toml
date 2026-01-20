@@ -1,0 +1,137 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fractalhub"
+version = "1.2.0"
+description = "FractalHub Consciousness Kernel - A platform implementing Al-Nabhani's Theory of Thinking with locked architecture"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "Eqratech Arabic Diana Project", email = "info@eqratech.com"}
+]
+maintainers = [
+    {name = "Eqratech Arabic Diana Project", email = "info@eqratech.com"}
+]
+keywords = [
+    "nlp",
+    "arabic",
+    "consciousness",
+    "al-nabhani",
+    "provenance",
+    "hallucination-prevention"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Text Processing :: Linguistic",
+]
+
+dependencies = [
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "hypothesis>=6.0",
+    "black>=23.0",
+    "isort>=5.0",
+    "flake8>=6.0",
+    "mypy>=1.0",
+]
+
+web = [
+    "fastapi>=0.111.0",
+    "uvicorn>=0.30.1",
+]
+
+data = [
+    "pandas",
+    "openpyxl",
+]
+
+[project.urls]
+Homepage = "https://github.com/sonaiso/Eqratech_Arabic_Diana_Project"
+Repository = "https://github.com/sonaiso/Eqratech_Arabic_Diana_Project"
+Documentation = "https://github.com/sonaiso/Eqratech_Arabic_Diana_Project/blob/main/README.md"
+"Bug Tracker" = "https://github.com/sonaiso/Eqratech_Arabic_Diana_Project/issues"
+
+[project.scripts]
+fractalhub-validate = "fractalhub.cli:validate_dictionary"
+
+[tool.setuptools]
+packages = ["fractalhub", "fractalhub.kernel", "fractalhub.dictionary"]
+
+[tool.setuptools.package-data]
+fractalhub = ["data/*.yaml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--verbose",
+    "--strict-markers",
+]
+
+[tool.black]
+line-length = 100
+target-version = ["py38", "py39", "py310", "py311", "py312"]
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+    \.git
+  | \.venv
+  | build
+  | dist
+  | __pycache__
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 100
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
+
+[tool.coverage.run]
+source = ["fractalhub"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__pycache__/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if __name__ == .__main__.:",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+]

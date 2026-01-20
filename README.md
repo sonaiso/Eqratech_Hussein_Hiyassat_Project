@@ -10,15 +10,40 @@
 
 ## 🎯 Quick Start
 
+### Installation
+
 ```bash
-# Install dependencies
-pip install -r requirements.txt
+# Install from source
+pip install -e .
 
-# Validate dictionary
+# Install with development dependencies
+pip install -e ".[dev]"
+
+# Install with web server support
+pip install -e ".[web]"
+
+# Install with data processing support
+pip install -e ".[data]"
+```
+
+### Validate Dictionary
+
+```bash
+# Using installed CLI
+fractalhub-validate
+
+# Or using script
 python scripts/validate_dictionary.py
+```
 
-# Run tests
-pytest tests/test_kernel_v12.py tests/test_dictionary_v02.py tests/test_integration_v12.py -v
+### Run Tests
+
+```bash
+# Run all tests
+pytest
+
+# Run specific test suite
+pytest tests/test_kernel_v12.py -v
 ```
 
 ### Basic Usage
@@ -39,6 +64,28 @@ is_valid, errors = trace.validate()
 codec = FormCodec()
 encoded, checksum = codec.encode("السلام")
 decoded = codec.decode(encoded, checksum)
+```
+
+---
+
+## 📁 Project Structure
+
+```
+Eqratech_Arabic_Diana_Project/
+├── fractalhub/              # Main package
+│   ├── kernel/             # Core kernel (version, trace, gates, codec)
+│   ├── dictionary/         # Dictionary loader and validator
+│   ├── data/              # Data files (YAML dictionaries)
+│   └── cli.py             # Command-line interface
+├── tests/                  # Test suite (96 tests)
+├── scripts/                # Utility scripts
+├── docs/                   # Documentation
+│   └── ARCHITECTURE.md    # Detailed architecture
+├── pyproject.toml         # Package configuration
+├── setup.py               # Backward-compatible setup
+├── LICENSE                # MIT License
+├── CONTRIBUTING.md        # Contribution guidelines
+└── RELEASE_NOTES.md       # Version history
 ```
 
 ---
@@ -157,22 +204,27 @@ pytest tests/ -v
 ## 🧪 Testing
 
 ```bash
-# Run all FractalHub tests
-pytest tests/test_kernel_v12.py tests/test_dictionary_v02.py tests/test_integration_v12.py -v
+# Run all tests
+pytest
 
-# Run with coverage
-pytest tests/ --cov=fractalhub --cov-report=html
+# Run specific test file
+pytest tests/test_kernel_v12.py -v
+
+# Run with coverage (requires pytest-cov)
+pytest --cov=fractalhub --cov-report=html
 
 # Validate dictionary
-python scripts/validate_dictionary.py
+fractalhub-validate
 ```
 
 ---
 
 ## 📄 Documentation
 
-- [RELEASE_NOTES.md](RELEASE_NOTES.md) - Comprehensive v1.2 + v02 changelog
-- Dictionary schema included in `fractalhub/data/fractalhub_dictionary_v02.yaml`
+- [ARCHITECTURE.md](docs/ARCHITECTURE.md) - Detailed system architecture
+- [CONTRIBUTING.md](CONTRIBUTING.md) - Contribution guidelines
+- [RELEASE_NOTES.md](RELEASE_NOTES.md) - Version history
+- [LICENSE](LICENSE) - MIT License
 
 ---
 
