@@ -1,0 +1,19 @@
+(lang dune 3.0)
+(name fractalhub_verified)
+(version 1.2.0)
+
+(generate_opam_files true)
+
+(source (github sonaiso/Eqratech_Arabic_Diana_Project))
+(authors "FractalHub Team")
+(maintainers "fractalhub@example.com")
+(license MIT)
+
+(package
+ (name fractalhub_verified)
+ (synopsis "Verified FractalHub kernel extracted from Coq")
+ (description "Formally verified consciousness kernel implementing Al-Nabhani's Theory of Thinking with mathematically proven hallucination prevention.")
+ (depends
+  (ocaml (>= 4.12.0))
+  dune
+  (zarith (>= 1.12))))

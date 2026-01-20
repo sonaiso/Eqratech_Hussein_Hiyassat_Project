@@ -1,0 +1,25 @@
+(library
+ (name fractalhub_verified)
+ (public_name fractalhub_verified)
+ (modules fractalhub_kernel runtime_bridge)
+ (libraries zarith))
+
+(executable
+ (name test_extraction)
+ (modules test_extraction)
+ (libraries fractalhub_verified))
+
+(rule
+ (targets fractalhub_kernel.ml fractalhub_kernel.mli)
+ (deps ../theories/Extraction.v
+       ../theories/Base.v
+       ../theories/Layers.v
+       ../theories/Trace.v
+       ../theories/Gates.v
+       ../theories/LockedArchitecture.v
+       ../theories/Invariants.v)
+ (action
+  (progn
+   (run coqc -R ../theories FractalHub ../theories/Extraction.v)
+   (run mv ../fractalhub_kernel.ml fractalhub_kernel.ml)
+   (run touch fractalhub_kernel.mli))))
