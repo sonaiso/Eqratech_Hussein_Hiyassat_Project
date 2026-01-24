@@ -34,10 +34,25 @@ __architecture__ = "locked_v1"
 from .core.engine import XAIEngine
 from .core.pipeline import XAIPipeline
 from .core.domain import Domain, DomainType
+from .ctegate import (
+    TextualCertaintyGate,
+    GateLevel,
+    GateCondition,
+    GateResult,
+    ConditionViolation,
+    evaluate_textual_certainty,
+)
 
 __all__ = [
     "XAIEngine",
     "XAIPipeline", 
     "Domain",
     "DomainType",
+    # CTE Gate components
+    "TextualCertaintyGate",
+    "GateLevel",
+    "GateCondition",
+    "GateResult",
+    "ConditionViolation",
+    "evaluate_textual_certainty",
 ]
