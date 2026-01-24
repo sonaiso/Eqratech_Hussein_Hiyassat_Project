@@ -42,6 +42,12 @@ from .ctegate import (
     ConditionViolation,
     evaluate_textual_certainty,
 )
+from .ctegate_domains import (
+    DomainSpecificGate,
+    DomainCondition,
+    DomainViolation,
+    evaluate_with_domain,
+)
 
 __all__ = [
     "XAIEngine",
@@ -55,4 +61,9 @@ __all__ = [
     "GateResult",
     "ConditionViolation",
     "evaluate_textual_certainty",
+    # Domain-specific CTE Gate
+    "DomainSpecificGate",
+    "DomainCondition",
+    "DomainViolation",
+    "evaluate_with_domain",
 ]
