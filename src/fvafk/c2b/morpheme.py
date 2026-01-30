@@ -13,9 +13,38 @@ class RootType(Enum):
 
 
 class PatternType(Enum):
-    VERB = auto()
-    NOUN = auto()
-    PARTICLE = auto()
+    """Types of morphological patterns."""
+    UNKNOWN = "unknown"
+
+    # Verb Forms
+    FORM_I = "form_i"
+    FORM_II = "form_ii"
+    FORM_III = "form_iii"
+    FORM_IV = "form_iv"
+    FORM_V = "form_v"
+    FORM_VI = "form_vi"
+    FORM_VII = "form_vii"
+    FORM_VIII = "form_viii"
+    FORM_IX = "form_ix"
+    FORM_X = "form_x"
+
+    # Noun Patterns
+    ACTIVE_PARTICIPLE = "active_participle"
+    PASSIVE_PARTICIPLE = "passive_participle"
+    PLACE_TIME_NOUN = "place_time_noun"
+    VERBAL_NOUN = "verbal_noun"
+    INTENSIVE = "intensive"
+    ABSTRACT_NOUN = "abstract_noun"
+    INSTRUMENT = "instrument"
+    ELATIVE = "elative"
+
+    # Plural Patterns
+    SOUND_MASCULINE_PLURAL = "sound_masc_plural"
+    SOUND_FEMININE_PLURAL = "sound_fem_plural"
+    BROKEN_PLURAL_FUUL = "broken_plural_fuul"
+    BROKEN_PLURAL_FIAAL = "broken_plural_fiaal"
+    BROKEN_PLURAL_AFAAL = "broken_plural_afaal"
+    BROKEN_PLURAL_FIUL = "broken_plural_fiul"
 
 
 class AffixType(Enum):
@@ -52,11 +81,12 @@ class Root:
 class Pattern:
     name: str
     template: str
+    pattern_type: PatternType = PatternType.UNKNOWN
+    stem: Optional[str] = None
     description: Optional[str] = None
     weight: int = 1
 
     def matches(self, stem: str) -> bool:
-        # very simple placeholder: checks template consonant count
         consonants = [ch for ch in stem if ch.isalpha()]
         return len(consonants) >= len([c for c in self.template if c.isalpha()])
 

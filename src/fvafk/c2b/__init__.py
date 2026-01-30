@@ -12,6 +12,7 @@ from .morpheme import (
     Root,
     RootType,
 )
+from .pattern_matcher import PatternDatabase, PatternMatcher, PatternTemplate
 from .root_extractor import RootExtractor
 
 __all__ = [
@@ -24,4 +25,7 @@ __all__ = [
     "Root",
     "RootType",
     "RootExtractor",
+    "PatternMatcher",
+    "PatternTemplate",
+    "PatternDatabase",
 ]
