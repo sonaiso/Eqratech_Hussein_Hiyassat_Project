@@ -99,6 +99,29 @@ class TestRootExtractorNormalization:
         assert root2 is not None
         assert root1.letters == root2.letters
 
+    def test_hamza_carrier_normalization(self):
+        extractor = RootExtractor()
+
+        root = extractor.extract("مُؤْمِنُونَ")
+        assert root is not None
+        assert root.letters == ("ا", "م", "ن")
+
+        root = extractor.extract("أَكَلَ")
+        assert root is not None
+        assert root.letters[0] == "ا"
+
+        root = extractor.extract("إِيمَانٌ")
+        assert root is not None
+        assert root.letters[0] == "ا"
+        assert "م" in root.letters
+        assert "إ" not in root.letters
+
+        root = extractor.extract("خَطِيئَة")
+        assert root is not None
+        assert "ئ" not in root.letters
+        assert "ي" in root.letters
+
+
     def test_alif_maqsurah(self):
         extractor = RootExtractor()
         root = extractor.extract("رَمَى")

@@ -5,9 +5,45 @@ Root extraction for Arabic words.
 from __future__ import annotations
 
 import re
+import unicodedata
 from typing import List, Optional, Set
 
 from .morpheme import Root, RootType
+
+
+def normalize_hamza_for_roots(text: str) -> str:
+    """
+    Universal hamza normalization for root extraction.
+
+    Applies Arabic orthographic rules:
+    - Hamza carriers → base letters
+    - Preserves linguistic structure
+    - Works for ALL Arabic words
+
+    Args:
+        text: Arabic text with possible hamza carriers
+
+    Returns:
+        Normalized text with hamza carriers replaced by base letters
+
+    Examples:
+        >>> normalize_hamza_for_roots("مُؤْمِنُونَ")
+        "مامنون"  # ؤ → ا
+        >>> normalize_hamza_for_roots("أَكَلَ")
+        "اكل"  # أ → ا
+    """
+    text = unicodedata.normalize('NFC', text)
+    text = text.replace('أ', 'ا')
+    text = text.replace('إ', 'ا')
+    text = text.replace('آ', 'ا')
+    text = text.replace('ؤ', 'ا')
+    text = text.replace('ئ', 'ي')
+    text = ''.join(
+        c
+        for c in unicodedata.normalize('NFD', text)
+        if unicodedata.category(c) != 'Mn'
+    )
+    return unicodedata.normalize('NFC', text)
 
 
 class RootExtractor:
@@ -26,6 +62,7 @@ class RootExtractor:
             return None
 
         normalized = self._normalize(word)
+        normalized = normalize_hamza_for_roots(normalized)
         stripped = self._strip_affixes(normalized)
         consonants = self._extract_consonants(stripped)
 
