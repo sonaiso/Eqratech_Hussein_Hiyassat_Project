@@ -51,8 +51,19 @@ class RootExtractor:
     WEAK_LETTERS = {'و', 'ي', 'ا', 'ء'}
     PATTERN_LETTERS = {'ا', 'و', 'ي'}
 
-    PREFIXES = ['است', 'ال', 'وال', 'فال', 'بال', 'كال', 'لل', 'م', 'ت', 'ي', 'ن', 'أ', 'تـ', 'يـ', 'نـ']
-    SUFFIXES = ['ون', 'ين', 'ات', 'ان', 'ات', 'ة', 'ه', 'ها', 'هم', 'كم', 'هما', 'نا', 'ن']
+    PREFIXES = [
+        'است',  # استفعل
+        'ال', 'وال', 'فال', 'بال', 'كال', 'لل',  # أل التعريف
+        'س', 'سي', 'سو',  # حرف استقبال
+        'ف', 'و', 'ب', 'ك', 'ل',  # حروف عطف/جر
+        'م', 'ت', 'ي', 'ن', 'أ',  # حروف مضارعة
+        'تـ', 'يـ', 'نـ'
+    ]
+    SUFFIXES = [
+        'ون', 'ين', 'ات', 'ان', 'تم', 'تن', 'وا',  # ضمائر جمع
+        'ها', 'هم', 'هما', 'هن', 'كم', 'كن',  # ضمائر غائب/مخاطب
+        'ني', 'نا', 'ك', 'ه', 'ة', 'ن'  # ضمائر مفرد + تاء مربوطة
+    ]
 
     def __init__(self, known_roots: Optional[Set[str]] = None):
         self.known_roots = known_roots or set()
@@ -98,14 +109,37 @@ class RootExtractor:
 
     def _strip_affixes(self, word: str) -> str:
         text = word
-        for prefix in sorted(self.PREFIXES, key=len, reverse=True):
+        # حذف البادئات المعقدة أولاً (است، ال، وال، إلخ)
+        complex_prefixes = [p for p in self.PREFIXES if len(p) >= 2]
+        for prefix in sorted(complex_prefixes, key=len, reverse=True):
             if text.startswith(prefix) and len(text) - len(prefix) >= 3:
                 text = text[len(prefix):]
                 break
-        for suffix in sorted(self.SUFFIXES, key=len, reverse=True):
-            if text.endswith(suffix) and len(text) - len(suffix) >= 3:
-                text = text[:-len(suffix)]
+        
+        # حذف البادئات البسيطة (ف، س، ي، إلخ) - يمكن أن يكون عدة حروف
+        simple_prefixes = ['ف', 'و', 'ب', 'س', 'ي', 'ت', 'ن', 'أ']
+        max_iterations = 3  # أقصى عدد من البادئات البسيطة
+        for _ in range(max_iterations):
+            removed = False
+            for prefix in simple_prefixes:
+                if text.startswith(prefix) and len(text) - len(prefix) >= 3:
+                    text = text[1:]
+                    removed = True
+                    break
+            if not removed:
                 break
+        
+        # حذف اللواحق - يمكن أن يكون عدة لواحق
+        for _ in range(2):  # حد أقصى لاحقتان
+            removed = False
+            for suffix in sorted(self.SUFFIXES, key=len, reverse=True):
+                if text.endswith(suffix) and len(text) - len(suffix) >= 3:
+                    text = text[:-len(suffix)]
+                    removed = True
+                    break
+            if not removed:
+                break
+        
         return text.strip()
 
     def _extract_consonants(self, word: str) -> List[str]:
