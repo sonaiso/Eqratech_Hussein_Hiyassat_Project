@@ -152,6 +152,11 @@ class RootExtractor:
                 if prev_is_consonant and next_is_consonant:
                     continue
             consonants.append(letter)
+        
+        # إزالة التكرار الناتج عن الشدة في الأوزان الصرفية
+        # مثال: "زرراع" (من زُرَّاع) → إزالة إحدى الراءات → "زراع"
+        consonants = self._deduplicate_gemination(consonants)
+        
         if len(consonants) == 4 and consonants[0] == consonants[1] and consonants[2] != consonants[0]:
             consonants = consonants[1:]
         if len(consonants) in (3, 4):
@@ -161,6 +166,36 @@ class RootExtractor:
         if len(consonants) < 3:
             return letters[:3] if len(letters) >= 3 else letters
         return consonants
+    
+    def _deduplicate_gemination(self, consonants: List[str]) -> List[str]:
+        """
+        إزالة الحروف المضعفة الناتجة عن الشدة في الأوزان الصرفية.
+        
+        مثال:
+        - "زرراع" → ["ز", "ر", "ر", "ا", "ع"] → ["ز", "ر", "ا", "ع"]
+        - "كتب" → ["ك", "ت", "ب"] → ["ك", "ت", "ب"] (بدون تغيير)
+        
+        القاعدة: إذا كان هناك حرفان متتاليان متطابقان، نزيل أحدهما
+        إلا إذا كان الجذر رباعياً حقيقياً (مثل: زلزل، وسوس).
+        """
+        if len(consonants) <= 3:
+            return consonants
+        
+        result: List[str] = []
+        i = 0
+        while i < len(consonants):
+            current = consonants[i]
+            # تحقق من وجود حرف متطابق تالٍ
+            if i + 1 < len(consonants) and consonants[i + 1] == current:
+                # أضف الحرف مرة واحدة فقط
+                result.append(current)
+                # تجاوز الحرف المكرر
+                i += 2
+            else:
+                result.append(current)
+                i += 1
+        
+        return result
 
     def _is_valid_root(self, letters: List[str]) -> bool:
         if len(letters) not in (3, 4):
