@@ -117,7 +117,7 @@ class RootExtractor:
                 break
         
         # حذف البادئات البسيطة (ف، س، ي، إلخ) - يمكن أن يكون عدة حروف
-        simple_prefixes = ['ف', 'و', 'ب', 'س', 'ي', 'ت', 'ن', 'أ']
+        simple_prefixes = ['ف', 'و', 'ב', 'س', 'ي', 'ת', 'ן', 'أ', 'م']
         max_iterations = 3  # أقصى عدد من البادئات البسيطة
         for _ in range(max_iterations):
             removed = False

@@ -64,7 +64,8 @@ class MinimalCLI:
         self,
         text: str,
         verbose: bool = False,
-        morphology: bool = False
+        morphology: bool = False,
+        multi_word: bool = False
     ) -> Dict[str, Any]:
         """Run full FVAFK pipeline."""
         start = time.perf_counter()
@@ -87,7 +88,10 @@ class MinimalCLI:
 
         if morphology:
             c2b_start = time.perf_counter()
-            morphology_result = self._analyze_morphology(text)
+            if multi_word:
+                morphology_result = self._analyze_morphology_multi_word(text)
+            else:
+                morphology_result = self._analyze_morphology(text)
             c2b_time = (time.perf_counter() - c2b_start) * 1000
 
         total_time = (time.perf_counter() - start) * 1000
@@ -183,6 +187,74 @@ class MinimalCLI:
             }
 
         return result
+
+    def _analyze_morphology_multi_word(self, text: str) -> Dict[str, Any]:
+        """تحليل نص متعدد الكلمات - يستخرج الجذر لكل كلمة."""
+        import re
+        
+        # تقسيم النص إلى كلمات (حذف علامات الترقيم والرموز)
+        words = re.findall(r'[\u0600-\u06FF]+', text)
+        
+        root_extractor = RootExtractor()
+        pattern_matcher = PatternMatcher()
+        
+        words_analysis: List[Dict[str, Any]] = []
+        
+        for word in words:
+            if not word or len(word) < 2:
+                continue
+                
+            root = root_extractor.extract(word)
+            
+            if not root:
+                words_analysis.append({
+                    "word": word,
+                    "root": None,
+                    "pattern": None,
+                    "error": "Could not extract root"
+                })
+                continue
+            
+            letters = list(root.letters)
+            root_type = root.root_type
+            
+            # معالجة الجذور الرباعية المضعفة
+            if len(letters) == 4 and letters[1] == letters[2]:
+                letters = [letters[0], letters[1], letters[3]]
+                root_type = RootType.TRILATERAL
+            
+            analysis_root = Root(letters=tuple(letters), root_type=root_type)
+            pattern = pattern_matcher.match(word, analysis_root)
+            
+            word_result: Dict[str, Any] = {
+                "word": word,
+                "root": {
+                    "letters": letters,
+                    "formatted": "-".join(letters),
+                    "type": root_type.name.lower(),
+                    "length": len(letters),
+                }
+            }
+            
+            if pattern:
+                word_result["pattern"] = {
+                    "template": pattern.template,
+                    "type": pattern.pattern_type.value,
+                    "category": self._get_pattern_category(pattern.pattern_type),
+                }
+            else:
+                word_result["pattern"] = {
+                    "template": None,
+                    "type": "unknown",
+                    "category": "unknown",
+                }
+            
+            words_analysis.append(word_result)
+        
+        return {
+            "words_count": len(words_analysis),
+            "words": words_analysis
+        }
 
     def _get_pattern_category(self, pattern_type: PatternType) -> str:
         verb_forms = {
@@ -299,6 +371,7 @@ Examples:
   python -m fvafk.cli "كِتَابٌ" --json
   python -m fvafk.cli "كَاتِبٌ" --morphology --json
   python -m fvafk.cli "text" --verbose --json
+  python -m fvafk.cli "مُحَمَّدٌ رَسُولُ اللَّهِ" --morphology --multi-word --json
         """
     )
 
@@ -306,6 +379,7 @@ Examples:
     parser.add_argument("--verbose", action="store_true", help="Include detailed unit and segment information")
     parser.add_argument("--json", action="store_true", help="Output results as JSON (default: human-readable)")
     parser.add_argument("--morphology", action="store_true", help="Include morphological analysis (root extraction + pattern matching)")
+    parser.add_argument("--multi-word", action="store_true", help="Analyze each word separately in multi-word text (requires --morphology)")
 
     args = parser.parse_args()
 
@@ -314,7 +388,8 @@ Examples:
         result = cli.run(
             text=args.text,
             verbose=args.verbose,
-            morphology=args.morphology
+            morphology=args.morphology,
+            multi_word=getattr(args, 'multi_word', False)
         )
 
         if args.json:
