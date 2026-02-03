@@ -47,6 +47,19 @@ def normalize_hamza_for_roots(text: str) -> str:
 
 
 class RootExtractor:
+    """
+    Extracts consonantal roots from Arabic words.
+    
+    Handles trilateral (3-letter) and quadrilateral (4-letter) roots. Strips
+    known affixes, normalizes hamza carriers, and filters pattern vowels to
+    identify the underlying root consonants.
+    
+    Example:
+        >>> extractor = RootExtractor()
+        >>> root = extractor.extract("كَاتِب")
+        >>> print('-'.join(root.letters))
+        ك-ت-ب
+    """
     DIACRITICS = "َُِْٰٓٔٱًٌٍّ"
     WEAK_LETTERS = {'و', 'ي', 'ا', 'ء'}
     PATTERN_LETTERS = {'ا', 'و', 'ي'}
@@ -66,9 +79,24 @@ class RootExtractor:
     ]
 
     def __init__(self, known_roots: Optional[Set[str]] = None):
+        """
+        Initialize root extractor.
+        
+        Args:
+            known_roots: Optional set of valid roots for validation
+        """
         self.known_roots = known_roots or set()
 
     def extract(self, word: str) -> Optional[Root]:
+        """
+        Extract root from Arabic word.
+        
+        Args:
+            word: Arabic word (with or without diacritics)
+        
+        Returns:
+            Root object or None if extraction fails
+        """
         if not word:
             return None
 
