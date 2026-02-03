@@ -376,53 +376,44 @@ def segment_cv_to_syllables(cv: str) -> List[str]:
     if not cv:
         return []
     
-    syllables = []
+    syllables: List[str] = []
     i = 0
-    
+
     while i < len(cv):
-        # Try longest to shortest
-        matched = False
-        
-        # CVVCC (5)
-        if i + 5 <= len(cv) and cv[i:i+5] == "CVVCC":
-            syllables.append("CVVCC")
-            i += 5
-            matched = True
-        # CVVC (4)
-        elif i + 4 <= len(cv) and cv[i:i+4] == "CVVC":
-            syllables.append("CVVC")
-            i += 4
-            matched = True
-        # CVCC (4)
-        elif i + 4 <= len(cv) and cv[i:i+4] == "CVCC":
-            syllables.append("CVCC")
-            i += 4
-            matched = True
-        # CVV (3)
-        elif i + 3 <= len(cv) and cv[i:i+3] == "CVV":
-            syllables.append("CVV")
-            i += 3
-            matched = True
-        # CVC (3)
-        elif i + 3 <= len(cv) and cv[i:i+3] == "CVC":
-            syllables.append("CVC")
-            i += 3
-            matched = True
-        # CV (2)
-        elif i + 2 <= len(cv) and cv[i:i+2] == "CV":
-            syllables.append("CV")
-            i += 2
-            matched = True
-        # Single C (end of word)
-        elif cv[i] == "C":
-            syllables.append("C")
+        if i + 1 >= len(cv) or cv[i] != "C" or cv[i + 1] != "V":
             i += 1
-            matched = True
-        
-        if not matched:
-            # Invalid pattern - skip
+            continue
+
+        syll = "CV"
+        i += 2
+
+        if i < len(cv) and cv[i] == "V":
+            syll = "CVV"
             i += 1
-    
+
+        c_start = i
+        while i < len(cv) and cv[i] == "C":
+            i += 1
+        c_count = i - c_start
+
+        if i >= len(cv):
+            coda = min(2, c_count)
+            if coda == 1:
+                syll += "C"
+            elif coda == 2:
+                syll += "CC"
+            syllables.append(syll)
+            break
+
+        coda = min(2, max(0, c_count - 1))
+        if coda == 1:
+            syll += "C"
+        elif coda == 2:
+            syll += "CC"
+
+        i = c_start + coda
+        syllables.append(syll)
+
     return syllables
 
 

@@ -27,6 +27,8 @@ from fvafk.c2a import (
     GateShadda,
     GateSukun,
     GateWaqf,
+        GateAssimilation,
+        GateTanwin,
 )
 from fvafk.c2a.gate_framework import GateOrchestrator, GateResult, PhonologicalGate
 from fvafk.c2a.syllable import Segment
@@ -54,6 +56,8 @@ class MinimalCLI:
             GateWaqf(),
             GateIdgham(),
             GateMadd(),
+                GateAssimilation(),
+                GateTanwin(),
             GateDeletion(),
             GateEpenthesis(),
         ]
