@@ -64,10 +64,17 @@ pip install -r requirements.txt
 
 # Run tests to verify installation
 PYTHONPATH=src pytest tests/ -v
-💻 Usage
-Command Line Interface
-Basic Usage
-bash
+```
+
+---
+
+## 💻 Usage
+
+### Command Line Interface
+
+#### Basic Usage
+
+```bash
 # Simple text analysis
 python -m fvafk.cli "كَاتِبٌ"
 
@@ -79,3 +86,44 @@ python -m fvafk.cli "كَاتِبٌ" --morphology --json
 
 # Verbose output with timing
 python -m fvafk.cli "كَاتِبٌ" --morphology --verbose
+```
+
+### Web API
+
+#### Starting the Server
+
+```bash
+# Start the FastAPI server
+python run_server.py
+
+# With custom host and port
+python run_server.py --host 0.0.0.0 --port 8080
+
+# With auto-reload for development
+python run_server.py --reload
+```
+
+#### API Endpoints
+
+Once the server is running, you can access:
+
+- **Interactive Documentation**: http://localhost:8000/docs
+- **Health Check**: http://localhost:8000/
+- **Text Analysis**: POST http://localhost:8000/analyze
+- **Morphological Analysis**: POST http://localhost:8000/analyze/morphology
+
+Example API usage:
+
+```bash
+# Basic analysis
+curl -X POST http://localhost:8000/analyze \
+  -H "Content-Type: application/json" \
+  -d '{"text": "كِتَابٌ"}'
+
+# With morphology
+curl -X POST http://localhost:8000/analyze/morphology \
+  -H "Content-Type: application/json" \
+  -d '{"text": "كَاتِبٌ"}'
+```
+
+See [web_app/README.md](web_app/README.md) for complete API documentation.
