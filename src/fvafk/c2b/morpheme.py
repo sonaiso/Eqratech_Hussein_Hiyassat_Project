@@ -4,7 +4,7 @@ Basic morphological dataclasses and helpers.
 
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Iterable, List, Optional, Sequence, Tuple
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 
 class RootType(Enum):
@@ -85,6 +85,7 @@ class Pattern:
     stem: Optional[str] = None
     description: Optional[str] = None
     weight: int = 1
+    features: Dict[str, str] = field(default_factory=dict)
 
     def matches(self, stem: str) -> bool:
         consonants = [ch for ch in stem if ch.isalpha()]

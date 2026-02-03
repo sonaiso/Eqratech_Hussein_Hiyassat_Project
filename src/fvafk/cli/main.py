@@ -16,6 +16,7 @@ import time
 from typing import Any, Dict, List, Optional
 
 from fvafk.c1 import C1Encoder
+from fvafk.c1.cv_pattern import analyze_text_for_cv
 from fvafk.c1.unit import Unit, UnitCategory
 from fvafk.c2a import (
     GateDeletion,
@@ -101,6 +102,7 @@ class MinimalCLI:
         total_time = (time.perf_counter() - start) * 1000
 
         unit_rows = [self._segment_to_unit(s) for s in segments]
+        cv_analysis = analyze_text_for_cv(text)
 
         result: Dict[str, Any] = {
             "input": text,
@@ -108,6 +110,10 @@ class MinimalCLI:
             "c1": {
                 "num_units": len(unit_rows),
                 "units": [self._unit_to_dict(u) for u in unit_rows] if verbose else None,
+                "cv_analysis": {
+                    "total_words": len(cv_analysis),
+                    "words": cv_analysis,
+                },
             },
             "c2a": {
                 "gates": [
@@ -147,7 +153,8 @@ class MinimalCLI:
 
     def _analyze_morphology(self, text: str) -> Dict[str, Any]:
         root_extractor = RootExtractor()
-        root = root_extractor.extract(text)
+        extraction = root_extractor.extract_with_affixes(text)
+        root = extraction.root
 
         if not root:
             return {
@@ -176,11 +183,14 @@ class MinimalCLI:
         }
 
         if pattern:
+            pat_features = pattern.features.copy()
+            pat_features.setdefault("pattern_type", pattern.pattern_type.name)
             result["pattern"] = {
                 "template": pattern.template,
                 "type": pattern.pattern_type.value,
                 "category": self._get_pattern_category(pattern.pattern_type),
                 "stem": pattern.stem,
+                "features": pat_features,
             }
         else:
             result["pattern"] = {
@@ -189,6 +199,19 @@ class MinimalCLI:
                 "category": "unknown",
                 "error": "Could not match pattern"
             }
+
+        features = {
+            "root_type": root_type.name.lower(),
+            "normalized": extraction.normalized_word,
+            "stripped": extraction.stripped_word,
+        }
+        if pattern:
+            features.update(result["pattern"].get("features", {}))
+        result["affixes"] = {
+            "prefix": extraction.prefix or None,
+            "suffix": extraction.suffix or None,
+        }
+        result["features"] = features
 
         return result
 
@@ -208,7 +231,8 @@ class MinimalCLI:
             if not word or len(word) < 2:
                 continue
                 
-            root = root_extractor.extract(word)
+            extraction = root_extractor.extract_with_affixes(word)
+            root = extraction.root
             
             if not root:
                 words_analysis.append({
@@ -239,19 +263,35 @@ class MinimalCLI:
                     "length": len(letters),
                 }
             }
+            word_result["affixes"] = {
+                "prefix": extraction.prefix or None,
+                "suffix": extraction.suffix or None,
+                "normalized": extraction.normalized_word,
+                "stripped": extraction.stripped_word,
+            }
             
+            features = {
+                "root_type": root_type.name.lower(),
+                "normalized": extraction.normalized_word,
+                "stripped": extraction.stripped_word,
+            }
             if pattern:
+                pat_features = pattern.features.copy()
+                pat_features.setdefault("pattern_type", pattern.pattern_type.name)
                 word_result["pattern"] = {
                     "template": pattern.template,
                     "type": pattern.pattern_type.value,
                     "category": self._get_pattern_category(pattern.pattern_type),
+                    "features": pat_features,
                 }
+                features.update(pat_features)
             else:
                 word_result["pattern"] = {
                     "template": None,
                     "type": "unknown",
                     "category": "unknown",
                 }
+            word_result["features"] = features
             
             words_analysis.append(word_result)
         

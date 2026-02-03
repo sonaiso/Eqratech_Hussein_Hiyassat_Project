@@ -129,6 +129,21 @@ class TestRootExtractorNormalization:
         assert len(root.letters) == 3
 
 
+class TestRootExtractorAffixes:
+    def test_affix_identification(self):
+        extractor = RootExtractor()
+
+        context = extractor.extract_with_affixes("والِكِتَاب")
+        assert context.prefix == "وال"
+        assert context.stripped_word == "كتاب"
+        assert context.root is not None
+        assert context.root.letters == ("ك", "ت", "ب")
+
+        context = extractor.extract_with_affixes("كَاتِبُونَ")
+        assert context.suffix == "ون"
+        assert context.root is not None
+        assert context.root.letters == ("ك", "ت", "ب")
+
 class TestRootExtractorValidation:
     def test_empty_string(self):
         extractor = RootExtractor()

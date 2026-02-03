@@ -4,9 +4,10 @@ Root extraction for Arabic words.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import re
 import unicodedata
-from typing import List, Optional, Set
+from typing import List, Optional, Set, Tuple
 
 from .morpheme import Root, RootType
 
@@ -46,6 +47,15 @@ def normalize_hamza_for_roots(text: str) -> str:
     return unicodedata.normalize('NFC', text)
 
 
+@dataclass(frozen=True)
+class RootExtractionResult:
+    root: Optional[Root]
+    normalized_word: str
+    stripped_word: str
+    prefix: str
+    suffix: str
+
+
 class RootExtractor:
     DIACRITICS = "َُِْٰٓٔٱًٌٍّ"
     WEAK_LETTERS = {'و', 'ي', 'ا', 'ء'}
@@ -69,19 +79,34 @@ class RootExtractor:
         self.known_roots = known_roots or set()
 
     def extract(self, word: str) -> Optional[Root]:
+        context = self._extract_context(word)
+        return context.root
+
+    def extract_with_affixes(self, word: str) -> RootExtractionResult:
+        return self._extract_context(word)
+
+    def _extract_context(self, word: str) -> RootExtractionResult:
         if not word:
-            return None
+            return RootExtractionResult(None, "", "", "", "")
 
         normalized = self._normalize(word)
         normalized = normalize_hamza_for_roots(normalized)
-        stripped = self._strip_affixes(normalized)
+        stripped, prefix, suffix = self._strip_affixes(normalized)
         consonants = self._extract_consonants(stripped)
 
+        root: Optional[Root] = None
         if self._is_valid_root(consonants):
             root_type = RootType.TRILATERAL if len(consonants) == 3 else RootType.QUADRILATERAL
             letters = tuple(consonants[:len(consonants)])
-            return Root(letters=letters, root_type=root_type)
-        return None
+            root = Root(letters=letters, root_type=root_type)
+
+        return RootExtractionResult(
+            root=root,
+            normalized_word=normalized,
+            stripped_word=stripped,
+            prefix=prefix,
+            suffix=suffix,
+        )
 
     def _normalize(self, word: str) -> str:
         buffer: List[str] = []
@@ -107,40 +132,47 @@ class RootExtractor:
         text = re.sub(r'[\u064B-\u065F\u0670]', '', text)
         return text.strip()
 
-    def _strip_affixes(self, word: str) -> str:
+    def _strip_affixes(self, word: str) -> Tuple[str, str, str]:
         text = word
+        prefix_parts: List[str] = []
         # حذف البادئات المعقدة أولاً (است، ال، وال، إلخ)
         complex_prefixes = [p for p in self.PREFIXES if len(p) >= 2]
         for prefix in sorted(complex_prefixes, key=len, reverse=True):
             if text.startswith(prefix) and len(text) - len(prefix) >= 3:
                 text = text[len(prefix):]
+                prefix_parts.append(prefix)
                 break
         
         # حذف البادئات البسيطة (ف، س، ي، إلخ) - يمكن أن يكون عدة حروف
-        simple_prefixes = ['ف', 'و', 'ב', 'س', 'ي', 'ת', 'ן', 'أ', 'م']
+        simple_prefixes = ['ف', 'و', 'ب', 'س', 'ي', 'ت', 'ن', 'أ', 'م']
         max_iterations = 3  # أقصى عدد من البادئات البسيطة
         for _ in range(max_iterations):
             removed = False
             for prefix in simple_prefixes:
                 if text.startswith(prefix) and len(text) - len(prefix) >= 3:
-                    text = text[1:]
+                    text = text[len(prefix):]
+                    prefix_parts.append(prefix)
                     removed = True
                     break
             if not removed:
                 break
         
         # حذف اللواحق - يمكن أن يكون عدة لواحق
+        suffix_parts: List[str] = []
         for _ in range(2):  # حد أقصى لاحقتان
             removed = False
             for suffix in sorted(self.SUFFIXES, key=len, reverse=True):
                 if text.endswith(suffix) and len(text) - len(suffix) >= 3:
                     text = text[:-len(suffix)]
+                    suffix_parts.append(suffix)
                     removed = True
                     break
             if not removed:
                 break
         
-        return text.strip()
+        prefix_str = ''.join(prefix_parts)
+        suffix_str = ''.join(reversed(suffix_parts))
+        return text.strip(), prefix_str, suffix_str
 
     def _extract_consonants(self, word: str) -> List[str]:
         letters = [ch for ch in word if self._is_arabic_letter(ch)]
@@ -152,11 +184,16 @@ class RootExtractor:
                 if prev_is_consonant and next_is_consonant:
                     continue
             consonants.append(letter)
-        
+
         # إزالة التكرار الناتج عن الشدة في الأوزان الصرفية
         # مثال: "زرراع" (من زُرَّاع) → إزالة إحدى الراءات → "زراع"
         consonants = self._deduplicate_gemination(consonants)
-        
+        pattern_filtered = [ch for ch in consonants if ch not in self.PATTERN_LETTERS]
+        if len(consonants) > len(pattern_filtered) >= 3:
+            consonants = pattern_filtered
+
+        consonants = self._trim_weak_ending(consonants)
+
         if len(consonants) == 4 and consonants[0] == consonants[1] and consonants[2] != consonants[0]:
             consonants = consonants[1:]
         if len(consonants) in (3, 4):
@@ -196,6 +233,15 @@ class RootExtractor:
                 i += 1
         
         return result
+
+    def _trim_weak_ending(self, consonants: List[str]) -> List[str]:
+        """
+        Remove trailing weak letters (pattern fillers) while keeping at least three strong radicals.
+        """
+        trimmed = list(consonants)
+        while len(trimmed) > 3 and trimmed[-1] in self.WEAK_LETTERS:
+            trimmed.pop()
+        return trimmed
 
     def _is_valid_root(self, letters: List[str]) -> bool:
         if len(letters) not in (3, 4):
