@@ -9,6 +9,7 @@ This module provides a REST API for Arabic text processing including:
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -24,17 +25,26 @@ if str(src_path) not in sys.path:
 
 from fvafk.cli.main import MinimalCLI
 
+# Import version from package
+try:
+    from web_app import __version__
+except ImportError:
+    __version__ = "0.1.0"
+
+# Get allowed origins from environment variable, defaulting to localhost only
+ALLOWED_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:8000").split(",")
+
 # Create FastAPI app
 app = FastAPI(
     title="FVAFK Arabic NLP API",
     description="Arabic phonological and morphological analysis API",
-    version="0.1.0",
+    version=__version__,
 )
 
-# Add CORS middleware
+# Add CORS middleware with configurable origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -71,7 +81,7 @@ async def health_check() -> Dict[str, str]:
     """
     return {
         "status": "ok",
-        "version": "0.1.0"
+        "version": __version__
     }
 
 
@@ -85,7 +95,7 @@ async def health() -> Dict[str, str]:
     """
     return {
         "status": "ok",
-        "version": "0.1.0"
+        "version": __version__
     }
 
 
@@ -151,7 +161,11 @@ async def analyze_morphology(request: AnalyzeRequest) -> Dict[str, Any]:
             detail=f"Morphological analysis failed: {str(e)}"
         )
 
-
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    
+    # Get host and port from environment variables with defaults
+    host = os.getenv("HOST", "127.0.0.1")
+    port = int(os.getenv("PORT", "8000"))
+    
+    uvicorn.run(app, host=host, port=port)
