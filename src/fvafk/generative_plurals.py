@@ -13,15 +13,16 @@ The system generates templates through:
 from dataclasses import dataclass
 from typing import List, Tuple, Set, Dict, Optional
 from enum import Enum
+import sys
+from pathlib import Path
 
-
-class SyllableType(Enum):
-    """Allowed syllable types in Arabic"""
-    CV = "CV"        # Light open: كَ
-    CVC = "CVC"      # Heavy closed: كَتْ
-    CVV = "CVV"      # Heavy long vowel: كَا
-    CVVC = "CVVC"    # Superheavy: كَاتْ
-    CVCC = "CVCC"    # Superheavy: كَتْبْ
+# Import existing syllable infrastructure
+try:
+    from .c2a import SyllableType
+except ImportError:
+    # Fallback for standalone execution
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    from fvafk.c2a import SyllableType
 
 
 class SlotType(Enum):
