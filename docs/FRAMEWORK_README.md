@@ -12,12 +12,13 @@ python src/fvafk/energy_evaluation.py
 python src/fvafk/generative_plurals.py
 python src/fvafk/parameter_learning.py
 python src/fvafk/augmentation_operators.py
+python src/fvafk/particle_loader.py
 
 # Run integration demo
 PYTHONPATH=. python examples/integration_demo.py
 
 # Run tests
-pytest tests/test_vowel_space_optimization.py tests/test_node_schema_energy.py -v
+pytest tests/test_vowel_space_optimization.py tests/test_node_schema_energy.py tests/test_particle_loader.py -v
 ```
 
 ## Modules Overview
@@ -135,6 +136,33 @@ root = Root(C1='ك', C2='ت', C3='ب')
 derived = system.apply_operators(root, [system.operators[2]])
 ```
 
+### 7. Particle Loader (`particle_loader.py`)
+
+Loads Arabic particles from CSV files for integration with node schema.
+
+**Key Features:**
+- Loads prepositions (حروف الجر), conjunctions (حروف العطف), interrogatives, etc.
+- Supports operators_catalog_split.csv when available
+- Creates Node instances from particle data
+- Comprehensive particle metadata
+
+**Example:**
+```python
+from src.fvafk.particle_loader import ParticleLoader
+
+loader = ParticleLoader()
+loader.load_all()
+
+# Get all prepositions
+prepositions = loader.get_prepositions()
+
+# Get specific particle
+bi = loader.get_particle("بِ")
+
+# Create node from particle
+node = loader.create_node_from_particle(bi)
+```
+
 ## Mathematical Foundations
 
 ### Vowel Space
@@ -172,13 +200,14 @@ If conditions hold, then optimal 3-vowel system is:
 ## Tests
 
 ```bash
-# Run all tests (33 tests, all passing)
-pytest tests/test_vowel_space_optimization.py tests/test_node_schema_energy.py -v
+# Run all tests (43 tests, all passing)
+pytest tests/test_vowel_space_optimization.py tests/test_node_schema_energy.py tests/test_particle_loader.py -v
 ```
 
 Test coverage:
 - Vowel space optimization: 20 tests
 - Node schema and energy: 13 tests
+- Particle loader: 10 tests
 
 ## Documentation
 
@@ -197,6 +226,13 @@ src/fvafk/
 ├── energy_evaluation.py         # Constraint evaluation
 ├── generative_plurals.py        # Template generation
 ├── parameter_learning.py        # Weight learning
+├── augmentation_operators.py    # Morphological operators
+└── particle_loader.py           # Particle data loader (NEW)
+
+tests/
+├── test_vowel_space_optimization.py  # 20 tests
+├── test_node_schema_energy.py        # 13 tests
+└── test_particle_loader.py           # 10 tests (NEW)
 └── augmentation_operators.py    # Morphological operators
 
 tests/
