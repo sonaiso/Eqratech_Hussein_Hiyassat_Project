@@ -13,6 +13,8 @@ from .kainat_ghair_aqila_engine import KainatGhairAqilaEngine
 from .jins_ifradi_engine import JinsIfradiEngine
 from .jins_jamii_engine import JinsJamiiEngine
 from .musatalahat_sharia_engine import MusatalahatShariaEngine
+from .demonstratives_engine import DemonstrativesEngine
+from .particles_engine import ParticlesEngine
 
 __all__ = [
     "ProperNounsEngine",
@@ -28,4 +30,6 @@ __all__ = [
     "JinsIfradiEngine",
     "JinsJamiiEngine",
     "MusatalahatShariaEngine",
+    "DemonstrativesEngine",
+    "ParticlesEngine",
 ]
