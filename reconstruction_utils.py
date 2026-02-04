@@ -37,24 +37,63 @@ def _full_utf8(token: str) -> str:
 
 
 def load_maps() -> Tuple[Dict[str, str], Dict[str, str]]:
-    """Load phoneme and harakat UTF-8 maps from their engines."""
-    from phonemes_engine import PhonemesEngine
-    from harakat_engine import حركات
+    """
+    Load phoneme and harakat UTF-8 maps directly from CSV files.
+    
+    This function reads from Phonemes.csv and Harakat.csv to avoid
+    circular dependencies with engine files.
+    """
+    # Load phonemes directly from CSV
+    csv_path = os.path.join(os.path.dirname(__file__), 'Phonemes.csv')
+    try:
+        phoneme_df = pd.read_csv(csv_path, encoding='utf-8-sig')
+        # Handle BOM if present
+        if phoneme_df.columns[0].startswith('\ufeff'):
+            phoneme_df.columns = [col.replace('\ufeff', '') for col in phoneme_df.columns]
+    except FileNotFoundError:
+        # Fallback: create minimal map
+        phoneme_df = pd.DataFrame({
+            'الفونيمات': [],
+            'UTF-8': []
+        })
+    
+    phoneme_utf8_map = {}
+    if 'الفونيمات' in phoneme_df.columns and 'UTF-8' in phoneme_df.columns:
+        phoneme_utf8_map = dict(zip(phoneme_df['الفونيمات'], phoneme_df['UTF-8']))
 
-    phoneme_df = PhonemesEngine.make_df_from_csv()
-    phoneme_utf8_map = dict(zip(phoneme_df['الفونيمات'], phoneme_df['UTF-8']))
-
-    harakat_df = حركات.make_df()
+    # Load harakat directly from CSV
+    harakat_csv_path = os.path.join(os.path.dirname(__file__), 'Harakat.csv')
+    try:
+        harakat_df = pd.read_csv(harakat_csv_path, encoding='utf-8-sig')
+        # Handle BOM if present
+        if harakat_df.columns[0].startswith('\ufeff'):
+            harakat_df.columns = [col.replace('\ufeff', '') for col in harakat_df.columns]
+    except FileNotFoundError:
+        # Fallback: create minimal map
+        harakat_df = pd.DataFrame({
+            'شكل الحركة': [],
+            'UTF-8': []
+        })
+    
+    # Find the haraka symbol column
     haraka_symbol_col = None
     for cand in ['شكل الحركة', 'الحركات', 'الرمز']:
         if cand in harakat_df.columns:
             haraka_symbol_col = cand
             break
-    if haraka_symbol_col is None:
+    if haraka_symbol_col is None and len(harakat_df.columns) > 0:
         haraka_symbol_col = harakat_df.columns[0]
-    if 'UTF-8' not in harakat_df.columns:
-        harakat_df['UTF-8'] = harakat_df[haraka_symbol_col].apply(lambda h: str(str(h)[:1].encode('utf-8')) if h else '')
-    harakat_utf8_map = dict(zip(harakat_df[haraka_symbol_col], harakat_df['UTF-8']))
+    
+    # Ensure UTF-8 column exists
+    if haraka_symbol_col and 'UTF-8' not in harakat_df.columns:
+        harakat_df['UTF-8'] = harakat_df[haraka_symbol_col].apply(
+            lambda h: str(str(h)[:1].encode('utf-8')) if h else ''
+        )
+    
+    harakat_utf8_map = {}
+    if haraka_symbol_col and 'UTF-8' in harakat_df.columns:
+        harakat_utf8_map = dict(zip(harakat_df[haraka_symbol_col], harakat_df['UTF-8']))
+    
     return phoneme_utf8_map, harakat_utf8_map
 
 
