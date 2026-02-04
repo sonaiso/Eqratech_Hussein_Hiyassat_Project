@@ -28,3 +28,13 @@ Thumbs.db
 
 # Temporary workbook files
 ~$*
+
+# Ignore duplicate engine files at root (use src/engines/ instead)
+# These were removed in Phase 2 to eliminate duplication
+*_engine.py
+!Main_engine.py
+!base_reconstruction_engine.py
+*_generator.py
+
+# Note: All engines should be in src/engines/ directory
+# Main_engine.py is kept as the export script
