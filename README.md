@@ -1,16 +1,36 @@
-A production-ready Arabic NLP system implementing a three-phase computational model for Arabic text processing: encoding (C1), phonological analysis (C2a), and morphological analysis (C2b).
+A production-ready Arabic NLP system implementing a **6-layer computational linguistics model** with dual architecture:
+
+1. **FVAFK Pipeline**: Three-phase text processing (C1 → C2a → C2b)
+2. **Grammar Engines**: 66 engines organized in a 3-level hierarchical taxonomy
 
 ---
 
 ## 🎯 Overview
 
-This project implements a comprehensive Arabic language processing pipeline capable of:
+### Two Main Subsystems
 
-- **Text Normalization**: Unicode normalization and orthographic standardization
-- **Phonological Processing**: 10 Tajweed-based gates for accurate phonetic analysis
-- **Morphological Analysis**: Root extraction and pattern matching for Arabic words
-- **High Performance**: Sub-millisecond processing (<0.5ms per word)
-- **Production Ready**: 101 comprehensive tests (100% passing)
+#### 1. FVAFK Pipeline (Text Processing)
+- **C1**: Text normalization & encoding
+- **C2a**: Phonological analysis (10 Tajweed-based gates)
+- **C2b**: Morphological analysis (root extraction, pattern matching)
+- **Performance**: Sub-millisecond (<0.5ms per word)
+- **Quality**: 101 tests (100% passing)
+
+#### 2. Grammar Engines (66 Total)
+**Organized in 6-Layer Computational Linguistics Model**:
+```
+Layer 6: Generation (التوليد)  → 3 engines
+Layer 5: Rhetoric (البلاغة)    → 11 engines
+Layer 4: Syntax (النحو)        → 13 engines
+Layer 3: Lexicon (المعجم)      → 15 engines
+Layer 2: Morphology (الصرف)    → 22 engines
+Layer 1: Phonology (الصوتيات)  → 3 engines
+```
+
+**3-Level Taxonomy**: Layer → Group (30 total) → Subgroup (66+)
+
+📘 **[See HIERARCHY_README.md](HIERARCHY_README.md)** for complete navigation guide  
+📚 **[See ENGINE_TAXONOMY.md](ENGINE_TAXONOMY.md)** for detailed classification
 
 ---
 
@@ -39,6 +59,46 @@ This project implements a comprehensive Arabic language processing pipeline capa
 - **Weak Roots**: Special handling for و, ي, ء
 - **Noun Patterns**: Singular, plural, broken plurals
 - **Participles**: Active and passive forms
+
+---
+
+## 🏗️ Hierarchical Grammar Engine System
+
+### Explore the Hierarchy
+Use the built-in CLI tool to navigate 66 engines:
+
+```bash
+# Show full tree
+python engine_hierarchy.py
+
+# Filter by layer
+python engine_hierarchy.py --layer 2     # Morphology engines
+
+# Search by term
+python engine_hierarchy.py --search "فاعل"
+
+# Show statistics
+python engine_hierarchy.py --stats
+
+# Export to JSON
+python engine_hierarchy.py --export json
+```
+
+### Example Output
+```
+📂 Layer 1: PHONOLOGY (الصوتيات)
+  └─ Group 1.1: Core Phonemes (الفونيمات الأساسية)
+      └─ 1.1.1: Phoneme Inventory (قائمة الفونيمات)
+          • PhonemesEngine
+
+📂 Layer 2: MORPHOLOGY (الصرف)
+  └─ Group 2.1: Verbal Morphology (صرف الأفعال)
+      └─ 2.1.1: Basic Verbs (الأفعال الأساسية)
+          • VerbsEngine
+          • AfaalKhamsaEngine
+```
+
+**See [HIERARCHY_README.md](HIERARCHY_README.md) for complete guide**
 
 ---
 
