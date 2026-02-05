@@ -54,10 +54,10 @@ class SyllableEnergy:
         """
         emphatic = flags.get('emphatic', 0.0)
         
-        # W = diag(1, β) حيث β يزداد مع التفخيم
+        # W weights the backness dimension more under emphatic influence.
+        # V is represented as [backness, height].
         beta = 1.0 + 5.0 * emphatic  # β ∈ [1, 6]
-        
-        W = np.diag([1.0, beta])
+        W = np.diag([beta, 1.0])
         return W
     
     def d_prime_squared(self, V: np.ndarray, mu: np.ndarray, 
@@ -102,19 +102,22 @@ class SyllableEnergy:
         
         Note: لوغاريتم يؤدي إلى ∞ عند الحافة
         """
-        if not self.V_space.is_in_vowel_triangle(V):
-            # خارج المجال → عقوبة ضخمة
-            return 1e10
-        
-        # حساب البعد من الحدود
-        sum_abs = abs(V[0]) + abs(V[1])
+        # Smooth-ish barrier/penalty around the triangle boundary.
+        # Constraint (smoothed): |v0| + |v1| <= k
+        # We smooth abs to keep the objective differentiable for optimizers.
+        eps_abs = 1e-12
+        smooth_abs0 = float(np.sqrt(V[0] * V[0] + eps_abs))
+        smooth_abs1 = float(np.sqrt(V[1] * V[1] + eps_abs))
+        sum_abs = smooth_abs0 + smooth_abs1
         margin = self.V_space.triangle_k - sum_abs
-        
-        if margin < 1e-6:
-            return 1e10
-        
-        # log-barrier
-        return -self.barrier_strength * np.log(margin)
+
+        # Outside the triangle: quadratic penalty (keeps optimizer stable).
+        if margin <= 0.0:
+            return 1e6 * (-(margin) + 1e-6) ** 2
+
+        # Inside: log barrier (avoid log(0) with eps).
+        eps = 1e-8
+        return -self.barrier_strength * np.log(margin + eps)
     
     def __call__(self, V: np.ndarray, C_L: np.ndarray, C_R: np.ndarray,
                  flags: Dict[str, float]) -> float:
@@ -131,8 +134,12 @@ class SyllableEnergy:
         Returns:
             الطاقة (قيمة عددية)
         """
-        # 1. حساب μ
+        # 1. حساب μ (+ emphatic bias shift)
         mu = self.psi.compute_mu(C_L, C_R)
+        emphatic = float(flags.get("emphatic", 0.0) or 0.0)
+        if emphatic > 0:
+            # Bias the target toward backness under emphatic influence.
+            mu = self.V_space.project_to_triangle(mu + np.array([0.25 * emphatic, 0.0]))
         
         # 2. حساب W
         W = self.compute_metric(flags)
@@ -156,6 +163,9 @@ class SyllableEnergy:
         للمصغِّر Gradient-based
         """
         mu = self.psi.compute_mu(C_L, C_R)
+        emphatic = float(flags.get("emphatic", 0.0) or 0.0)
+        if emphatic > 0:
+            mu = self.V_space.project_to_triangle(mu + np.array([0.25 * emphatic, 0.0]))
         W = self.compute_metric(flags)
         sim = self.similarity(C_L, C_R)
         
@@ -165,15 +175,26 @@ class SyllableEnergy:
         # ∇[H] = 2α·sim·V
         grad_H = 2 * self.alpha * sim * V
         
-        # ∇[B] (تقريب عددي أو تحليلي)
-        # للبساطة نستخدم فرق محدود
-        eps = 1e-6
-        grad_B = np.zeros_like(V)
-        B_curr = self.B_barrier(V)
-        for i in range(len(V)):
-            V_plus = V.copy()
-            V_plus[i] += eps
-            B_plus = self.B_barrier(V_plus)
-            grad_B[i] = (B_plus - B_curr) / eps
-        
+        # ∇[B] (analytic for our triangle barrier/penalty)
+        k = self.V_space.triangle_k
+        eps_abs = 1e-12
+        smooth_abs0 = float(np.sqrt(V[0] * V[0] + eps_abs))
+        smooth_abs1 = float(np.sqrt(V[1] * V[1] + eps_abs))
+        sum_abs = smooth_abs0 + smooth_abs1
+        margin = k - sum_abs
+        # d/dx sqrt(x^2+eps) = x/sqrt(x^2+eps)
+        dabs0 = float(V[0] / smooth_abs0)
+        dabs1 = float(V[1] / smooth_abs1)
+
+        if margin <= 0.0:
+            # penalty = 1e6 * (-(margin)+1e-6)^2, where margin = k - sum_abs
+            t = (-(margin) + 1e-6)
+            dpen_dsum = 2.0 * 1e6 * t  # d/d(sum_abs)
+            grad_B = np.array([dpen_dsum * dabs0, dpen_dsum * dabs1])
+        else:
+            eps = 1e-8
+            # barrier = -b log(margin+eps), d/d(sum_abs) = b/(margin+eps)
+            dbar_dsum = self.barrier_strength / (margin + eps)
+            grad_B = np.array([dbar_dsum * dabs0, dbar_dsum * dabs1])
+
         return grad_d + grad_H + grad_B
