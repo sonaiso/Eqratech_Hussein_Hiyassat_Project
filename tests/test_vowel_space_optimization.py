@@ -4,7 +4,7 @@ Tests for Vowel Space Optimization Module
 
 import pytest
 import math
-from src.fvafk.vowel_space_optimization import (
+from fvafk.vowel_space_optimization import (
     VowelPoint, VowelType, OptimizationParameters,
     VowelSpaceOptimizer
 )

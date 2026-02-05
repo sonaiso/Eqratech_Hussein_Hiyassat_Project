@@ -3,7 +3,7 @@ Tests for Particle Loader Module
 """
 
 import pytest
-from src.fvafk.particle_loader import (
+from fvafk.particle_loader import (
     ParticleLoader, ParticleCategory, ParticleData
 )
 
