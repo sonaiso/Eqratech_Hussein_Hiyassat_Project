@@ -99,6 +99,37 @@ def split_letters_and_marks(text: str):
     return out
 
 
+def drop_initial_shadda_wasl(token: str, *, prev_token: str | None) -> tuple[str, bool]:
+    """
+    Quranic/wasl heuristic:
+    If there is a previous token (wasl context) and the first grapheme in `token`
+    has SHADDA, drop SHADDA only (keep the haraka/tanwin).
+
+    This prevents treating initial idgham-as-shadda as true gemination inside the word,
+    which otherwise yields illegal initial CC clusters in CV output.
+    """
+    if not token or not prev_token:
+        return token, False
+
+    # Find first base letter, then its marks until the next base.
+    i = 0
+    while i < len(token) and (unicodedata.combining(token[i]) != 0 and token[i] in ALL_MARKS):
+        i += 1
+    if i >= len(token):
+        return token, False
+    start = i
+    i += 1
+    while i < len(token) and (unicodedata.combining(token[i]) != 0 and token[i] in ALL_MARKS):
+        i += 1
+    end = i
+
+    g = token[start:end]
+    if SHADDA not in g:
+        return token, False
+    g2 = g.replace(SHADDA, "")
+    return token[:start] + g2 + token[end:], True
+
+
 def expand_shadda(units):
     expanded = []
     for letter, marks in units:
@@ -523,6 +554,7 @@ def analyze_text_for_cv_after_phonology(text: str) -> Dict[str, object]:
     catalog = get_special_words_catalog()
     excluded_names = 0
     computed = []
+    prev_tok: str | None = None
 
     for sp in spans:
         tok = sp.token
@@ -532,9 +564,13 @@ def analyze_text_for_cv_after_phonology(text: str) -> Dict[str, object]:
         if special and special.get("kind") == "excluded_name":
             excluded_names += 1
             continue
+        # Apply initial-shadda wasl fix BEFORE C1 encoding and GateShadda expansion.
+        tok2, _changed = drop_initial_shadda_wasl(tok, prev_token=prev_tok)
+        tok = tok2
         segs = encoder.encode(tok)
         final_segs, _gate_results = orchestrator.run(segs)
         computed.append(_cv_from_segments(final_segs))
+        prev_tok = sp.token
 
     return {
         "total_words_input": len(spans),
