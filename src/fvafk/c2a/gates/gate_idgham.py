@@ -40,6 +40,41 @@ class GateIdgham(PhonologicalGate):
         i = 0
 
         while i < len(segments):
+            # ------------------------------------------------------------------
+            # Boundary-idgham fix (Plan-aligned):
+            # If a shadda appears on a word-initial consonant due to idgham across
+            # word boundary (e.g., after tanwin / nun-sakin / identical consonant),
+            # do NOT expand shadda inside the word. Instead, drop the shadda mark
+            # and keep the written haraka.
+            #
+            # We approximate "word boundary" by patterns that commonly appear in
+            # the continuous segment stream when spaces are removed by C1Encoder.
+            # ------------------------------------------------------------------
+            if self._is_boundary_tanwin_shadda(segments, i):
+                # pattern: TANWIN + C(idgham_letter) + SHADDA
+                result.append(segments[i])       # keep tanwin on previous word
+                result.append(segments[i + 1])   # keep the consonant itself
+                changes.append(f"idgham_boundary_drop_shadda_after_tanwin:{segments[i + 1].text}")
+                i += 3
+                continue
+
+            if self._is_boundary_mutamathilayn_shadda(segments, i):
+                # pattern: C(x) + SUKUN + C(x) + SHADDA  (e.g., ...مْ مُّ...)
+                result.append(segments[i])
+                result.append(segments[i + 1])
+                result.append(segments[i + 2])
+                changes.append(f"idgham_boundary_drop_shadda_mutamathilayn:{segments[i].text}")
+                i += 4
+                continue
+
+            if self._is_boundary_double_consonant_shadda(segments, i):
+                # pattern: C(x) + C(x) + SHADDA (e.g., ...م مُّ... when final sukun is not written)
+                result.append(segments[i])
+                result.append(segments[i + 1])
+                changes.append(f"idgham_boundary_drop_shadda_double:{segments[i].text}")
+                i += 3
+                continue
+
             if self._is_noon_idgham_pattern(segments, i):
                 idgham_letter = segments[i + 2]
                 result.append(Segment(text=idgham_letter.text, kind=SegmentKind.CONSONANT))
@@ -60,6 +95,69 @@ class GateIdgham(PhonologicalGate):
             i += 1
 
         return result, changes
+
+    def _is_boundary_tanwin_shadda(self, segments: List[Segment], offset: int) -> bool:
+        """
+        Detect: [TANWIN_*] [CONSONANT in idgham letters] [SHADDA]
+        Example across boundary when tanwin remains written on previous word, and
+        next word begins with a shadda-marked consonant.
+        """
+        if offset + 2 >= len(segments):
+            return False
+        t = segments[offset]
+        c = segments[offset + 1]
+        sh = segments[offset + 2]
+        if t.kind != SegmentKind.VOWEL or t.vk not in {
+            VowelKind.TANWIN_FATH,
+            VowelKind.TANWIN_DAMM,
+            VowelKind.TANWIN_KASR,
+        }:
+            return False
+        if c.kind != SegmentKind.CONSONANT or c.text not in self.ALL_IDGHAM_LETTERS:
+            return False
+        if sh.kind != SegmentKind.VOWEL or sh.vk != VowelKind.SHADDA:
+            return False
+        return True
+
+    def _is_boundary_mutamathilayn_shadda(self, segments: List[Segment], offset: int) -> bool:
+        """
+        Detect: [CONSONANT x] [SUKUN] [CONSONANT x] [SHADDA]
+        Example: "...مْ مُّ..." where shadda represents boundary idgham.
+        """
+        if offset + 3 >= len(segments):
+            return False
+        c1 = segments[offset]
+        s = segments[offset + 1]
+        c2 = segments[offset + 2]
+        sh = segments[offset + 3]
+        if c1.kind != SegmentKind.CONSONANT or c2.kind != SegmentKind.CONSONANT:
+            return False
+        if c1.text != c2.text:
+            return False
+        if s.kind != SegmentKind.VOWEL or s.vk != VowelKind.SUKUN:
+            return False
+        if sh.kind != SegmentKind.VOWEL or sh.vk != VowelKind.SHADDA:
+            return False
+        return True
+
+    def _is_boundary_double_consonant_shadda(self, segments: List[Segment], offset: int) -> bool:
+        """
+        Detect: [CONSONANT x] [CONSONANT x] [SHADDA]
+        Covers boundary-idgham cases where the final sukun of the previous word is
+        not explicitly written (common in non-fully-vocalized inputs).
+        """
+        if offset + 2 >= len(segments):
+            return False
+        c1 = segments[offset]
+        c2 = segments[offset + 1]
+        sh = segments[offset + 2]
+        if c1.kind != SegmentKind.CONSONANT or c2.kind != SegmentKind.CONSONANT:
+            return False
+        if c1.text != c2.text:
+            return False
+        if sh.kind != SegmentKind.VOWEL or sh.vk != VowelKind.SHADDA:
+            return False
+        return True
 
     def _is_noon_idgham_pattern(self, segments: List[Segment], offset: int) -> bool:
         if offset + 2 >= len(segments):

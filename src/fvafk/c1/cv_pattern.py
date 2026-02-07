@@ -507,11 +507,11 @@ def analyze_text_for_cv_after_phonology(text: str) -> Dict[str, object]:
     orchestrator = GateOrchestrator(
         gates=[
             GateSukun(),
+            GateIdgham(),
             GateShadda(),
             GateWasl(),
             GateHamza(),
             GateWaqf(),
-            GateIdgham(),
             GateMadd(),
             GateAssimilation(),
             GateTanwin(),

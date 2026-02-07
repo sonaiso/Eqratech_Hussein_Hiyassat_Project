@@ -53,11 +53,11 @@ class MinimalCLI:
 
         gates = [
             GateSukun(),
+            GateIdgham(),
             GateShadda(),
             GateWasl(),
             GateHamza(),
             GateWaqf(),
-            GateIdgham(),
             GateMadd(),
                 GateAssimilation(),
                 GateTanwin(),
