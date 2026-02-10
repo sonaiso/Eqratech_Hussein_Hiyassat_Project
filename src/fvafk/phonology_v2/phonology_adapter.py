@@ -16,10 +16,22 @@ from .phonology_utils import format_syllabification
 
 
 class PhonologyV2Adapter:
+    """
+    Compatibility adapter around the Phonology V2 engine.
+
+    This returns dict-shaped results that are easy to embed into CLI JSON.
+    """
     def __init__(self) -> None:
         self.version = "2.0"
 
     def analyze_word(self, word: str) -> Dict[str, Any]:
+        """
+        Analyze a single word and return a JSON-friendly dict.
+
+        Keys:
+        - `cv_pattern`, `syllabification`, `syllable_count`
+        - `witnesses`: list of witness dicts (always computed here; callers may drop it)
+        """
         try:
             wa = _analyze_word(word, verbose=False)
             best = wa.best_syllabification

@@ -1,4 +1,4 @@
-A production-ready Arabic NLP system implementing a three-phase computational model for Arabic text processing: encoding (C1), phonological analysis (C2a), and morphological analysis (C2b).
+A production-ready Arabic NLP system implementing a three-stage FVAFK pipeline for Arabic text processing: encoding/CV (C1), phonological gates (C2a), and morphology (C2b) — with an optional **Phonology V2** engine (syllable lattice + witnesses).
 
 ---
 
@@ -9,8 +9,8 @@ This project implements a comprehensive Arabic language processing pipeline capa
 - **Text Normalization**: Unicode normalization and orthographic standardization
 - **Phonological Processing**: 10 Tajweed-based gates for accurate phonetic analysis
 - **Morphological Analysis**: Root extraction and pattern matching for Arabic words
-- **High Performance**: Sub-millisecond processing (<0.5ms per word)
-- **Production Ready**: 101 comprehensive tests (100% passing)
+- **High Performance**: Sub-millisecond processing on typical inputs
+- **Production Ready**: Comprehensive unit + integration test suite
 
 ---
 
@@ -45,7 +45,7 @@ This project implements a comprehensive Arabic language processing pipeline capa
 ## 🚀 Installation
 
 ### Prerequisites
-- Python 3.8+
+- Python 3.10+
 - pip
 
 ### Setup
@@ -57,25 +57,51 @@ cd Eqratech_Hussein_Hiyassat_Project
 
 # Create virtual environment
 python3 -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+source .venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
+```
 
-# Run tests to verify installation
-PYTHONPATH=src pytest tests/ -v
-💻 Usage
-Command Line Interface
-Basic Usage
-bash
-# Simple text analysis
-python -m fvafk.cli "كَاتِبٌ"
+### Run tests
 
-# With morphological analysis
-python -m fvafk.cli "كَاتِبٌ" --morphology
+```bash
+PYTHONPATH=src pytest -q
+```
 
-# JSON output
-python -m fvafk.cli "كَاتِبٌ" --morphology --json
+---
 
-# Verbose output with timing
-python -m fvafk.cli "كَاتِبٌ" --morphology --verbose
+## 💻 Usage (CLI)
+
+### Basic analysis
+
+```bash
+PYTHONPATH=src python -m fvafk.cli "كِتَاب"
+```
+
+### JSON output
+
+```bash
+PYTHONPATH=src python -m fvafk.cli "كِتَاب" --json
+```
+
+### Morphology
+
+```bash
+PYTHONPATH=src python -m fvafk.cli "كَاتِبٌ" --morphology --json
+```
+
+### Phonology V2 (optional)
+
+```bash
+# Use Phonology V2 for CV analysis
+PYTHONPATH=src python -m fvafk.cli "كِتَاب" --json --phonology-v2
+
+# Add detailed syllabification output
+PYTHONPATH=src python -m fvafk.cli "كِتَاب" --json --phonology-v2 --phonology-v2-details
+
+# Include witnesses (decision traces)
+PYTHONPATH=src python -m fvafk.cli "كِتَاب" --json --phonology-v2 --phonology-v2-details --phonology-v2-witnesses
+```
+
+See `docs/MIGRATION_GUIDE.md` for migration notes and JSON schema details.

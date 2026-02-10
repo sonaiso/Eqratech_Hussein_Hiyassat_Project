@@ -8,6 +8,9 @@ This uses bidirectional negotiation between:
 - Syllable structure constraints (CV patterns)
 - VC classification (which letters are consonants vs vowels)
 
+The lattice stores per-candidate `vc_witnesses` (`VcTrace` records) which can be
+exported through the adapter/CLI when `--phonology-v2-witnesses` is enabled.
+
 Author: Hussein (FVAFK Project)
 Date: 2025-02-09
 """
