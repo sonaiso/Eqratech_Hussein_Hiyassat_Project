@@ -4,11 +4,11 @@ Tests for Node Schema and Energy Evaluation
 
 import pytest
 import math
-from src.fvafk.node_schema import (
+from fvafk.node_schema import (
     Node, NodeType, Case, Mood, JoinPolicy, RelationType,
     create_preposition, create_noun, create_attached_pronoun
 )
-from src.fvafk.energy_evaluation import (
+from fvafk.energy_evaluation import (
     EnergyEvaluator, Candidate, CandidateStatus
 )
 

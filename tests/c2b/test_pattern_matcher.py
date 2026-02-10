@@ -41,6 +41,13 @@ class TestPatternMatcherVerbForms:
         assert pattern
         assert pattern.pattern_type == PatternType.FORM_X
 
+    def test_form_iv_hamza_normalized(self):
+        matcher = PatternMatcher()
+        root = Root(letters=("خ", "ر", "ج"), root_type=RootType.TRILATERAL)
+        pattern = matcher.match("أَخْرَجَ", root)
+        assert pattern
+        assert pattern.pattern_type == PatternType.FORM_IV
+
 
 class TestPatternMatcherNouns:
     def test_active_participle(self):
@@ -70,6 +77,13 @@ class TestPatternMatcherNouns:
         pattern = matcher.match("كِتَاب", root)
         assert pattern
         assert pattern.pattern_type == PatternType.VERBAL_NOUN
+
+    def test_fathatan_support_alif_does_not_break_matching(self):
+        matcher = PatternMatcher()
+        root = Root(letters=("ع", "ظ", "م"), root_type=RootType.TRILATERAL)
+        pattern = matcher.match("عَظِيمًا", root)
+        assert pattern
+        assert pattern.template == "فَعِيل"
 
 
 class TestPatternMatcherPlurals:
