@@ -254,7 +254,86 @@ def advanced_cv_pattern(word: str) -> str:
 
         prev_marks = marks
 
-    return "".join(out)
+    return normalize_long_vowels("".join(out))
+
+
+def advanced_cv_syllables(word: str) -> str:
+    cv = advanced_cv_pattern(word)
+    return cv
+
+
+def split_cv_syllables(cv_advanced: str) -> List[str]:
+    if not cv_advanced:
+        return []
+
+    simplified = "".join("V" if ch in {"a", "o", "i"} else ch for ch in cv_advanced)
+    syllables: List[str] = []
+    buffer: List[str] = []
+    idx = 0
+    vowel_seen = False
+
+    def is_cv_at(position: int) -> bool:
+        return (
+            position + 1 < len(simplified)
+            and simplified[position] == "C"
+            and simplified[position + 1] == "V"
+        )
+
+    while idx < len(simplified):
+        buffer.append(cv_advanced[idx])
+        if simplified[idx] == "V":
+            vowel_seen = True
+        if (
+            vowel_seen
+            and idx + 1 < len(simplified)
+            and is_cv_at(idx + 1)
+        ):
+            syllables.append("".join(buffer))
+            buffer = []
+            vowel_seen = False
+        idx += 1
+
+    if buffer:
+        syllables.append("".join(buffer))
+
+    return syllables
+
+
+def split_cv_syllables(cv_advanced: str) -> List[str]:
+    if not cv_advanced:
+        return []
+
+    simplified = "".join("V" if ch in {"a", "o", "i"} else ch for ch in cv_advanced)
+    syllables: List[str] = []
+    buffer: List[str] = []
+    idx = 0
+    vowel_seen = False
+
+    def is_cv_at(position: int) -> bool:
+        return (
+            position + 1 < len(simplified)
+            and simplified[position] == "C"
+            and simplified[position + 1] == "V"
+        )
+
+    while idx < len(simplified):
+        buffer.append(cv_advanced[idx])
+        if simplified[idx] == "V":
+            vowel_seen = True
+        if (
+            vowel_seen
+            and idx + 1 < len(simplified)
+            and is_cv_at(idx + 1)
+        ):
+            syllables.append("".join(buffer))
+            buffer = []
+            vowel_seen = False
+        idx += 1
+
+    if buffer:
+        syllables.append("".join(buffer))
+
+    return syllables
 
 
 def _symbol_from_marks(marks: List[str]) -> str:
@@ -300,27 +379,208 @@ def analyze_text_for_cv(text: str) -> List[Dict[str, str]]:
             continue
         seen.add(token)
         if should_exclude(token):
-            results.append(
-                {
-                    "word": token,
-                    "normalized": token,
-                    "cv": None,
-                    "ok": False,
-                    "reason": "excluded",
-                }
-            )
             continue
         normalized = normalize_initial_hamza(token)
         normalized = normalize_missing_harakat(normalized)
         cv = cv_pattern(normalized)
-        ok, reason = follows_cv_law(cv)
-        results.append(
-            {
-                "word": token,
-                "normalized": normalized,
-                "cv": cv,
-                "ok": ok,
-                "reason": reason,
-            }
-        )
+        advanced = advanced_cv_pattern(normalized)
+        # Only keep the two CV representations in output.
+        results.append({"cv": cv, "cv_advanced": advanced})
     return results
+
+
+def normalize_long_vowels(cv: str) -> str:
+    """
+    Collapse explicit long-vowel expansions:
+    - VaVa -> VA  (ا)
+    - ViVi -> VI  (ي)
+    - VoVo -> VO  (و)
+    """
+    if not cv:
+        return ""
+    return (
+        cv.replace("VaVa", "VA")
+        .replace("ViVi", "VI")
+        .replace("VoVo", "VO")
+    )
+
+
+def _cv_from_segments(segments) -> Dict[str, str]:
+    """
+    Compute CV/CV_advanced from C2a-normalized segments.
+
+    - Consonant segments map to "C" unless they act as long vowels (ا/و/ي) after matching short vowel.
+    - Vowel segments map to:
+      - short vowels: "V" (and "Va/Vi/Vo" in advanced)
+      - sukun: contributes nothing to CV (no vowel nucleus)
+    """
+    # Local import to avoid circular imports at module load.
+    from fvafk.c2a.syllable import SegmentKind, VowelKind
+
+    out_simple = []
+    out_adv = []
+    prev_vk = None
+
+    def vk_symbol(vk):
+        if vk in {VowelKind.FATHA, VowelKind.TANWIN_FATH}:
+            return "a"
+        if vk in {VowelKind.KASRA, VowelKind.TANWIN_KASR}:
+            return "i"
+        if vk in {VowelKind.DAMMA, VowelKind.TANWIN_DAMM}:
+            return "o"
+        return ""
+
+    for seg in segments:
+        if seg.kind == SegmentKind.VOWEL:
+            # sukun/shadda are not vowel nuclei for CV pattern.
+            if seg.vk in {VowelKind.SUKUN, VowelKind.SHADDA, VowelKind.NONE, None}:
+                prev_vk = seg.vk
+                continue
+            out_simple.append("V")
+            sym = vk_symbol(seg.vk)
+            if sym:
+                out_adv.extend(["V", sym])
+            else:
+                out_adv.append("V")
+            prev_vk = seg.vk
+            continue
+
+        # consonant
+        ch = getattr(seg, "text", "") or ""
+        # Long vowel letter after matching short vowel
+        if ch == "ا" and prev_vk in {VowelKind.FATHA, VowelKind.TANWIN_FATH}:
+            out_simple.append("V")
+            out_adv.extend(["V", "a"])
+            prev_vk = None
+            continue
+        if ch == "و" and prev_vk in {VowelKind.DAMMA, VowelKind.TANWIN_DAMM}:
+            out_simple.append("V")
+            out_adv.extend(["V", "o"])
+            prev_vk = None
+            continue
+        if ch == "ي" and prev_vk in {VowelKind.KASRA, VowelKind.TANWIN_KASR}:
+            out_simple.append("V")
+            out_adv.extend(["V", "i"])
+            prev_vk = None
+            continue
+
+        out_simple.append("C")
+        out_adv.append("C")
+        prev_vk = prev_vk
+
+    return {
+        "cv": "".join(out_simple),
+        "cv_advanced": normalize_long_vowels("".join(out_adv)),
+    }
+
+
+def analyze_text_for_cv_after_phonology(text: str, *, engine: str = "c2a") -> Dict[str, object]:
+    """
+    CV analysis AFTER phonological normalization (C2a gates).
+
+    - Tokenize text into Arabic tokens (using WordBoundaryDetector)
+    - Exclude golden names (EXCLUDED_NAME / jawamed) from CV analysis
+    - For the rest: run C1Encoder + C2a gates per-token, then compute CV from final segments.
+
+    Output keeps `words` entries minimal: only `cv` and `cv_advanced`.
+    """
+    from fvafk.c1.encoder import C1Encoder
+    from fvafk.c2a import (
+        GateAssimilation,
+        GateDeletion,
+        GateEpenthesis,
+        GateHamza,
+        GateIdgham,
+        GateMadd,
+        GateShadda,
+        GateSukun,
+        GateWasl,
+        GateTanwin,
+        GateWaqf,
+    )
+    from fvafk.c2a.gate_framework import GateOrchestrator
+    from fvafk.c2b.special_words_catalog import get_special_words_catalog
+    from fvafk.c2b.word_boundary import WordBoundaryDetector
+
+    spans = WordBoundaryDetector().detect(text)
+    encoder = C1Encoder()
+    orchestrator = GateOrchestrator(
+        gates=[
+            GateSukun(),
+            GateShadda(),
+            GateWasl(),
+            GateHamza(),
+            GateWaqf(),
+            GateIdgham(),
+            GateMadd(),
+            GateAssimilation(),
+            GateTanwin(),
+            GateDeletion(),
+            GateEpenthesis(),
+        ]
+    )
+
+    catalog = get_special_words_catalog()
+    excluded_names = 0
+    computed = []
+
+    for sp in spans:
+        tok = sp.token
+        if should_exclude(tok):
+            continue
+        special = catalog.classify(tok)
+        if special and special.get("kind") == "excluded_name":
+            excluded_names += 1
+            continue
+        if engine == "phonology_v2":
+            # Use the syllable-lattice engine (Assumption A) to compute CV.
+            from fvafk.phonology_v2 import analyze_word as analyze_word_v2
+
+            wa = analyze_word_v2(tok, verbose=False)
+            # Fallback to C2a segments if V2 can't syllabify the token.
+            if not wa.cv_pattern or not wa.best_syllabification:
+                segs = encoder.encode(tok)
+                final_segs, _gate_results = orchestrator.run(segs)
+                computed.append(_cv_from_segments(final_segs))
+            else:
+                # Build cv_advanced from the chosen syllabification.
+                # Long vowels emit a doubled nucleus, then normalized (VaVa -> VA, etc).
+                out_adv: List[str] = []
+                for syl in wa.best_syllabification:
+                    for seg in list(syl.onset) + [syl.nucleus] + list(syl.coda):
+                        # Local enum name to avoid importing phonology_v2 types here
+                        kind_name = getattr(getattr(seg, "kind", None), "name", "")
+                        surf = getattr(seg, "surface", "") or ""
+                        if kind_name == "C":
+                            out_adv.append("C")
+                            continue
+                        if kind_name == "V_SHORT":
+                            sym = "a" if surf == FATHA else "i" if surf == KASRA else "o" if surf == DAMMA else ""
+                            out_adv.extend(["V", sym] if sym else ["V"])
+                            continue
+                        if kind_name == "V_LONG":
+                            sym = "a" if surf in {"ا", "آ", "ى"} else "o" if surf == "و" else "i" if surf == "ي" else ""
+                            if sym:
+                                out_adv.extend(["V", sym, "V", sym])
+                            else:
+                                out_adv.append("V")
+                            continue
+                        out_adv.append("C")
+                computed.append(
+                    {
+                        "cv": wa.cv_pattern,
+                        "cv_advanced": normalize_long_vowels("".join(out_adv)),
+                    }
+                )
+        else:
+            segs = encoder.encode(tok)
+            final_segs, _gate_results = orchestrator.run(segs)
+            computed.append(_cv_from_segments(final_segs))
+
+    return {
+        "total_words_input": len(spans),
+        "total_words_computed": len(computed),
+        "excluded_names": excluded_names,
+        "engine": engine,
+        "words": computed,
+    }

@@ -81,6 +81,10 @@ class PatternDatabase:
             PatternTemplate(template="فِعَال", pattern_type=PatternType.BROKEN_PLURAL_FIAAL, category="plural"),
             PatternTemplate(template="أَفْعَال", pattern_type=PatternType.BROKEN_PLURAL_AFAAL, category="plural"),
             PatternTemplate(template="فِعَل", pattern_type=PatternType.BROKEN_PLURAL_FIUL, category="plural"),
+            # High-impact broken plurals (Qur'anic frequent)
+            PatternTemplate(template="فُعَّل", pattern_type=PatternType.BROKEN_PLURAL_FU33AL, category="plural"),
+            PatternTemplate(template="فُعَلَاء", pattern_type=PatternType.BROKEN_PLURAL_FU3ALAA, category="plural"),
+            PatternTemplate(template="فُعَلَاءُ", pattern_type=PatternType.BROKEN_PLURAL_FU3ALAA, category="plural"),
         ]
         extra_patterns = AwzanPatternLoader.load()
         seen_templates = {p.template for p in base}
@@ -112,6 +116,7 @@ class PatternDatabase:
 
 
 from fvafk.c1.cv_pattern import advanced_cv_pattern
+from fvafk.c1.cv_pattern import cv_pattern
 
 
 class PatternMatcher:
@@ -121,7 +126,10 @@ class PatternMatcher:
     def match(self, word: str, root: Root) -> Optional[Pattern]:
         if not word or not root:
             return None
+        # IMPORTANT (per awzan_test_report): compute CV from the ORIGINAL word (with tashkeel)
+        # not from stripped/normalized stems.
         advanced_cv_word = self._sanitize_cv(advanced_cv_pattern(word))
+        simple_cv_word = cv_pattern(word)
         normalized = self._normalize(word)
         categories = ["verb", "noun", "plural"]
         checked = set()
@@ -169,10 +177,44 @@ class PatternMatcher:
                     stem=word,
                     features={**template.feature_map(), "confidence": f"{confidence:.2f}"},
                 )
+
+        # ------------------------------------------------------------------
+        # CV-based fallback (golden rule from docs/awzan_test_report.md)
+        # ------------------------------------------------------------------
+        # If exact template instantiation didn't match (often due to missing diacritics
+        # or orthographic variants), fall back to matching by CV / Advanced_CV fields
+        # in the awzan database, computed from the original word.
+        #
+        # This increases coverage; confidence is lower than exact instantiation.
+        for template in self.database.get_all():
+            # Prefer Advanced_CV when available.
+            if template.cv_advanced:
+                template_cv_adv = self._sanitize_cv(template.cv_advanced)
+                if template_cv_adv and template_cv_adv == advanced_cv_word:
+                    return Pattern(
+                        name=template.pattern_type.value,
+                        template=template.template,
+                        pattern_type=template.pattern_type,
+                        stem=word,
+                        features={**template.feature_map(), "confidence": "0.75"},
+                    )
+            if template.cv_simple and template.cv_simple == simple_cv_word:
+                return Pattern(
+                    name=template.pattern_type.value,
+                    template=template.template,
+                    pattern_type=template.pattern_type,
+                    stem=word,
+                    features={**template.feature_map(), "confidence": "0.70"},
+                )
+
         return None
 
     def _normalize(self, word: str) -> str:
         text = word.replace('ً', '').replace('ٌ', '').replace('ٍ', '')
+        # If the surface had fathatan, Arabic orthography often adds a final alif (…ًا).
+        # After stripping marks, drop this support-alif to match templates (e.g., عظيمًا -> عظيم).
+        if "\u064b" in word and text.endswith("ا") and len(text) > 3:
+            text = text[:-1]
         text = text.replace('أ', 'ا').replace('إ', 'ا').replace('آ', 'ا')
         text = text.replace('ى', 'ي')
         return text.strip()
@@ -231,7 +273,16 @@ class PatternMatcher:
 
     def _strip_diacritics(self, text: str) -> str:
         diacritics = "َُِْٰٓٔٱ" + "ًٌٍ"
+        had_fathatan = "\u064b" in text
         for d in diacritics:
             text = text.replace(d, '')
+        # Normalize hamza carriers to bare alif for robust matching (e.g., أخرج vs افعل).
+        text = (
+            text.replace("أ", "ا")
+            .replace("إ", "ا")
+            .replace("آ", "ا")
+        )
         text = re.sub(r'[\u064B-\u0650\u0652-\u065F\u0670]', '', text)
+        if had_fathatan and text.endswith("ا") and len(text) > 3:
+            text = text[:-1]
         return text

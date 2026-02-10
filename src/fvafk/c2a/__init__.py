@@ -9,6 +9,7 @@ from .gates import (
     GateTanwin,
     GateShadda,
     GateSukun,
+    GateWasl,
     GateWaqf,
 )
 from .gate_framework import GateOrchestrator
@@ -29,6 +30,7 @@ __all__ = [
     "GateTanwin",
     "GateShadda",
     "GateSukun",
+    "GateWasl",
     "GateWaqf",
     "GateFramework",
 ]
