@@ -57,7 +57,7 @@ class SyllableEnergy:
         # W = diag(1, β) حيث β يزداد مع التفخيم
         beta = 1.0 + 5.0 * emphatic  # β ∈ [1, 6]
         
-        W = np.diag([1.0, beta])
+        W = np.diag([beta, 1.0])
         return W
     
     def d_prime_squared(self, V: np.ndarray, mu: np.ndarray, 
@@ -92,6 +92,16 @@ class SyllableEnergy:
         sim = self.similarity(C_L, C_R)
         v_norm_sq = np.linalg.norm(V)**2
         return self.alpha * sim * v_norm_sq
+    
+    def emphatic_bias(self, V: np.ndarray, flags: Dict[str, float]) -> float:
+        """
+        انحياز التفخيم: يدفع V[0] (backness) للموجب
+        
+        Bias = -β · emphatic · V[0]
+        """
+        emphatic = flags.get('emphatic', 0.0)
+        beta = 12.0
+        return -beta * emphatic * V[0]
     
     def B_barrier(self, V: np.ndarray) -> float:
         """
@@ -146,7 +156,10 @@ class SyllableEnergy:
         # 5. الحد الثالث: B (barrier)
         term3 = self.B_barrier(V)
         
-        return term1 + term2 + term3
+        # 6. الحد الرابع: emphatic bias
+        term4 = self.emphatic_bias(V, flags)
+        
+        return term1 + term2 + term3 + term4
     
     def gradient(self, V: np.ndarray, C_L: np.ndarray, C_R: np.ndarray,
                  flags: Dict[str, float]) -> np.ndarray:
@@ -165,6 +178,11 @@ class SyllableEnergy:
         # ∇[H] = 2α·sim·V
         grad_H = 2 * self.alpha * sim * V
         
+        # ∇[emphatic_bias]
+        emphatic = flags.get('emphatic', 0.0)
+        beta = 12.0
+        grad_bias = np.array([-beta * emphatic, 0.0])
+        
         # ∇[B] (تقريب عددي أو تحليلي)
         # للبساطة نستخدم فرق محدود
         eps = 1e-6
@@ -176,4 +194,4 @@ class SyllableEnergy:
             B_plus = self.B_barrier(V_plus)
             grad_B[i] = (B_plus - B_curr) / eps
         
-        return grad_d + grad_H + grad_B
+        return grad_d + grad_H + grad_B + grad_bias
