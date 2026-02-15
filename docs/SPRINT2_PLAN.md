@@ -5,6 +5,32 @@
 
 ---
 
+
+---
+
+## 📊 Progress Update (Feb 15, 2026)
+
+**Sprint 2, Week 3, Day 2 - Status:**
+
+✅ **Completed Tasks:**
+- Task 2.1.1: GateResult canonical shape (DONE)
+- Task 2.1.2: Unified all gates (DONE - PhonologicalGate = BaseGate alias)
+- Task 2.2.1: Syllabifier marked as reference (DONE)
+- Task 2.2.2: Integration tests syllabifier vs Phonology V2 (DONE - 16 new tests)
+- Housekeeping: Added utility files, updated .gitignore
+
+**Test Count:** 333 passing ✅ (was 317, +16 new)
+
+**Commits Today:**
+1. `7052bd7` - docs(sprint2): Mark syllabifier as reference implementation
+2. `992556b` - test(sprint2): Add syllabifier vs Phonology V2 integration tests
+
+**Next Up:**
+- Task 2.3.1: Property tests with Hypothesis (Gate invariants)
+
+**Estimated Progress:** 55% of Sprint 2 complete (5/9 tasks)
+
+---
 ## 🎯 Acceptance Criteria
 
 ✔️ جميع بوابات C2a لها واجهة موحّدة  
@@ -112,14 +138,17 @@
 
 ## ✅ Definition of Done
 
-- [ ] كل Gates موحّدة (11 gates)
-- [ ] syllabifier مرجعي واحد
-- [ ] trace صوتي كامل
-- [ ] property tests موجودة
-- [ ] Coq skeleton جاهز (3 gates)
-- [ ] لا تغيير في ناتج CLI
-- [ ] CI أخضر
-- [ ] docs/PHONOLOGY.md موجود
+- [x] كل Gates موحّدة (11 gates) ✅ Task 2.1.1, 2.1.2 DONE
+- [x] syllabifier مرجعي واحد ✅ Task 2.2.1 DONE
+- [x] syllabifier integration tests ✅ Task 2.2.2 DONE (16 new tests)
+- [ ] trace صوتي كامل (Task 2.4.1)
+- [ ] property tests موجودة (Task 2.3.1)
+- [ ] Coq skeleton جاهز (3 gates) (Task 2.5.1)
+- [x] لا تغيير في ناتج CLI ✅ 333 tests passing
+- [x] CI أخضر ✅ All tests green
+- [ ] docs/PHONOLOGY.md موجود (Task 2.7.2)
+
+**Progress:** 5/9 tasks complete (55%)
 
 ---
 
