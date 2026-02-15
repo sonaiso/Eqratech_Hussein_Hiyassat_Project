@@ -1,6 +1,5 @@
 from fvafk.c2b.word_form import PartOfSpeech
-from fvafk.c2b.word_form_builder import WordFormBuilder
-from fvafk.c2b.word_form_validator import validate_word_form
+from fvafk.c2b.word_form import WordFormBuilder
 
 
 def test_word_form_builder_content_word_from_multi_word_item():
@@ -19,7 +18,7 @@ def test_word_form_builder_content_word_from_multi_word_item():
         "features": {"kind": "noun", "definite": None, "number": "singular", "gender": "unknown", "case": None},
     }
 
-    wf = WordFormBuilder().from_multi_word_item(item)
+    wf = build_word_form(item)
     assert wf.surface == "كِتَاب"
     assert wf.pos == PartOfSpeech.NOUN
     assert wf.span is not None and wf.span.start == 0 and wf.span.end == 5
@@ -37,7 +36,7 @@ def test_word_form_builder_operator_item_allows_missing_root_pattern():
         "root": None,
         "pattern": None,
     }
-    wf = WordFormBuilder().from_multi_word_item(item)
+    wf = build_word_form(item)
     assert wf.pos == PartOfSpeech.OPERATOR
     assert wf.root is None
     assert wf.pattern is None
