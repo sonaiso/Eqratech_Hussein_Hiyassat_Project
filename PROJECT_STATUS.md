@@ -1,289 +1,80 @@
-# حالة المشروع: نظام اللغة العربية الحسابي
-## Project Status: Computational Arabic System
+# FVAFK Project Status
 
-[![Phonology](https://img.shields.io/badge/phonology-✅_complete-success)]()
-[![Syntax](https://img.shields.io/badge/syntax-✅_complete-success)]()
-[![Engines](https://img.shields.io/badge/engines-66_ready-blue)]()
-[![Tests](https://img.shields.io/badge/tests-14/14-success)]()
-[![Proofs](https://img.shields.io/badge/proofs-8/8-success)]()
+Single source of truth for **current progress** and **roadmap**. Updated at sprint boundaries and when major features land.
 
-**آخر تحديث**: 2026-02-03  
-**الحالة الإجمالية**: ✅ نظريتان كاملتان + 66 محركًا
+**Last updated:** 2026-02-01
 
 ---
 
-## 🎯 الإنجازات الرئيسية
+## 1. Current progress
 
-### ✅ 1. نظرية اللفظ المفرد (Phonological Theory)
-**الحالة**: كاملة 100%
+### 1.1 Baseline
 
-```
-V* = arg min E_syll(V | C_L, C_R, flags)
-```
+| Item | Status |
+|------|--------|
+| **Tests** | 269 passing; CI green |
+| **Pipeline** | C1 → C2a → C2b working in CLI |
+| **Phonology V2** | Integrated; `--phonology-v2`, `--phonology-v2-details`, `--phonology-v2-witnesses` |
+| **WordForm** | Implemented (`word_form.py`, `word_form_builder.py`, `word_form_validator.py`) |
+| **ISNADI** | V1 and V1.1 implemented; **not yet in CLI output** |
+| **Structure** | `src/fvafk/`, `tests/`, `docs/` |
 
-**المكونات**:
-- ✅ فضاء السمات F (ℝ²)
-- ✅ الإسقاط ψ: F_C → F_V (Lipschitz)
-- ✅ دالة الطاقة E_syll
-- ✅ المُحسِّن (closed-form + numerical)
-- ✅ 3 براهين محوسبة (وجود، وحدانية، تفخيم)
-- ✅ 7 اختبارات (كلها نجحت)
+### 1.2 What’s done (by phase)
 
-**الملفات**: 9 ملفات، ~1500 سطر  
-**الموقع**: [src/theory/](src/theory/)  
-**الوثائق**: [THEORY_SUMMARY.md](THEORY_SUMMARY.md)
+- **Phase 1 (Infrastructure):** Segment inventory, orthography, C1 encoder, FormCodecV2, Trace V1, gate framework.
+- **Phase 2 (Gates):** All 10 gates + GateWasl; orchestrator.
+- **Phase 3 (Morphology):** Word boundaries (Plan A), root extraction, pattern matcher, awzan loader, pattern analyzer, word classifier, features V1, operators catalog.
+- **Phase 4 (Syntax):** WordForm bridge, ISNADI linker (in package); **TADMINI/TAQYIDI and parser not implemented; syntax not in CLI.**
+- **Phase 5 (Constraints):** Not started.
+- **Phase 6 (Integration):** CLI and C2b integrated; no corpus evaluation or C2c yet.
 
----
+### 1.3 Known gaps
 
-### ✅ 2. نظرية التركيب (Syntactic Theory)
-**الحالة**: كاملة 100%
-
-```
-y* = arg min E_syn(y | x)
-```
-
-**المكونات**:
-- ✅ الهياكل (x, y, Graph)
-- ✅ العلاقات الثلاث (ISN, TADMN, TAQYID)
-- ✅ العوامل (14 عاملًا: إنّ، كان، لم...)
-- ✅ المُنشئ القانوني Canon(x)
-- ✅ مولد المرشحين G(x)
-- ✅ دالة الكلفة E_syn
-- ✅ 5 براهين محوسبة
-- ✅ 7 اختبارات (كلها نجحت)
-
-**الملفات**: 15 ملفًا، ~3000 سطر  
-**الموقع**: [src/syntax_theory/](src/syntax_theory/)  
-**الوثائق**: [SYNTAX_THEORY_SUMMARY.md](SYNTAX_THEORY_SUMMARY.md)
+- Syntax not exposed in CLI (no `result["syntax"]`).
+- TADMINI and TAQYIDI linkers not implemented.
+- No single SyntacticParser; no constraint modules or validator.
+- No corpus F1/UAS/LAS evaluation.
+- Coq and Plan B word boundaries out of scope for current roadmap.
 
 ---
 
-### ✅ 3. المحركات اللغوية (66 محركًا)
-**الحالة**: جاهزة للاستخدام
+## 2. Roadmap
 
-**التوزيع**:
-- Layer 1 (صوتيات): 2 محرك
-- Layer 2 (صرف): 22 محركًا
-- Layer 3 (معجم): 15 محركًا
-- Layer 4 (تركيب): 13 محركًا
-- Layer 5 (بلاغة): 11 محركًا
-- Layer 6 (توليد): 3 محركات
+The **full task checklist** (Parts 1–6) is in **`docs/MASTER_PLAN_CHECKLIST.md`**. The **sprint plan** is in **`ENHANCED_ROADMAP.md`**.
 
-**الموقع**: [src/engines/](src/engines/)  
-**الوثائق**: [ENGINE_TAXONOMY.md](ENGINE_TAXONOMY.md)
+| Sprint | Weeks | Focus | Outcome |
+|--------|--------|--------|---------|
+| 1 | 1–2 | Part 1: packaging + ISNADI in CLI | pyproject.toml, bayan-fvafk, Pydantic models, CLI JSON (tokens, WordForm, ISNADI), 10+ tests |
+| 2 | 3–4 | Part 2 (+ 2.5): phonology + Coq | Gates, OrthographyAdapter rules, syllabifier, Coq skeletons; semantic gates base |
+| 3 | 5–6 | Part 3: morphology + corpus | Plan B boundaries, PatternCatalog bridge, morph_flags, gold corpus, F1 ≥ 0.85 |
+| 4 | 7–8 | Part 4: syntax + events | ISNADI/TADMINI/TAQYIDI, SyntacticParser, EventExtractor, UAS/LAS |
+| 5 | 9–10 | Part 5: constraints | 5 constraints + Amil-Sign, ConstraintValidator, Coq predicates |
+| 6 | 11–14 | Part 6: integration + ops | Full pipeline, corpus eval, proof mode, FastAPI, CI/CD, docs |
 
----
-
-## 📊 الإحصائيات الكاملة
-
-| المقياس | القيمة |
-|---------|--------|
-| **النظريات الرياضية** | 2 |
-| **المحركات اللغوية** | 66 |
-| **الطبقات** | 6 |
-| **البراهين المحوسبة** | 8 (3 صوتية + 5 تركيبية) |
-| **الاختبارات** | 14 (7 + 7) |
-| **النجاح** | 14/14 ✅ |
-| **ملفات الكود** | 24 ملف نظريات + 66 محرك |
-| **الأسطر** | ~4500 سطر نظريات + ~8000 محركات |
-| **الوثائق** | 6 ملفات شاملة |
+**Critical path:** Part 1 (Sprint 1) → Part 2 → Part 3 → Part 4 → Part 5 → Part 6.
 
 ---
 
-## 🔗 التكامل
+## 3. Related docs
 
-### نقاط التكامل المحددة
-1. **E_phono في E_syn**: كلفة اللفظ داخل التركيب ✅ محددة
-2. **L من المحركات**: توليد وحدات معجمية ✅ محددة
-3. **المُنشئ المتكامل**: من جذر إلى جملة 🚧 جاهز للتنفيذ
-
-**الوثائق**: [INTEGRATION_ROADMAP.md](INTEGRATION_ROADMAP.md)
-
----
-
-## 📁 البنية النهائية
-
-\`\`\`
-src/
-├── theory/              # نظرية اللفظ المفرد ✅
-│   ├── phonetic_space/      (2 ملفات)
-│   ├── minimizers/          (2 ملفات)
-│   └── proofs/              (1 ملف)
-│
-├── syntax_theory/       # نظرية التركيب ✅
-│   ├── structures/          (3 ملفات)
-│   ├── relations/           (2 ملفات)
-│   ├── operators/           (2 ملفات)
-│   ├── generators/          (3 ملفات)
-│   ├── minimizers/          (2 ملفات)
-│   └── proofs/              (2 ملفات)
-│
-├── engines/             # المحركات 66 ✅
-│   ├── phonology/           (2 محرك)
-│   ├── morphology/          (22 محركًا)
-│   ├── lexicon/             (15 محركًا)
-│   ├── syntax/              (13 محركًا)
-│   ├── rhetoric/            (11 محركًا)
-│   └── generation/          (3 محركات)
-│
-├── fvafk/               # خط الأنابيب FVAFK ✅
-│   ├── c1/                  (ترميز)
-│   ├── c2a/                 (صوتيات)
-│   └── c2b/                 (صرف)
-│
-└── integrated/          # التكامل 🚧 (التالي)
-    └── (سيتم إنشاؤه)
-
-examples/
-├── theory_demonstrations.py      ✅
-└── syntax_theory_examples.py     ✅
-
-tests/
-├── test_theory_cvc.py            ✅
-└── test_syntax_theory.py         ✅
-
-docs/
-├── THEORY_SUMMARY.md             ✅
-├── SYNTAX_THEORY_SUMMARY.md      ✅
-├── SYNTAX_THEORY_README.md       ✅
-├── INTEGRATION_ROADMAP.md        ✅
-├── ENGINE_TAXONOMY.md            ✅
-└── PROJECT_STATUS.md             ✅ (هذا الملف)
-\`\`\`
+- **docs/MASTER_PLAN_CHECKLIST.md** – Full 6-part checklist (foundation, phonology, semantics, morphology, syntax, constraints, integration); use for GitHub issues.
+- **ENHANCED_ROADMAP.md** – Sprint deliverables, success metrics, weeks 1–14.
+- **docs/PLAN_MERGE_ANALYSIS.md** – Gaps/overlaps between current state and 6-phase plan.
+- **WHERE_WE_ARE_VS_PLAN.md** – Phase-by-phase status vs master plan.
+- **project_deleverables.md** – Living deliverables (Arabic + English).
+- **src/fvafk/phonology/INTEGRATION_PLAN.md** – Phonology V2 integration + post-integration milestones.
 
 ---
 
-## 🧪 الاختبارات
+## 4. This week (from ENHANCED_ROADMAP)
 
-### نظرية اللفظ المفرد
-\`\`\`bash
-PYTHONPATH=src python tests/test_theory_cvc.py
-# النتيجة: 7/7 ✅
-\`\`\`
-
-**البراهين**:
-- ✓ Lipschitz condition (ratios ≤ 2.0)
-- ✓ Existence (Weierstrass theorem)
-- ✓ Uniqueness (max deviation < 10⁻⁵)
-
-### نظرية التركيب
-\`\`\`bash
-PYTHONPATH=src python tests/test_syntax_theory.py
-# النتيجة: 7/7 ✅
-\`\`\`
-
-**البراهين**:
-- ✓ arg min يتطلب ISN
-- ✓ arg min يضيف TADMN للفتحات
-- ✓ TAQYID اختياري لكن بالحد الأدنى
-- ✓ المبني/المعرب كمسارين في E
-- ✓ الفاعلية/المفعولية من Valency
+1. Wire syntax into CLI: WordForm + ISNADI → `result["syntax"]`.
+2. Add integration tests for `result["syntax"]`.
+3. PROJECT_STATUS.md (this file) and ENHANCED_ROADMAP.md created.
+4. INTEGRATION_PLAN.md updated with post-integration milestones.
+5. project_deleverables.md updated (269 tests, syntax next).
+6. Create GitHub milestones (Sprint 1–6) and top 20 issues.
 
 ---
 
-## 📖 الأمثلة
-
-### مثال صوتي: /ktb/ → كَتَبَ
-\`\`\`bash
-PYTHONPATH=src python examples/theory_demonstrations.py
-\`\`\`
-
-**النتيجة**:
-\`\`\`
-V* = [0.1, 0.3] → "a" (فتحة)
-region: mid
-E_min = -4.05
-\`\`\`
-
-### مثال تركيبي: "كتب أحمد الرسالة"
-\`\`\`bash
-PYTHONPATH=src python examples/syntax_theory_examples.py
-\`\`\`
-
-**النتيجة**:
-\`\`\`
-y₀: ISN(كتب → أحمد), TADMN(كتب → الرسالة)
-E(y₀) = 2.60
-✓ arg min اختار البنية الصحيحة
-\`\`\`
-
----
-
-## 🚀 المرحلة التالية
-
-### الأولويات
-1. **التكامل العملي** (أسبوع واحد):
-   - تنفيذ IntegratedGenerator
-   - ربط E_phono مع E_syn
-   - اختبارات التكامل
-
-2. **توسيع التطبيقات** (أسبوعان):
-   - المزيد من العوامل
-   - توليد جمل معقدة (CVCVC...)
-   - معالجة الحدود (التقاء الساكنين، إدغام...)
-
-3. **الأسلوب والمقام** (شهر):
-   - نظرية الأسلوب البلاغي (Layer 5)
-   - نظرية المقام (Context)
-   - التكامل الثلاثي
-
----
-
-## 🎓 المساهمة الأكاديمية
-
-### النتائج القابلة للنشر
-1. **Phonological Theory**:
-   - نموذج رياضي صارم للتفخيم/الاستعلاء
-   - براهين محوسبة (وجود، وحدانية)
-   - تطبيق على العربية
-
-2. **Syntactic Theory**:
-   - arg min للعلاقات التركيبية
-   - المبني/المعرب كمسارين رياضيان
-   - براهين محوسبة للاختيار
-
-3. **Integration**:
-   - نظام موحد من الصوت إلى الجملة
-   - لا جداول لغوية، فقط تحسين
-
----
-
-## 📝 الوثائق الكاملة
-
-| الملف | الموضوع | الحالة |
-|-------|---------|--------|
-| [THEORY_SUMMARY.md](THEORY_SUMMARY.md) | نظرية اللفظ المفرد | ✅ |
-| [SYNTAX_THEORY_SUMMARY.md](SYNTAX_THEORY_SUMMARY.md) | نظرية التركيب | ✅ |
-| [SYNTAX_THEORY_README.md](SYNTAX_THEORY_README.md) | دليل الاستخدام | ✅ |
-| [INTEGRATION_ROADMAP.md](INTEGRATION_ROADMAP.md) | خارطة التكامل | ✅ |
-| [ENGINE_TAXONOMY.md](ENGINE_TAXONOMY.md) | تصنيف المحركات | ✅ |
-| [PROJECT_STATUS.md](PROJECT_STATUS.md) | حالة المشروع | ✅ (هذا) |
-
----
-
-## ✨ الخلاصة
-
-### ✅ تم إنجازه (100%)
-- نظريتان رياضيتان كاملتان (صوتية + تركيبية)
-- 66 محركًا لغويًا جاهزًا
-- 8 براهين محوسبة
-- 14 اختبارًا (كلها نجحت)
-- 6 ملفات توثيق شاملة
-
-### 🎯 الإنجاز الأساسي
-**كل لفظ وكل جملة = ناتج arg min E**
-
-### 🚀 الجاهزية
-- للتكامل: ✅ 100%
-- للتطبيق: ✅ 95%
-- للنشر الأكاديمي: ✅ 90%
-
----
-
-**"لا جداول، لا قواعد، فقط arg min E في كل المستويات"**
-
----
-
-*تم التوثيق في 2026-02-03*  
-*مشروع العربية الحسابية (Eqratech)*  
-*الإصدار 2.0.0*
+*For detailed acceptance criteria and GitHub issue list, see ENHANCED_ROADMAP.md.*

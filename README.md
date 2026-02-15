@@ -1,36 +1,16 @@
-A production-ready Arabic NLP system implementing a **6-layer computational linguistics model** with dual architecture:
-
-1. **FVAFK Pipeline**: Three-phase text processing (C1 → C2a → C2b)
-2. **Grammar Engines**: 66 engines organized in a 3-level hierarchical taxonomy
+A production-ready Arabic NLP system implementing a three-stage FVAFK pipeline for Arabic text processing: encoding/CV (C1), phonological gates (C2a), and morphology (C2b) — with an optional **Phonology V2** engine (syllable lattice + witnesses).
 
 ---
 
 ## 🎯 Overview
 
-### Two Main Subsystems
+This project implements a comprehensive Arabic language processing pipeline capable of:
 
-#### 1. FVAFK Pipeline (Text Processing)
-- **C1**: Text normalization & encoding
-- **C2a**: Phonological analysis (10 Tajweed-based gates)
-- **C2b**: Morphological analysis (root extraction, pattern matching)
-- **Performance**: Sub-millisecond (<0.5ms per word)
-- **Quality**: 101 tests (100% passing)
-
-#### 2. Grammar Engines (66 Total)
-**Organized in 6-Layer Computational Linguistics Model**:
-```
-Layer 6: Generation (التوليد)  → 3 engines
-Layer 5: Rhetoric (البلاغة)    → 11 engines
-Layer 4: Syntax (النحو)        → 13 engines
-Layer 3: Lexicon (المعجم)      → 15 engines
-Layer 2: Morphology (الصرف)    → 22 engines
-Layer 1: Phonology (الصوتيات)  → 3 engines
-```
-
-**3-Level Taxonomy**: Layer → Group (30 total) → Subgroup (66+)
-
-📘 **[See HIERARCHY_README.md](HIERARCHY_README.md)** for complete navigation guide  
-📚 **[See ENGINE_TAXONOMY.md](ENGINE_TAXONOMY.md)** for detailed classification
+- **Text Normalization**: Unicode normalization and orthographic standardization
+- **Phonological Processing**: 10 Tajweed-based gates for accurate phonetic analysis
+- **Morphological Analysis**: Root extraction and pattern matching for Arabic words
+- **High Performance**: Sub-millisecond processing on typical inputs
+- **Production Ready**: Comprehensive unit + integration test suite
 
 ---
 
@@ -62,50 +42,10 @@ Layer 1: Phonology (الصوتيات)  → 3 engines
 
 ---
 
-## 🏗️ Hierarchical Grammar Engine System
-
-### Explore the Hierarchy
-Use the built-in CLI tool to navigate 66 engines:
-
-```bash
-# Show full tree
-python engine_hierarchy.py
-
-# Filter by layer
-python engine_hierarchy.py --layer 2     # Morphology engines
-
-# Search by term
-python engine_hierarchy.py --search "فاعل"
-
-# Show statistics
-python engine_hierarchy.py --stats
-
-# Export to JSON
-python engine_hierarchy.py --export json
-```
-
-### Example Output
-```
-📂 Layer 1: PHONOLOGY (الصوتيات)
-  └─ Group 1.1: Core Phonemes (الفونيمات الأساسية)
-      └─ 1.1.1: Phoneme Inventory (قائمة الفونيمات)
-          • PhonemesEngine
-
-📂 Layer 2: MORPHOLOGY (الصرف)
-  └─ Group 2.1: Verbal Morphology (صرف الأفعال)
-      └─ 2.1.1: Basic Verbs (الأفعال الأساسية)
-          • VerbsEngine
-          • AfaalKhamsaEngine
-```
-
-**See [HIERARCHY_README.md](HIERARCHY_README.md) for complete guide**
-
----
-
 ## 🚀 Installation
 
 ### Prerequisites
-- Python 3.8+
+- Python 3.10+
 - pip
 
 ### Setup
@@ -117,25 +57,51 @@ cd Eqratech_Hussein_Hiyassat_Project
 
 # Create virtual environment
 python3 -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+source .venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
+```
 
-# Run tests to verify installation
-PYTHONPATH=src pytest tests/ -v
-💻 Usage
-Command Line Interface
-Basic Usage
-bash
-# Simple text analysis
-python -m fvafk.cli "كَاتِبٌ"
+### Run tests
 
-# With morphological analysis
-python -m fvafk.cli "كَاتِبٌ" --morphology
+```bash
+PYTHONPATH=src pytest -q
+```
 
-# JSON output
-python -m fvafk.cli "كَاتِبٌ" --morphology --json
+---
 
-# Verbose output with timing
-python -m fvafk.cli "كَاتِبٌ" --morphology --verbose
+## 💻 Usage (CLI)
+
+### Basic analysis
+
+```bash
+PYTHONPATH=src python -m fvafk.cli "كِتَاب"
+```
+
+### JSON output
+
+```bash
+PYTHONPATH=src python -m fvafk.cli "كِتَاب" --json
+```
+
+### Morphology
+
+```bash
+PYTHONPATH=src python -m fvafk.cli "كَاتِبٌ" --morphology --json
+```
+
+### Phonology V2 (optional)
+
+```bash
+# Use Phonology V2 for CV analysis
+PYTHONPATH=src python -m fvafk.cli "كِتَاب" --json --phonology-v2
+
+# Add detailed syllabification output
+PYTHONPATH=src python -m fvafk.cli "كِتَاب" --json --phonology-v2 --phonology-v2-details
+
+# Include witnesses (decision traces)
+PYTHONPATH=src python -m fvafk.cli "كِتَاب" --json --phonology-v2 --phonology-v2-details --phonology-v2-witnesses
+```
+
+See `docs/MIGRATION_GUIDE.md` for migration notes and JSON schema details.

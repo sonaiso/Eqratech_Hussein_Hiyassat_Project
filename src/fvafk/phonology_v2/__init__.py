@@ -92,7 +92,16 @@ __all__ = [
 
 def analyze_word(text: str, verbose: bool = False) -> WordAnalysis:
     """
-    High-level API: analyze a single Arabic word.
+    High-level API: analyze a single (diacritized) Arabic word with Phonology V2.
+
+    Returns a `WordAnalysis` object containing:
+    - parsed `graphemes`
+    - a `SyllableLattice` of candidates
+    - `best_syllabification` (best path), if any
+    - `cv_pattern` (e.g. `CVCVVC`)
+    - `all_vc_traces` (witnesses/decision traces for VC classification)
+
+    When `verbose=True`, additional debugging summaries are printed to stdout.
     """
     graphemes = text_to_graphemes(text)
     if verbose:

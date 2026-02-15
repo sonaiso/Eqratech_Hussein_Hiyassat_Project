@@ -198,6 +198,54 @@ class TestCLIMorphologyIntegration:
         assert data["c2b"]["pattern"]["type"] == "form_i"
 
 
+class TestCLISyntaxOutput:
+    """Sprint 1, Task #1.7 / PR-A: CLI outputs syntax when --morphology is set."""
+
+    def test_morphology_json_includes_syntax_section(self):
+        """With --morphology --json, result must include syntax.word_forms and syntax.links.isnadi."""
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "fvafk.cli",
+                "مُحَمَّدٌ رَسُولُ اللَّهِ",
+                "--morphology",
+                "--json",
+            ],
+            capture_output=True,
+            text=True,
+            env={"PYTHONPATH": "src"},
+            cwd=None,
+        )
+        assert result.returncode == 0, result.stderr or result.stdout
+        data = json.loads(result.stdout)
+        assert "syntax" in data
+        syntax = data["syntax"]
+        assert "word_forms" in syntax
+        assert "links" in syntax
+        assert isinstance(syntax["links"], dict)
+        assert "isnadi" in syntax["links"]
+        assert isinstance(syntax["links"]["isnadi"], list)
+
+    def test_without_morphology_no_syntax(self):
+        """Without --morphology, result must not include syntax."""
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "fvafk.cli",
+                "مُحَمَّدٌ رَسُولُ اللَّهِ",
+                "--json",
+            ],
+            capture_output=True,
+            text=True,
+            env={"PYTHONPATH": "src"},
+        )
+        assert result.returncode == 0
+        data = json.loads(result.stdout)
+        assert "syntax" not in data
+
+
 class TestCLIMorphologyHumanReadable:
     def test_human_readable_output(self):
         result = subprocess.run(

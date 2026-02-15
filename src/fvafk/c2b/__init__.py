@@ -14,6 +14,17 @@ from .morpheme import (
 )
 from .pattern_matcher import PatternDatabase, PatternMatcher, PatternTemplate
 from .root_extractor import RootExtractionResult, RootExtractor
+from .word_form import (
+    WordForm,
+    PartOfSpeech,
+    Case,
+    Number,
+    Gender,
+    SyntaxRole,
+    Span,
+)
+from .word_form_builder import WordFormBuilder
+from .word_form_validator import validate_word_form
 
 __all__ = [
     "Affix",
@@ -29,4 +40,13 @@ __all__ = [
     "PatternMatcher",
     "PatternTemplate",
     "PatternDatabase",
+    "WordForm",
+    "PartOfSpeech",
+    "Case",
+    "Number",
+    "Gender",
+    "SyntaxRole",
+    "Span",
+    "WordFormBuilder",
+    "validate_word_form",
 ]
