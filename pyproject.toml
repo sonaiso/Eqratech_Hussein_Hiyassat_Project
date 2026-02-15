@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bayan-fvafk"
-version = "0.1.0"
+version = "0.1.0"  # See src/fvafk/__version__.py
 description = "Arabic NLP pipeline: phonology, morphology, and syntax analysis"
 authors = [{name = "Hussein Hiyassat"}]
 readme = "README.md"
