@@ -38,6 +38,24 @@ from fvafk.c2b import PatternMatcher, RootExtractor
 from fvafk.c2b.morpheme import Pattern, PatternType, Root, RootType
 
 
+def _word_form_to_syntax_dict(wf: Any, word_id: int) -> Dict[str, Any]:
+    """Serialize a WordForm for CLI syntax output (Sprint 1, Task #1.7)."""
+    return {
+        "id": word_id,
+        "surface": wf.surface,
+        "bare": getattr(wf, "bare", wf.surface),
+        "kind": getattr(wf, "kind", "unknown"),
+        "pos": getattr(wf.pos, "value", str(wf.pos)),
+        "span": {"start": wf.span.start, "end": wf.span.end} if wf.span else None,
+        "case": getattr(wf.case, "value", None) if getattr(wf, "case", None) else None,
+        "number": getattr(wf.number, "value", None) if getattr(wf, "number", None) else None,
+        "gender": getattr(wf.gender, "value", None) if getattr(wf, "gender", None) else None,
+        "definiteness": getattr(wf, "definiteness", None),
+        "root": wf.root.formatted if getattr(wf, "root", None) and wf.root else None,
+        "pattern": wf.pattern.template if getattr(wf, "pattern", None) and wf.pattern else None,
+    }
+
+
 class MinimalCLI:
     """
     Minimal command-line interface for FVAFK.
@@ -111,6 +129,82 @@ class MinimalCLI:
                     morphology_result = self._analyze_morphology(text)
             c2b_time = (time.perf_counter() - c2b_start) * 1000
 
+        # ========================================================================
+        # SYNTAX LAYER (Sprint 1, Task #1.7 — PR-A: CLI Syntax Wiring)
+        # Output only when --morphology; no separate --syntax flag (conservative).
+        # Schema: syntax.word_forms + syntax.links.isnadi
+        # ========================================================================
+        syntax_result = None
+        if morphology and morphology_result:
+            try:
+                from fvafk.c2b.word_form_builder import WordFormBuilder
+                from fvafk.syntax.linkers import find_isnadi_links
+
+                c2b_words = (
+                    morphology_result["words"]
+                    if isinstance(morphology_result.get("words"), list)
+                    else [morphology_result]
+                )
+                if not c2b_words:
+                    syntax_result = {"word_forms": [], "links": {"isnadi": []}}
+                else:
+                    builder = WordFormBuilder()
+                    word_forms = [builder.from_multi_word_item(item) for item in c2b_words]
+                    word_forms_out = [
+                        _word_form_to_syntax_dict(wf, i) for i, wf in enumerate(word_forms)
+                    ]
+                    links = find_isnadi_links(word_forms)
+
+                    CASE_ARABIC = {
+                        "nominative": "مرفوع",
+                        "accusative": "منصوب",
+                        "genitive": "مجرور",
+                        "accusative_or_genitive": "منصوب أو مجرور",
+                        "unknown": "غير معروف",
+                    }
+
+                    isnadi_links = []
+                    for link in links:
+                        head_word = word_forms[link.head_id]
+                        dep_word = word_forms[link.dependent_id]
+                        head_case = (
+                            CASE_ARABIC.get(head_word.case.value, "غير معروف")
+                            if head_word.case else "غير معروف"
+                        )
+                        dep_case = (
+                            CASE_ARABIC.get(dep_word.case.value, "غير معروف")
+                            if dep_word.case else "غير معروف"
+                        )
+                        isnadi_links.append({
+                            "type": getattr(link.link_type, "arabic", str(link.link_type)),
+                            "type_en": link.link_type.name,
+                            "head": {
+                                "id": link.head_id,
+                                "surface": head_word.surface,
+                                "pos": head_word.pos.value,
+                                "case": head_case,
+                            },
+                            "dependent": {
+                                "id": link.dependent_id,
+                                "surface": dep_word.surface,
+                                "pos": dep_word.pos.value,
+                                "case": dep_case,
+                            },
+                            "confidence": round(link.confidence, 3),
+                            "reason": link.reason or "",
+                        })
+
+                    syntax_result = {
+                        "word_forms": word_forms_out,
+                        "links": {"isnadi": isnadi_links},
+                    }
+            except Exception as e:
+                syntax_result = {
+                    "error": str(e),
+                    "word_forms": [],
+                    "links": {"isnadi": []},
+                }
+
         total_time = (time.perf_counter() - start) * 1000
 
         unit_rows = [self._segment_to_unit(s) for s in segments]
@@ -152,6 +246,9 @@ class MinimalCLI:
 
         if morphology_result:
             result["c2b"] = morphology_result
+
+        if syntax_result is not None:
+            result["syntax"] = syntax_result
 
         return result
 

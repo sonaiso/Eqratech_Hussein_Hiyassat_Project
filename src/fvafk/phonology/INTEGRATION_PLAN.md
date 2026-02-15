@@ -524,3 +524,22 @@ def cached_analyze(word):
 **تاريخ: 2025-02-10**
 **النسخة: Phonology V2.0**
 
+---
+
+## Post-integration milestones (post–Phonology V2)
+
+After Phonology V2 is integrated and CLI supports `--phonology-v2`, the following milestones are tracked in the **enhanced roadmap** (see repo root: `ENHANCED_ROADMAP.md` and `docs/PLAN_MERGE_ANALYSIS.md`):
+
+| Milestone | Description | Sprint |
+|-----------|-------------|--------|
+| **Syntax in CLI** | Build WordForms from C2b; run ISNADI; add `result["syntax"]` (isnadi_links). | 1 |
+| **TADMINI linker** | Transitive verb → object links; add to `result["syntax"]`. | 2 |
+| **TAQYIDI linker** | Noun→adjective, noun→mudhaf ilayh; integrate into parser. | 3 |
+| **SyntacticParser** | Orchestrate ISNADI → TADMINI → TAQYIDI; single entry for syntax. | 3 |
+| **Constraint modules** | Verb–subject, transitive–object, adjective agreement, causality, passive (5–6 constraints). | 4 |
+| **ConstraintValidator** | Input: wordforms + links → output: list of violations. | 4 |
+| **Corpus evaluation** | Trial corpus; F1 (morphology), UAS/LAS (syntax); report in docs. | 5 |
+| **Polish + 300 tests** | Test count ≥300; property-based tests; C2c design doc. | 6 |
+
+These do not modify Phonology V2 or the existing C1/C2a/C2b pipeline; they extend the CLI and add syntax/constraint layers incrementally.
+
