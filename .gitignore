@@ -55,3 +55,4 @@ benchmark_report.json
 venv/
 env/
 .env
+src/fvafk.egg-info/

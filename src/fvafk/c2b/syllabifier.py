@@ -1,22 +1,39 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Arabic Syllabifier - C2b Component
-==================================
+Arabic Syllabifier - Reference Implementation (Sprint 2, Task 2.2.1)
+=====================================================================
+
+**Status:** REFERENCE IMPLEMENTATION - Single Source of Truth for syllabification
 
 Converts Arabic words to syllable structures following Arabic phonological rules.
 Implements the Unified Foundation Theorem: C1 → C2a → C2b (syllabification).
 
-Syllable Types:
-- CV: صَ (short vowel)
-- CVV: صَا (long vowel)
-- CVC: صَبْ (closed syllable)
-- CVVC: صَابْ (long vowel + coda)
-- CVCC: صَبْتْ (double coda)
-- CVVCC: صَابْتْ (long vowel + double coda)
+Syllable Types (CV/CVV/CVC Taxonomy):
+--------------------------------------
+- **CV**:   صَ    (short vowel) - Open syllable, light
+- **CVV**:  صَا   (long vowel) - Open syllable, heavy
+- **CVC**:  صَبْ   (closed syllable) - Closed, heavy
+- **CVVC**: صَابْ  (long vowel + coda) - Superheavy
+- **CVCC**: صَبْتْ  (double coda) - Superheavy
+- **CVVCC**: صَابْتْ (long + double coda) - Superheavy
+
+Integration:
+------------
+- **FormCodecV2**: Uses encoded units from C1 layer
+- **Phonology V2**: Complementary VC classification (context-driven)
+- **C2b Pipeline**: Used for morphology word boundary detection
+- **Testing**: 39 comprehensive tests in tests/test_syllabifier.py
+
+References:
+-----------
+- See: src/fvafk/phonology_v2/ for context-driven VC classification
+- See: src/fvafk/c1/form_codec_v2.py for encoding
+- See: docs/SPRINT2_PLAN.md for integration roadmap
 
 Author: Eqratech Project
 Date: February 1, 2026
+Updated: February 15, 2026 (Sprint 2 - marked as reference)
 """
 
 import re
