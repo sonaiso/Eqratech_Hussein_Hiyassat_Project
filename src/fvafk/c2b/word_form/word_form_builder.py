@@ -275,8 +275,9 @@ class WordFormBuilder:
             metadata['c2b_kind'] = c2b_word['kind']
         
         # Store pattern type if available
-        if 'pattern' in c2b_word and 'type' in c2b_word['pattern']:
-            metadata['pattern_type'] = c2b_word['pattern']['type']
+        pattern = c2b_word.get('pattern')
+        if pattern and isinstance(pattern, dict) and 'type' in pattern:
+            metadata['pattern_type'] = pattern['type']
         
         # Store confidence if available
         if 'features' in c2b_word and 'confidence' in c2b_word['features']:
