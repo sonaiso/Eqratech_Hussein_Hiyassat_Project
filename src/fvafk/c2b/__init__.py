@@ -23,8 +23,7 @@ from .word_form import (
     SyntaxRole,
     Span,
 )
-from .word_form_builder import WordFormBuilder
-from .word_form_validator import validate_word_form
+from .word_form import WordFormBuilder
 
 __all__ = [
     "Affix",
@@ -48,5 +47,4 @@ __all__ = [
     "SyntaxRole",
     "Span",
     "WordFormBuilder",
-    "validate_word_form",
 ]
