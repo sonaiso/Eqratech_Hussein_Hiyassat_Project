@@ -67,7 +67,7 @@ class AwzanPatternLoader:
     }
 
     @classmethod
-    def load(cls) -> List[PatternTemplate]:
+    def load(cls) -> List[dict]:
         patterns: List[dict] = []
         if cls.CSV_PATH_PHONOLOGY_CLEAN.exists():
             csv_path = cls.CSV_PATH_PHONOLOGY_CLEAN
