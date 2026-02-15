@@ -2,7 +2,7 @@
 
 Single source of truth for **current progress** and **roadmap**. Updated at sprint boundaries and when major features land.
 
-**Last updated:** 2026-02-01
+**Last updated:** 2026-02-15
 
 ---
 
@@ -12,29 +12,31 @@ Single source of truth for **current progress** and **roadmap**. Updated at spri
 
 | Item | Status |
 |------|--------|
-| **Tests** | 269 passing; CI green |
-| **Pipeline** | C1 → C2a → C2b working in CLI |
-| **Phonology V2** | Integrated; `--phonology-v2`, `--phonology-v2-details`, `--phonology-v2-witnesses` |
-| **WordForm** | Implemented (`word_form.py`, `word_form_builder.py`, `word_form_validator.py`) |
-| **ISNADI** | V1 and V1.1 implemented; **not yet in CLI output** |
-| **Structure** | `src/fvafk/`, `tests/`, `docs/` |
+| **Tests** | 282 passing; CI green ✅ |
+| **Package** | `bayan-fvafk` v0.1.0 (pyproject.toml) ✅ |
+| **Pipeline** | C1 → C2a → C2b → Syntax working in CLI ✅ |
+| **Phonology V2** | Integrated; `--phonology-v2`, `--phonology-v2-details`, `--phonology-v2-witnesses` ✅ |
+| **WordForm** | Implemented and in CLI output ✅ |
+| **ISNADI** | V1 and V1.1 implemented; **in CLI output** ✅ |
+| **Structure** | `src/fvafk/`, `app/`, `tests/`, `docs/`, `theories/` ✅ |
 
 ### 1.2 What’s done (by phase)
 
 - **Phase 1 (Infrastructure):** Segment inventory, orthography, C1 encoder, FormCodecV2, Trace V1, gate framework.
 - **Phase 2 (Gates):** All 10 gates + GateWasl; orchestrator.
 - **Phase 3 (Morphology):** Word boundaries (Plan A), root extraction, pattern matcher, awzan loader, pattern analyzer, word classifier, features V1, operators catalog.
-- **Phase 4 (Syntax):** WordForm bridge, ISNADI linker (in package); **TADMINI/TAQYIDI and parser not implemented; syntax not in CLI.**
+- **Phase 4 (Syntax):** WordForm bridge, ISNADI linker (in package and CLI); **TADMINI/TAQYIDI and parser not implemented yet.**
 - **Phase 5 (Constraints):** Not started.
 - **Phase 6 (Integration):** CLI and C2b integrated; no corpus evaluation or C2c yet.
 
 ### 1.3 Known gaps
 
-- Syntax not exposed in CLI (no `result["syntax"]`).
 - TADMINI and TAQYIDI linkers not implemented.
 - No single SyntacticParser; no constraint modules or validator.
 - No corpus F1/UAS/LAS evaluation.
-- Coq and Plan B word boundaries out of scope for current roadmap.
+- Pydantic models not yet defined (Sprint 1, Task 1.3).
+- OrthographyAdapter not fully integrated with FormCodecV2 (Sprint 1, Task 1.4).
+- Coq and Plan B word boundaries deferred.
 
 ---
 
@@ -68,12 +70,26 @@ The **full task checklist** (Parts 1–6) is in **`docs/MASTER_PLAN_CHECKLIST.md
 
 ## 4. This week (from ENHANCED_ROADMAP)
 
-1. Wire syntax into CLI: WordForm + ISNADI → `result["syntax"]`.
-2. Add integration tests for `result["syntax"]`.
-3. PROJECT_STATUS.md (this file) and ENHANCED_ROADMAP.md created.
-4. INTEGRATION_PLAN.md updated with post-integration milestones.
-5. project_deleverables.md updated (269 tests, syntax next).
-6. Create GitHub milestones (Sprint 1–6) and top 20 issues.
+### Sprint 1 Progress (Updated 2026-02-15)
+
+**Completed ✅:**
+1. ✅ Task 1.1: pyproject.toml with package metadata
+2. ✅ Task 1.2: Package modules as typed library (bayan-fvafk)
+3. ✅ Task 1.5: Directory alignment (app/, theories/)
+4. ✅ Task 1.6: Documentation updates (README, PROJECT_STATUS)
+5. ✅ Task 1.7: CLI with syntax output (WordForm + ISNADI)
+6. ✅ Task 1.8: 13 comprehensive CLI tests (29 total)
+7. ✅ Task 1.9: CLI schema documentation (CLI_SCHEMA.md)
+
+**In Progress ⏳:**
+- ⏳ Task 1.3: Pydantic models (7 models: Unit, Syllable, WordForm, Link, Evidence, ProofArtifact, AnalysisResult)
+- ⏳ Task 1.4: OrthographyAdapter + FormCodecV2 integration
+
+**Next: Sprint 2 (Weeks 3-4) 🎯**
+- Phonology gates unification (GateResult canonical shape)
+- Reference syllabifier (CV/CVV/CVC)
+- Property tests with Hypothesis
+- Coq skeletons (GateSukun, GateShadda, GateTanwin)
 
 ---
 
