@@ -56,3 +56,11 @@ venv/
 env/
 .env
 src/fvafk.egg-info/
+
+# Coq build artifacts
+coq/**/*.vo
+coq/**/*.vos
+coq/**/*.vok
+coq/**/*.glob
+coq/**/*.aux
+

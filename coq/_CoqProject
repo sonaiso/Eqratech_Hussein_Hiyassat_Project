@@ -1,1 +1,4 @@
--Q theories FVAFK
+-Q . FVAFK
+coq/Gates/GateSukun.v
+coq/Gates/GateShadda.v
+coq/Gates/GateTanwin.v
