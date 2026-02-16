@@ -19,10 +19,10 @@ from dataclasses import dataclass
 from typing import List, Optional, Set, Tuple
 import re
 
-from .syllabifier import Syllabifier
+from .syllabifier import syllabify, ArabicSyllabifier
 
 
-dataclass(frozen=True)
+@dataclass(frozen=True)
 class WordBoundary:
     """
     Represents a detected word boundary with metadata.
@@ -116,8 +116,7 @@ class WordBoundaryDetectorPlanB:
     """
     
     def __init__(self):
-        """Initialize detector with syllabifier and clitic database."""
-        self.syllabifier = Syllabifier()
+        """Initialize detector with clitic database."""
         self.clitics = CliticDatabase()
     
     def detect_boundaries(self, text: str) -> List[WordBoundary]:
@@ -190,10 +189,13 @@ class WordBoundaryDetectorPlanB:
         
         # Get syllable count (use clean text)
         try:
-            syllables = self.syllabifier.syllabify(clean_text)
-            syllable_count = len(syllables)
+            result = syllabify(clean_text)
+            syllable_count = len(result.syllables) if result and result.syllables else 0
         except Exception:
-            # Fallback: estimate syllables by counting vowels
+            syllable_count = 0
+        
+        # Always use estimate if syllabifier failed
+        if syllable_count == 0:
             syllable_count = self._estimate_syllables(clean_text)
         
         # Compute confidence score
@@ -222,12 +224,16 @@ class WordBoundaryDetectorPlanB:
         """
         # Try compound prefixes first (longest match)
         for prefix in sorted(self.clitics.COMPOUND_PREFIXES, key=len, reverse=True):
-            if text.startswith(prefix) and len(text) > len(prefix) + 1:
+            if text.startswith(prefix) and len(text) - len(prefix) >= 3:
                 return (True, len(prefix))
         
-        # Try simple prefixes
+        # Try simple prefixes - be strict with single-letter prefixes
         for prefix in sorted(self.clitics.PREFIXES, key=len, reverse=True):
-            if text.startswith(prefix) and len(text) > len(prefix) + 1:
+            remaining_length = len(text) - len(prefix)
+            if text.startswith(prefix) and remaining_length >= 3:
+                # Extra check: single-letter prefixes need longer stem
+                if len(prefix) == 1 and remaining_length < 4:
+                    continue
                 return (True, len(prefix))
         
         return (False, 0)
@@ -240,7 +246,7 @@ class WordBoundaryDetectorPlanB:
         """
         # Try suffixes (longest first)
         for suffix in sorted(self.clitics.SUFFIXES, key=len, reverse=True):
-            if text.endswith(suffix) and len(text) > len(suffix) + 1:
+            if text.endswith(suffix) and len(text) - len(suffix) >= 3:
                 return (True, len(suffix))
         
         return (False, 0)

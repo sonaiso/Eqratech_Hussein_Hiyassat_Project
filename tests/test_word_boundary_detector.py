@@ -25,7 +25,6 @@ class TestWordBoundaryDetectorPlanB:
     def test_detector_initialization(self):
         """Test detector initializes correctly."""
         detector = WordBoundaryDetectorPlanB()
-        assert detector.syllabifier is not None
         assert detector.clitics is not None
     
     def test_empty_text_returns_empty_list(self):
