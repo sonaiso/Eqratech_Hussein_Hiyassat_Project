@@ -1,291 +1,289 @@
 """
-Comprehensive Arabic morphological pattern catalog
+Pattern Catalog - Arabic Morphological Patterns
+Comprehensive collection of verb forms, noun patterns, and broken plurals
 """
+
+from dataclasses import dataclass
+from typing import List, Dict, Optional
 from enum import Enum
-from typing import Dict, List
-
-from .pattern_matcher import PatternTemplate
 
 
-class PatternUniverse(Enum):
-    """All Arabic morphological patterns"""
-    # Verb patterns (Forms I-X)
-    FORM_I = "فَعَلَ"
-    FORM_II = "فَعَّلَ"
-    FORM_III = "فَاعَلَ"
-    FORM_IV = "أَفْعَلَ"
-    FORM_V = "تَفَعَّلَ"
-    FORM_VI = "تَفَاعَلَ"
-    FORM_VII = "اِنْفَعَلَ"
-    FORM_VIII = "اِفْتَعَلَ"
-    FORM_IX = "اِفْعَلَّ"
-    FORM_X = "اِسْتَفْعَلَ"
+class PatternType(Enum):
+    """Pattern types"""
+    VERB_FORM_I = "verb_form_i"
+    VERB_FORM_II = "verb_form_ii"
+    VERB_FORM_III = "verb_form_iii"
+    VERB_FORM_IV = "verb_form_iv"
+    VERB_FORM_V = "verb_form_v"
+    VERB_FORM_VI = "verb_form_vi"
+    VERB_FORM_VII = "verb_form_vii"
+    VERB_FORM_VIII = "verb_form_viii"
+    VERB_FORM_IX = "verb_form_ix"
+    VERB_FORM_X = "verb_form_x"
     
-    # Noun patterns
-    MASDAR_FORM_I = "فِعَال"
-    ACTIVE_PARTICIPLE = "فَاعِل"
-    PASSIVE_PARTICIPLE = "مَفْعُول"
-    INSTRUMENT = "مِفْعَال"
-    PLACE_TIME = "مَفْعَل"
+    NOUN_MASDAR = "noun_masdar"
+    NOUN_ACTIVE_PARTICIPLE = "noun_active_participle"
+    NOUN_PASSIVE_PARTICIPLE = "noun_passive_participle"
+    NOUN_INSTRUMENT = "noun_instrument"
+    NOUN_PLACE_TIME = "noun_place_time"
     
-    # Broken plurals
-    AFAAL = "أَفْعَال"
-    FUOOL = "فُعُول"
-    FIAAL = "فِعَال"
-    AFILA = "أَفْعِلَة"
-    FUALA = "فُعَلَاء"
-    MAFAAIL = "مَفَاعِيل"
-    FAWAIL = "فَوَاعِل"
-    
-    # Diminutive
-    FUAYL = "فُعَيْل"
-    FUAYLA = "فُعَيْلَة"
-    
-    # Adjectives
-    FAEEL = "فَعِيل"
-    FAAL = "فَعَّال"
-    MIFAAL = "مِفْعَال"
-    AFAL = "أَفْعَل"
+    BROKEN_PLURAL = "broken_plural"
+    ADJECTIVE = "adjective"
+
+
+@dataclass
+class PatternTemplate:
+    """Simple pattern template"""
+    name: str
+    template: str
+    description: str
+    pattern_type: str = "unknown"
+    examples: Optional[List[str]] = None
 
 
 class PatternCatalog:
-    """Organized catalog of morphological patterns"""
+    """Catalog of Arabic morphological patterns"""
     
     @classmethod
     def load_full_catalog(cls) -> Dict[str, List[PatternTemplate]]:
-        """Load all patterns from awzan + built-in
-        
-        Returns:
-            Dictionary mapping pattern categories to lists of PatternTemplate objects
-        """
-        catalog = {
+        """Load complete pattern catalog"""
+        return {
             "verb_forms": cls._load_verb_patterns(),
             "noun_patterns": cls._load_noun_patterns(),
-            "broken_plurals": cls._load_plural_patterns(),
+            "broken_plurals": cls._load_broken_plural_patterns(),
             "adjectives": cls._load_adjective_patterns(),
         }
-        return catalog
     
     @classmethod
     def _load_verb_patterns(cls) -> List[PatternTemplate]:
         """Load verb form patterns (Forms I-X)"""
-        patterns = [
+        return [
+            # Form I (فَعَلَ)
             PatternTemplate(
-                pattern=PatternUniverse.FORM_I.value,
-                pattern_type="FORM_I",
-                description="Basic trilateral verb",
-                form="I",
-                examples=["كَتَبَ", "ذَهَبَ", "قَرَأَ"]
+                name="FORM_I_FATHA",
+                template="فَعَلَ",
+                description="Form I - فَتَحَ pattern",
+                pattern_type="verb_form_i",
+                examples=["كَتَبَ", "ذَهَبَ", "فَعَلَ"]
             ),
             PatternTemplate(
-                pattern=PatternUniverse.FORM_II.value,
-                pattern_type="FORM_II",
-                description="Intensive/causative verb",
-                form="II",
+                name="FORM_I_KASRA",
+                template="فَعِلَ",
+                description="Form I - فَهِمَ pattern",
+                pattern_type="verb_form_i",
+                examples=["شَرِبَ", "عَلِمَ", "فَهِمَ"]
+            ),
+            PatternTemplate(
+                name="FORM_I_DAMMA",
+                template="فَعُلَ",
+                description="Form I - حَسُنَ pattern",
+                pattern_type="verb_form_i",
+                examples=["حَسُنَ", "كَرُمَ", "عَظُمَ"]
+            ),
+            
+            # Form II (فَعَّلَ)
+            PatternTemplate(
+                name="FORM_II",
+                template="فَعَّلَ",
+                description="Form II - causative/intensive",
+                pattern_type="verb_form_ii",
                 examples=["عَلَّمَ", "كَسَّرَ", "فَهَّمَ"]
             ),
+            
+            # Form III (فَاعَلَ)
             PatternTemplate(
-                pattern=PatternUniverse.FORM_III.value,
-                pattern_type="FORM_III",
-                description="Conative verb (attempt)",
-                form="III",
-                examples=["قَاتَلَ", "سَافَرَ", "كَاتَبَ"]
+                name="FORM_III",
+                template="فَاعَلَ",
+                description="Form III - mutual action",
+                pattern_type="verb_form_iii",
+                examples=["قَاتَلَ", "جَاهَدَ", "سَافَرَ"]
             ),
+            
+            # Form IV (أَفْعَلَ)
             PatternTemplate(
-                pattern=PatternUniverse.FORM_IV.value,
-                pattern_type="FORM_IV",
-                description="Causative verb",
-                form="IV",
-                examples=["أَكْرَمَ", "أَرْسَلَ", "أَخْرَجَ"]
+                name="FORM_IV",
+                template="أَفْعَلَ",
+                description="Form IV - causative",
+                pattern_type="verb_form_iv",
+                examples=["أَكْرَمَ", "أَخْرَجَ", "أَسْلَمَ"]
             ),
+            
+            # Form V (تَفَعَّلَ)
             PatternTemplate(
-                pattern=PatternUniverse.FORM_V.value,
-                pattern_type="FORM_V",
-                description="Reflexive of Form II",
-                form="V",
-                examples=["تَعَلَّمَ", "تَكَلَّمَ", "تَفَهَّمَ"]
+                name="FORM_V",
+                template="تَفَعَّلَ",
+                description="Form V - reflexive of Form II",
+                pattern_type="verb_form_v",
+                examples=["تَعَلَّمَ", "تَكَلَّمَ", "تَقَدَّمَ"]
             ),
+            
+            # Form VI (تَفَاعَلَ)
             PatternTemplate(
-                pattern=PatternUniverse.FORM_VI.value,
-                pattern_type="FORM_VI",
-                description="Reciprocal verb",
-                form="VI",
-                examples=["تَقَاتَلَ", "تَبَادَلَ", "تَكَاتَبَ"]
+                name="FORM_VI",
+                template="تَفَاعَلَ",
+                description="Form VI - reflexive of Form III",
+                pattern_type="verb_form_vi",
+                examples=["تَقَاتَلَ", "تَعَاوَنَ", "تَبَادَلَ"]
             ),
+            
+            # Form VII (اِنْفَعَلَ)
             PatternTemplate(
-                pattern=PatternUniverse.FORM_VII.value,
-                pattern_type="FORM_VII",
-                description="Passive/reflexive verb",
-                form="VII",
+                name="FORM_VII",
+                template="اِنْفَعَلَ",
+                description="Form VII - passive/reflexive",
+                pattern_type="verb_form_vii",
                 examples=["اِنْكَسَرَ", "اِنْفَتَحَ", "اِنْقَطَعَ"]
             ),
+            
+            # Form VIII (اِفْتَعَلَ)
             PatternTemplate(
-                pattern=PatternUniverse.FORM_VIII.value,
-                pattern_type="FORM_VIII",
-                description="Reflexive verb with infixed ت",
-                form="VIII",
-                examples=["اِفْتَرَضَ", "اِجْتَمَعَ", "اِكْتَسَبَ"]
+                name="FORM_VIII",
+                template="اِفْتَعَلَ",
+                description="Form VIII - reflexive",
+                pattern_type="verb_form_viii",
+                examples=["اِجْتَمَعَ", "اِخْتَارَ", "اِشْتَغَلَ"]
             ),
+            
+            # Form IX (اِفْعَلَّ)
             PatternTemplate(
-                pattern=PatternUniverse.FORM_IX.value,
-                pattern_type="FORM_IX",
-                description="Color/defect verb",
-                form="IX",
-                examples=["اِحْمَرَّ", "اِصْفَرَّ", "اِخْضَرَّ"]
+                name="FORM_IX",
+                template="اِفْعَلَّ",
+                description="Form IX - colors/defects",
+                pattern_type="verb_form_ix",
+                examples=["اِحْمَرَّ", "اِخْضَرَّ", "اِصْفَرَّ"]
             ),
+            
+            # Form X (اِسْتَفْعَلَ)
             PatternTemplate(
-                pattern=PatternUniverse.FORM_X.value,
-                pattern_type="FORM_X",
-                description="Request/deem verb",
-                form="X",
-                examples=["اِسْتَخْرَجَ", "اِسْتَعْمَلَ", "اِسْتَفْهَمَ"]
+                name="FORM_X",
+                template="اِسْتَفْعَلَ",
+                description="Form X - seeking/requesting",
+                pattern_type="verb_form_x",
+                examples=["اِسْتَخْرَجَ", "اِسْتَقْبَلَ", "اِسْتَغْفَرَ"]
             ),
         ]
-        return patterns
     
     @classmethod
     def _load_noun_patterns(cls) -> List[PatternTemplate]:
-        """Load noun patterns (masdar, participles, etc.)"""
-        patterns = [
+        """Load noun patterns"""
+        return [
+            # Masdar patterns
             PatternTemplate(
-                pattern=PatternUniverse.MASDAR_FORM_I.value,
-                pattern_type="MASDAR_FORM_I",
-                description="Verbal noun Form I",
-                examples=["كِتَاب", "قِرَاءَة", "ذَهَاب"]
+                name="MASDAR_FACL",
+                template="فَعْل",
+                description="Masdar Form I pattern",
+                pattern_type="noun_masdar",
+                examples=["ضَرْب", "أَكْل", "فَتْح"]
             ),
             PatternTemplate(
-                pattern=PatternUniverse.ACTIVE_PARTICIPLE.value,
-                pattern_type="ACTIVE_PARTICIPLE",
-                description="Active participle",
+                name="MASDAR_FICAAL",
+                template="فِعَال",
+                description="Masdar Form I pattern",
+                pattern_type="noun_masdar",
+                examples=["جِهَاد", "قِتَال", "نِزَال"]
+            ),
+            PatternTemplate(
+                name="MASDAR_TAFCEEL",
+                template="تَفْعِيل",
+                description="Masdar Form II",
+                pattern_type="noun_masdar",
+                examples=["تَعْلِيم", "تَكْسِير", "تَفْهِيم"]
+            ),
+            
+            # Active participle
+            PatternTemplate(
+                name="ACTIVE_PARTICIPLE_FAACIL",
+                template="فَاعِل",
+                description="Active participle Form I",
+                pattern_type="noun_active_participle",
                 examples=["كَاتِب", "ذَاهِب", "قَارِئ"]
             ),
             PatternTemplate(
-                pattern=PatternUniverse.PASSIVE_PARTICIPLE.value,
-                pattern_type="PASSIVE_PARTICIPLE",
-                description="Passive participle",
-                examples=["مَكْتُوب", "مَقْرُوء", "مَفْعُول"]
+                name="ACTIVE_PARTICIPLE_MUFACCIL",
+                template="مُفَعِّل",
+                description="Active participle Form II",
+                pattern_type="noun_active_participle",
+                examples=["مُعَلِّم", "مُكَسِّر", "مُفَهِّم"]
             ),
+            
+            # Passive participle
             PatternTemplate(
-                pattern=PatternUniverse.INSTRUMENT.value,
-                pattern_type="INSTRUMENT",
+                name="PASSIVE_PARTICIPLE_MAFCOOL",
+                template="مَفْعُول",
+                description="Passive participle Form I",
+                pattern_type="noun_passive_participle",
+                examples=["مَكْتُوب", "مَقْرُوء", "مَفْهُوم"]
+            ),
+            
+            # Instrument nouns
+            PatternTemplate(
+                name="INSTRUMENT_MIFCAAL",
+                template="مِفْعَال",
                 description="Instrument noun",
-                examples=["مِفْتَاح", "مِنْشَار", "مِقْيَاس"]
+                pattern_type="noun_instrument",
+                examples=["مِفْتَاح", "مِقْيَاس", "مِنْشَار"]
             ),
+            
+            # Place/Time nouns
             PatternTemplate(
-                pattern=PatternUniverse.PLACE_TIME.value,
-                pattern_type="PLACE_TIME",
+                name="PLACE_MAFCAL",
+                template="مَفْعَل",
                 description="Place/time noun",
+                pattern_type="noun_place_time",
                 examples=["مَكْتَب", "مَدْرَسَة", "مَطْبَخ"]
             ),
         ]
-        return patterns
     
     @classmethod
-    def _load_plural_patterns(cls) -> List[PatternTemplate]:
+    def _load_broken_plural_patterns(cls) -> List[PatternTemplate]:
         """Load broken plural patterns"""
-        patterns = [
+        return [
             PatternTemplate(
-                pattern=PatternUniverse.AFAAL.value,
-                pattern_type="AFAAL",
-                description="Broken plural pattern أَفْعَال",
-                examples=["أَقْلَام", "أَبْوَاب", "أَفْكَار"]
+                name="PLURAL_AFCAAL",
+                template="أَفْعَال",
+                description="Broken plural pattern",
+                pattern_type="broken_plural",
+                examples=["أَقْلَام", "أَبْوَاب", "أَيَّام"]
             ),
             PatternTemplate(
-                pattern=PatternUniverse.FUOOL.value,
-                pattern_type="FUOOL",
-                description="Broken plural pattern فُعُول",
-                examples=["كُتُب", "بُيُوت", "قُلُوب"]
+                name="PLURAL_FUCOOL",
+                template="فُعُول",
+                description="Broken plural pattern",
+                pattern_type="broken_plural",
+                examples=["بُيُوت", "عُيُون", "قُلُوب"]
             ),
             PatternTemplate(
-                pattern=PatternUniverse.FIAAL.value,
-                pattern_type="FIAAL",
-                description="Broken plural pattern فِعَال",
-                examples=["كِلَاب", "رِجَال", "جِبَال"]
+                name="PLURAL_FACAALIL",
+                template="فَعَائِل",
+                description="Broken plural pattern",
+                pattern_type="broken_plural",
+                examples=["رَسَائِل", "مَسَائِل", "وَسَائِل"]
             ),
             PatternTemplate(
-                pattern=PatternUniverse.AFILA.value,
-                pattern_type="AFILA",
-                description="Broken plural pattern أَفْعِلَة",
-                examples=["أَسْئِلَة", "أَطْعِمَة", "أَحْذِيَة"]
-            ),
-            PatternTemplate(
-                pattern=PatternUniverse.FUALA.value,
-                pattern_type="FUALA",
-                description="Broken plural pattern فُعَلَاء",
-                examples=["عُلَمَاء", "فُقَرَاء", "شُعَرَاء"]
-            ),
-            PatternTemplate(
-                pattern=PatternUniverse.MAFAAIL.value,
-                pattern_type="MAFAAIL",
-                description="Broken plural pattern مَفَاعِيل",
-                examples=["مَفَاتِيح", "مَصَابِيح", "مَنَادِيل"]
-            ),
-            PatternTemplate(
-                pattern=PatternUniverse.FAWAIL.value,
-                pattern_type="FAWAIL",
-                description="Broken plural pattern فَوَاعِل",
-                examples=["كَوَاكِب", "نَوَافِذ", "رَوَائِح"]
+                name="PLURAL_FUCALAA",
+                template="فُعَلَاء",
+                description="Broken plural pattern",
+                pattern_type="broken_plural",
+                examples=["عُلَمَاء", "شُعَرَاء", "فُقَهَاء"]
             ),
         ]
-        return patterns
     
     @classmethod
     def _load_adjective_patterns(cls) -> List[PatternTemplate]:
         """Load adjective patterns"""
-        patterns = [
+        return [
             PatternTemplate(
-                pattern=PatternUniverse.FAEEL.value,
-                pattern_type="FAEEL",
-                description="Intensive adjective فَعِيل",
-                examples=["كَبِير", "صَغِير", "جَمِيل"]
+                name="ADJECTIVE_FACEEL",
+                template="فَعِيل",
+                description="Intensive adjective",
+                pattern_type="adjective",
+                examples=["كَرِيم", "رَحِيم", "عَظِيم"]
             ),
             PatternTemplate(
-                pattern=PatternUniverse.FAAL.value,
-                pattern_type="FAAL",
-                description="Intensive adjective فَعَّال",
-                examples=["كَذَّاب", "نَجَّار", "حَدَّاد"]
-            ),
-            PatternTemplate(
-                pattern=PatternUniverse.MIFAAL.value,
-                pattern_type="MIFAAL",
-                description="Intensive adjective مِفْعَال",
-                examples=["مِهْذَار", "مِعْطَار", "مِضْيَاف"]
-            ),
-            PatternTemplate(
-                pattern=PatternUniverse.AFAL.value,
-                pattern_type="AFAL",
-                description="Comparative/superlative أَفْعَل",
-                examples=["أَكْبَر", "أَصْغَر", "أَجْمَل"]
+                name="ADJECTIVE_AFCAL",
+                template="أَفْعَل",
+                description="Comparative/superlative",
+                pattern_type="adjective",
+                examples=["أَكْبَر", "أَصْغَر", "أَحْسَن"]
             ),
         ]
-        return patterns
-    
-    @classmethod
-    def get_pattern_by_type(cls, pattern_type: str) -> PatternTemplate:
-        """Get a specific pattern by its type
-        
-        Args:
-            pattern_type: The pattern type identifier (e.g., "FORM_I", "AFAAL")
-            
-        Returns:
-            PatternTemplate matching the type, or None if not found
-        """
-        catalog = cls.load_full_catalog()
-        for category_patterns in catalog.values():
-            for pattern in category_patterns:
-                if pattern.pattern_type == pattern_type:
-                    return pattern
-        return None
-    
-    @classmethod
-    def get_all_patterns(cls) -> List[PatternTemplate]:
-        """Get all patterns as a flat list
-        
-        Returns:
-            List of all PatternTemplate objects
-        """
-        catalog = cls.load_full_catalog()
-        all_patterns = []
-        for category_patterns in catalog.values():
-            all_patterns.extend(category_patterns)
-        return all_patterns
