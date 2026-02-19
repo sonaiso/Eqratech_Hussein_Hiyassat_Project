@@ -4,20 +4,21 @@
 
 ## Executive summary
 
-The FVAFK pipeline today has **C1→C2a→C2b** in the CLI, **WordForm** and **ISNADI** implemented, and **269 tests** passing. This roadmap adds **syntax in the CLI**, **TADMINI** and **TAQYIDI** linkers, a **SyntacticParser**, **5–6 constraint modules**, **corpus evaluation**, and **polish** (300 tests, C2c design) over **6 sprints** without breaking existing behaviour.
+The FVAFK pipeline today has **C1→C2a→C2b** in the CLI, **WordForm** and **ISNADI** implemented, and **373 tests** passing (1 skipped). **Sprint 1 and Sprint 2 are complete** (foundation + phonology gates unification). This roadmap outlines the remaining work: **TADMINI** and **TAQYIDI** linkers, a **SyntacticParser**, **5–6 constraint modules**, **corpus evaluation**, and **polish** (C2c design) over **4 remaining sprints** without breaking existing behaviour.
 
-**Outcomes by end of 6 months:**
+**Outcomes by end of remaining sprints (3–6):**
 
 - CLI returns `result["syntax"]` with ISNADI, TADMINI, and TAQYIDI links when morphology is requested.
 - A single parser runs all three linkers; an optional validator reports constraint violations.
 - Trial corpus with reported F1 (morphology) and UAS/LAS (syntax).
 - Test suite ≥300; property-based tests; C2c semantic-gate design doc.
 
-**Critical path:** Sprint 1 (syntax in CLI) → Sprint 2 (TADMINI) → Sprint 3 (TAQYIDI + parser) → Sprint 4 (constraints) → Sprint 5 (corpus) → Sprint 6 (polish).
+**Critical path:** ~~Sprint 1 (syntax in CLI)~~ ✅ → ~~Sprint 2 (phonology gates)~~ ✅ → Sprint 3 (morphology + corpus) → Sprint 4 (TADMINI/TAQYIDI + parser) → Sprint 5 (constraints) → Sprint 6 (integration + polish).
 
 **References:**  
-- **`docs/MASTER_PLAN_CHECKLIST.md`** – Full 6-part task list (foundation, phonology, semantics, morphology, syntax, constraints, integration) and sprint mapping.  
-- `WHERE_WE_ARE_VS_PLAN.md`, `project_deleverables.md`, `docs/PLAN_MERGE_ANALYSIS.md`, `src/fvafk/phonology/INTEGRATION_PLAN.md`.
+- **`WHERE_WE_ARE_VS_PLAN_DETAILED.md`** – Sprint 2 completion report (373 tests, gate unification, Coq skeletons).  
+- **`FUTURE_PLAN.md`** – Remaining roadmap (Sprints 3–6).  
+- `WHERE_WE_ARE_VS_PLAN.md`, `project_deleverables.md`, `docs/PLAN_MERGE_ANALYSIS.md`.
 
 ---
 
@@ -50,14 +51,14 @@ The detailed task checklist is in **`docs/MASTER_PLAN_CHECKLIST.md`**. Summary:
 
 ## 2. Six-sprint overview
 
-| Sprint | Weeks | Focus | Key deliverable | Depends on |
-|--------|--------|--------|-----------------|------------|
-| **Sprint 1** | 1–2 | Part 1: packaging + ISNADI in CLI + docs | pyproject.toml, bayan-fvafk scaffold, Pydantic models, CLI JSON (tokens, WordForm, ISNADI), 10+ CLI tests | — |
-| **Sprint 2** | 3–4 | Part 2 (+ 2.5 start): phonology + Coq skeletons | 10+ gates, OrthographyAdapter rules, syllabifier, Coq skeletons; semantic gates base | Sprint 1 |
-| **Sprint 3** | 5–6 | Part 3: morphology + corpus F1 | WordBoundaryDetector Plan B, PatternCatalog bridge, morph_flags, gold corpus, F1 ≥ 0.85 | Sprint 2 |
-| **Sprint 4** | 7–8 | Part 4: syntax linkers + events | ISNADI/TADMINI/TAQYIDI, SyntacticParser, EventExtractor, visualization, UAS/LAS | Sprints 1, 3 |
-| **Sprint 5** | 9–10 | Part 5: constraints + validator | 5 constraints + Amil-Sign, ConstraintValidator, Coq predicates | Sprint 4 |
-| **Sprint 6** | 11–14 | Part 6: integration + eval + ops | Full pipeline, batch/cache, corpus reports, proof mode, neo4j, FastAPI, CI/CD, full docs | Sprints 1–5 |
+| Sprint | Weeks | Focus | Key deliverable | Status |
+|--------|--------|--------|-----------------|--------|
+| **Sprint 1** | 1–2 | Part 1: packaging + ISNADI in CLI + docs | pyproject.toml, bayan-fvafk scaffold, Pydantic models, CLI JSON (tokens, WordForm, ISNADI), 10+ CLI tests | ✅ Complete |
+| **Sprint 2** | 3–4 | Part 2 (+ 2.5 start): phonology + Coq skeletons | 10+ gates, OrthographyAdapter rules, syllabifier, Coq skeletons; semantic gates base | ✅ Complete |
+| **Sprint 3** | 5–6 | Part 3: morphology + corpus F1 | WordBoundaryDetector Plan B, PatternCatalog bridge, morph_flags, gold corpus, F1 ≥ 0.85 | 🎯 Next |
+| **Sprint 4** | 7–8 | Part 4: syntax linkers + events | ISNADI/TADMINI/TAQYIDI, SyntacticParser, EventExtractor, visualization, UAS/LAS | Pending |
+| **Sprint 5** | 9–10 | Part 5: constraints + validator | 5 constraints + Amil-Sign, ConstraintValidator, Coq predicates | Pending |
+| **Sprint 6** | 11–14 | Part 6: integration + eval + ops | Full pipeline, batch/cache, corpus reports, proof mode, neo4j, FastAPI, CI/CD, full docs | Pending |
 
 ---
 
