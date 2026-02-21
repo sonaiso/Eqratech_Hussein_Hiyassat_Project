@@ -26,6 +26,12 @@ from .syntax_evaluator import (
     evaluate_syntax,
 )
 
+from .morph_syntax_bridge import (
+    MorphSyntaxBridge,
+    SimpleContextAnalyzer,
+    predict_syntax_from_morphology,
+)
+
 __all__ = [
     # Models
     "I3rabAnnotation",
@@ -45,4 +51,8 @@ __all__ = [
     "SyntaxEvaluationResult",
     "SyntaxEvaluator",
     "evaluate_syntax",
+    # Bridge
+    "MorphSyntaxBridge",
+    "SimpleContextAnalyzer",
+    "predict_syntax_from_morphology",
 ]
