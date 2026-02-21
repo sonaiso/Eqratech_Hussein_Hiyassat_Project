@@ -16,6 +16,11 @@ from .metrics import (
     compute_accuracy,
     ConfusionMatrix,
 )
+from .evaluator import (
+    MorphologyEvaluator,
+    EvaluationResult,
+    FeatureMetrics,
+)
 
 __all__ = [
     'compute_precision',
@@ -23,4 +28,7 @@ __all__ = [
     'compute_f1_score',
     'compute_accuracy',
     'ConfusionMatrix',
+    'MorphologyEvaluator',
+    'EvaluationResult',
+    'FeatureMetrics',
 ]
