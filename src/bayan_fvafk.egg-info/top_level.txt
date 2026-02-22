@@ -1,5 +1,0 @@
-engines
-fvafk
-maqam_theory
-syntax_theory
-theory

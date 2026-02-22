@@ -65,3 +65,5 @@ coq/**/*.glob
 coq/**/*.aux
 
 i3rab/
+src/bayan_fvafk.egg-info/
+src/*.egg-info/
