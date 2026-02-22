@@ -2,7 +2,7 @@
 
 A production-ready Arabic NLP system implementing a comprehensive FVAFK pipeline for Arabic text processing: encoding/CV (C1), phonological gates (C2a), morphology (C2b), and syntax (C3) — with an optional **Phonology V2** engine (syllable lattice + witnesses).
 
-**Package**: `bayan-fvafk` v0.1.0 | **Tests**: 282 passing | **Python**: 3.10+
+**Package**: `bayan-fvafk` v0.1.0 | **Tests**: 497+ passing | **Python**: 3.10+
 
 ---
 
@@ -86,9 +86,6 @@ pytest
 pip install bayan-fvafk
 ```
 
-```bash
-```
-
 ### Run tests
 
 ```bash
@@ -141,6 +138,9 @@ Eqratech_Hussein_Hiyassat_Project/
 ├── app/                    # Application layer (Pydantic models, FastAPI)
 │   ├── models/             # Type-safe data models
 │   └── api/                # API endpoints (Sprint 6)
+├── web_app/                # FastAPI web application (run_server.py entry point)
+│   ├── __init__.py
+│   └── main.py             # GET /, GET /health, POST /analyse
 ├── src/fvafk/              # Core pipeline
 │   ├── c1/                 # Encoding layer
 │   ├── c2a/                # Phonology layer (gates)
@@ -149,7 +149,7 @@ Eqratech_Hussein_Hiyassat_Project/
 │   ├── cli/                # Command-line interface
 │   ├── phonology_v2/       # Enhanced phonology engine
 │   └── __init__.py
-├── tests/                  # Test suite (282 tests)
+├── tests/                  # Test suite (497+ tests)
 ├── docs/                   # Documentation
 │   ├── CLI_SCHEMA.md       # CLI output reference
 │   └── MASTER_PLAN_CHECKLIST.md
@@ -162,26 +162,24 @@ Eqratech_Hussein_Hiyassat_Project/
 
 ## 📊 Development Status
 
-**Current Sprint**: Sprint 1 (Foundation and Packaging)
+**Current Sprint**: Sprint 5 (Web API & Advanced Integration)
 
 ### Completed ✅
 - ✅ **Task 1.1**: pyproject.toml with package metadata
 - ✅ **Task 1.2**: Package modules as typed library (bayan-fvafk)
+- ✅ **Task 1.3**: Pydantic models (7 models)
+- ✅ **Task 1.4**: OrthographyAdapter + FormCodecV2 integration
 - ✅ **Task 1.5**: Directory alignment (app/, theories/)
 - ✅ **Task 1.6**: Documentation updates
 - ✅ **Task 1.7**: CLI with syntax output (WordForm + ISNADI links)
-- ✅ **Task 1.8**: 13 comprehensive CLI tests (29 total)
+- ✅ **Task 1.8**: Comprehensive CLI tests
 - ✅ **Task 1.9**: CLI schema documentation
+- ✅ **Sprint 2**: Phonology gates unification, syllabifier, property tests, Coq skeletons
+- ✅ **Sprint 3**: Morphological corpus, evaluation metrics, i3rab loader
+- ✅ **Sprint 4**: Syntax theory, maqam theory gates, syntax graph generators
 
 ### In Progress ⏳
-- ⏳ **Task 1.3**: Pydantic models (7 models)
-- ⏳ **Task 1.4**: OrthographyAdapter + FormCodecV2 integration
-
-### Next: Sprint 2 🎯
-- Phonology gates unification
-- Reference syllabifier
-- Property tests with Hypothesis
-- Coq skeletons (GateSukun, GateShadda, GateTanwin)
+- ⏳ Web API (`web_app/`) — basic FastAPI app available; full endpoint coverage ongoing
 
 See [ENHANCED_ROADMAP.md](ENHANCED_ROADMAP.md) for complete plan.
 
