@@ -108,21 +108,9 @@ src/fvafk/syntax/linkers/link.py       ← الملف الصحيح
 - `pyproject.toml` يحدد الإصدار `0.1.0` ويضع `pytest` في التبعيات الاختيارية.
 - pytest يجب ألا يكون تبعية تشغيل (runtime dependency) بل تبعية تطوير فقط.
 
-#### 🟢 مشكلة منخفضة: تحذيرات Pydantic V2
+#### 🟢 مشكلة منخفضة: تحذيرات Pydantic V2 ✅ تم إصلاحها
 
-ملفان `app/models/proof_artifact.py` و `app/models/analysis_result.py` يستخدمان
-`class Config` الأسلوب القديم المُهمَل في Pydantic V2:
-
-```python
-# الأسلوب القديم (مُهمَل)
-class AnalysisResult(BaseModel):
-    class Config:
-        json_schema_extra = { ... }
-
-# الأسلوب الجديد الصحيح
-class AnalysisResult(BaseModel):
-    model_config = ConfigDict(json_schema_extra={ ... })
-```
+جميع ملفات `app/models/` (7 ملفات) كانت تستخدم `class Config` الأسلوب القديم المُهمَل في Pydantic V2، وقد تم تحديثها للأسلوب الجديد `model_config = ConfigDict(...)`.
 
 ---
 

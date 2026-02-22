@@ -2,7 +2,7 @@
 
 A production-ready Arabic NLP system implementing a comprehensive FVAFK pipeline for Arabic text processing: encoding/CV (C1), phonological gates (C2a), morphology (C2b), and syntax (C3) — with an optional **Phonology V2** engine (syllable lattice + witnesses).
 
-**Package**: `bayan-fvafk` v0.1.0 | **Tests**: 282 passing | **Python**: 3.10+
+**Package**: `bayan-fvafk` v0.1.0 | **Tests**: 497 passing | **Python**: 3.10+
 
 ---
 
@@ -149,7 +149,7 @@ Eqratech_Hussein_Hiyassat_Project/
 │   ├── cli/                # Command-line interface
 │   ├── phonology_v2/       # Enhanced phonology engine
 │   └── __init__.py
-├── tests/                  # Test suite (282 tests)
+├── tests/                  # Test suite (497 tests)
 ├── docs/                   # Documentation
 │   ├── CLI_SCHEMA.md       # CLI output reference
 │   └── MASTER_PLAN_CHECKLIST.md
