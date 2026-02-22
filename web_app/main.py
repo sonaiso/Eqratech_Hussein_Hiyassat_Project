@@ -19,7 +19,8 @@ from typing import Any, Dict, Optional
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 app = FastAPI(
@@ -30,6 +31,10 @@ app = FastAPI(
     ),
     version="0.1.0",
 )
+
+# Serve the static web interface
+_static_dir = os.path.join(os.path.dirname(__file__), "static")
+app.mount("/static", StaticFiles(directory=_static_dir), name="static")
 
 
 # ---------------------------------------------------------------------------
@@ -49,6 +54,12 @@ class HealthResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
+
+@app.get("/", summary="Web UI", include_in_schema=False)
+def index() -> FileResponse:
+    """Serve the Arabic NLP inspection and verification web interface."""
+    return FileResponse(os.path.join(_static_dir, "index.html"))
+
 
 @app.get("/health", response_model=HealthResponse, summary="Health check")
 def health() -> HealthResponse:
@@ -102,7 +113,7 @@ def analyze(request: AnalyzeRequest) -> Dict[str, Any]:
         GateEpenthesis(), GateWasl(),
     ]
     framework = GateFramework(gates)
-    gate_results = framework.apply(units)
+    _, gate_results = framework.run(units)
     c2a_ms = (time.perf_counter() - t0) * 1000
 
     result: Dict[str, Any] = {
@@ -110,8 +121,11 @@ def analyze(request: AnalyzeRequest) -> Dict[str, Any]:
         "c1": {"num_units": len(units)},
         "c2a": {
             "gates": [
-                {"gate": r.gate_name, "status": r.status.value}
-                for r in gate_results
+                {
+                    "gate": r.gate_id or type(g).__name__,
+                    "status": r.status.name,
+                }
+                for g, r in zip(gates, gate_results)
             ],
         },
         "stats": {
@@ -129,10 +143,10 @@ def analyze(request: AnalyzeRequest) -> Dict[str, Any]:
         extractor = RootExtractor()
         matcher = PatternMatcher()
         root = extractor.extract(request.text)
-        pattern = matcher.match(request.text)
+        pattern = matcher.match(request.text, root) if root else None
         c2b_ms = (time.perf_counter() - t0) * 1000
         result["c2b"] = {
-            "root": root.formatted if root else None,
+            "root": " ".join(root.letters) if root else None,
             "pattern": pattern.template if pattern else None,
         }
         result["stats"]["c2b_time_ms"] = round(c2b_ms, 3)
