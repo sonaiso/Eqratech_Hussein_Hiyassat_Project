@@ -10,7 +10,7 @@ from typing import Dict, List, Optional
 from .models import PhonoUnit, Syllable, SyllableAnalysis, SLineGraph
 
 # Syllable pattern constants
-CV   = "CV"    # فتحة قصيرة
+CV   = "CV"    # مقطع قصير مفتوح
 CVC  = "CVC"   # مغلق قصير
 CVV  = "CVV"   # مد / طويل مفتوح
 CVVC = "CVVC"  # طويل مغلق

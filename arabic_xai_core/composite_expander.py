@@ -193,6 +193,14 @@ def separate_hamza_carrier(cluster: GraphemeCluster) -> List[ExpandedUnit]:
     )]
 
 
+def _is_long_vowel_without_diacritics(cluster: GraphemeCluster) -> bool:
+    """Return True if cluster is a bare long-vowel carrier (madd context)."""
+    return (
+        cluster.base_char in LONG_VOWEL_CARRIERS
+        and not any(d in VOWEL_MARKS for d in cluster.diacritics)
+    )
+
+
 def _expand_cluster(cluster: GraphemeCluster) -> List[ExpandedUnit]:
     """Apply all expansions to a single GraphemeCluster."""
     diacritics = set(cluster.diacritics)
@@ -202,7 +210,7 @@ def _expand_cluster(cluster: GraphemeCluster) -> List[ExpandedUnit]:
         return expand_shadda(cluster)
     if diacritics & TANWEEN_MARKS:
         return expand_tanween(cluster)
-    if cluster.base_char in LONG_VOWEL_CARRIERS and not any(d in VOWEL_MARKS for d in diacritics):
+    if _is_long_vowel_without_diacritics(cluster):
         return expand_madd(cluster)
     if cluster.base_char in {"\u0623", "\u0625", "\u0624", "\u0626"}:
         return separate_hamza_carrier(cluster)
@@ -210,22 +218,46 @@ def _expand_cluster(cluster: GraphemeCluster) -> List[ExpandedUnit]:
     # Plain cluster
     if not cluster.base_char.strip():
         return []
+
+    units: List[ExpandedUnit] = []
     role = "vowel" if cluster.base_char in LONG_VOWEL_CARRIERS else "consonant"
-    return [ExpandedUnit(
+    # Consonant (or long-vowel carrier) unit
+    units.append(ExpandedUnit(
         base_char=cluster.base_char,
         role=role,
-        value=cluster.full,
+        value=cluster.base_char,
         expansion_trace=["plain"],
         position=cluster.position,
         word_index=cluster.word_index,
-    )]
+    ))
+    # Extract short-vowel diacritics as separate vowel units
+    for d in cluster.diacritics:
+        if d in VOWEL_MARKS and d != SUKUN:
+            units.append(ExpandedUnit(
+                base_char=d,
+                role="vowel",
+                value=d,
+                expansion_trace=[f"short_vowel:{d}"],
+                position=cluster.position,
+                word_index=cluster.word_index,
+            ))
+    return units
 
 
 def expand_units(clusters: List[GraphemeCluster]) -> List[ExpandedUnit]:
     """
     Expand all GraphemeCluster items into ExpandedUnit list.
+
+    Re-numbers positions sequentially so every ExpandedUnit has a unique
+    (word_index, position) pair, enabling collision-free S-Line node IDs.
     """
     result: List[ExpandedUnit] = []
     for cluster in clusters:
         result.extend(_expand_cluster(cluster))
+    # Reassign sequential positions within each word
+    word_counters: dict = {}
+    for unit in result:
+        wi = unit.word_index
+        unit.position = word_counters.get(wi, 0)
+        word_counters[wi] = unit.position + 1
     return result

@@ -40,7 +40,7 @@ MAKHRAJ_TABLE: dict = {
     # Tongue middle
     "\u062C": "لسان_وسط",    # ج
     "\u0634": "لسان_وسط",    # ش
-    "\u064A": "لسان_وسط",    # ي (consonant reading)
+    "\u064A": "لسان_وسط",    # ي (consonant role; also acts as long-vowel carrier)
     # Tongue tip (لسان_طرف)
     "\u0636": "لسان_طرف_أعلى", # ض
     "\u0644": "لسان_طرف",    # ل
@@ -61,9 +61,13 @@ MAKHRAJ_TABLE: dict = {
     # Labial (شفوي)
     "\u0628": "شفوي",         # ب
     "\u0645": "شفوي",         # م
-    "\u0648": "شفوي",         # و (consonant reading)
+    "\u0648": "شفوي",         # و (consonant role; also acts as long-vowel carrier)
     # Alef
     "\u0627": "جوف",          # ا
+    # Short vowel diacritics (treated as phonological vowels)
+    "\u064E": "جوف",          # فتحة
+    "\u0650": "جوف",          # كسرة
+    "\u064F": "جوف",          # ضمة
 }
 
 # --- Sifat table (simplified) ---

@@ -6,7 +6,7 @@ Weight classification:
   محقق_وزن  — realizes weight (short vowels within syllable)
   دون_وزن   — below weight (functional/zero-weight elements)
 
-Minimum weight threshold: 3 فاعلة units.
+Minimum weight threshold: 3 حاملة units (حامل_وزن).
 """
 from __future__ import annotations
 

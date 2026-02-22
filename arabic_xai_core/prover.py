@@ -23,12 +23,12 @@ def prove_min_weight(
     verdict = "مثبت" if count >= threshold else "منفي"
     return Claim(
         claim_id="weight_threshold",
-        text=f"الكلمة حاملة للوزن (عدد الوحدات الوزنية الفاعلة ≥ {threshold})",
+        text=f"الكلمة حاملة للوزن (عدد الوحدات الحاملة ≥ {threshold})",
         verdict=verdict,
         confidence=1.0,
         premises=[f"عدد_وحدات_وزنية_فاعلة={count}", f"العتبة={threshold}"],
         reasoning_steps=[
-            f"حُسب عدد الوحدات الوزنية الفاعلة = {count}",
+            f"حُسب عدد الوحدات الحاملة للوزن (حامل_وزن) = {count}",
             f"العتبة الدنيا = {threshold}",
             f"النتيجة: {'حاملة وزن' if count >= threshold else 'دون الوزن'}",
         ],
@@ -44,13 +44,13 @@ def prove_below_weight_category(
     is_below = weight_analysis.below_weight
     return Claim(
         claim_id="below_weight",
-        text="الكلمة دون الوزن (أقل من ثلاث وحدات فاعلة)",
+        text="الكلمة دون الوزن (أقل من ثلاث وحدات حاملة)",
         verdict="مثبت" if is_below else "منفي",
         confidence=1.0,
         premises=[f"weight_unit_count={weight_analysis.weight_unit_count}"],
         reasoning_steps=[
-            f"وحدات_وزنية_فاعلة = {weight_analysis.weight_unit_count}",
-            "قاعدة: أقل الميزان ثلاث وحدات فاعلة",
+            f"وحدات_حاملة_للوزن (حامل_وزن) = {weight_analysis.weight_unit_count}",
+            "قاعدة: أقل الميزان ثلاث وحدات حاملة (حامل_وزن)",
             f"الحكم: {'دون الوزن' if is_below else 'ضمن الوزن'}",
         ],
         trace_ids=[],

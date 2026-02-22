@@ -22,7 +22,8 @@ KASRA  = "\u0650"
 DAMMA  = "\u064F"
 SUKUN  = "\u0652"
 
-# زوائد (extra letters) — ألـمنسيت
+# حروف الزيادة (augmentative letters) — traditional Arabic mnemonic: أسألتمنوي
+# (ا، س، أ، ل، ت، م، ن، و، ي) — these 9 letters can appear as additions in derived forms
 EXTRA_LETTERS = set("أسألتمنوي")
 
 # Long vowel carriers (potential ziyada)
