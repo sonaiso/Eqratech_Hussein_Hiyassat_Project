@@ -77,3 +77,10 @@ build/
 .coverage
 htmlcov/
 .tox/
+
+# Temporary Microsoft Office lock files
+~$*
+
+# Excel outputs (generated artifacts)
+full_multilayer_grammar.xlsx
+full_multilayer_grammar*.xlsx
