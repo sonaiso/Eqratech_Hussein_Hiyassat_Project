@@ -2,6 +2,7 @@
 
 import json
 import subprocess
+import os
 import sys
 
 
@@ -18,7 +19,7 @@ class TestCLIMorphologyIntegration:
             ],
             capture_output=True,
             text=True,
-            env={"PYTHONPATH": "src"}
+            env={**os.environ, "PYTHONPATH": "src"}
         )
 
         assert result.returncode == 0
@@ -51,7 +52,7 @@ class TestCLIMorphologyIntegration:
             ],
             capture_output=True,
             text=True,
-            env={"PYTHONPATH": "src"}
+            env={**os.environ, "PYTHONPATH": "src"}
         )
 
         assert result.returncode == 0
@@ -77,7 +78,7 @@ class TestCLIMorphologyIntegration:
             ],
             capture_output=True,
             text=True,
-            env={"PYTHONPATH": "src"}
+            env={**os.environ, "PYTHONPATH": "src"}
         )
 
         assert result.returncode == 0
@@ -101,7 +102,7 @@ class TestCLIMorphologyIntegration:
             ],
             capture_output=True,
             text=True,
-            env={"PYTHONPATH": "src"}
+            env={**os.environ, "PYTHONPATH": "src"}
         )
 
         assert result.returncode == 0
@@ -124,7 +125,7 @@ class TestCLIMorphologyIntegration:
             ],
             capture_output=True,
             text=True,
-            env={"PYTHONPATH": "src"}
+            env={**os.environ, "PYTHONPATH": "src"}
         )
 
         assert result.returncode == 0
@@ -146,7 +147,7 @@ class TestCLIMorphologyIntegration:
             ],
             capture_output=True,
             text=True,
-            env={"PYTHONPATH": "src"},
+            env={**os.environ, "PYTHONPATH": "src"},
         )
         assert result.returncode == 0
         data = json.loads(result.stdout)
@@ -168,7 +169,7 @@ class TestCLIMorphologyIntegration:
             ],
             capture_output=True,
             text=True,
-            env={"PYTHONPATH": "src"},
+            env={**os.environ, "PYTHONPATH": "src"},
         )
         assert result.returncode == 0
         data = json.loads(result.stdout)
@@ -188,7 +189,7 @@ class TestCLIMorphologyIntegration:
             ],
             capture_output=True,
             text=True,
-            env={"PYTHONPATH": "src"},
+            env={**os.environ, "PYTHONPATH": "src"},
         )
         assert result.returncode == 0
         data = json.loads(result.stdout)
@@ -214,7 +215,7 @@ class TestCLISyntaxOutput:
             ],
             capture_output=True,
             text=True,
-            env={"PYTHONPATH": "src"},
+            env={**os.environ, "PYTHONPATH": "src"},
             cwd=None,
         )
         assert result.returncode == 0, result.stderr or result.stdout
@@ -239,7 +240,7 @@ class TestCLISyntaxOutput:
             ],
             capture_output=True,
             text=True,
-            env={"PYTHONPATH": "src"},
+            env={**os.environ, "PYTHONPATH": "src"},
         )
         assert result.returncode == 0
         data = json.loads(result.stdout)
@@ -258,7 +259,7 @@ class TestCLIMorphologyHumanReadable:
             ],
             capture_output=True,
             text=True,
-            env={"PYTHONPATH": "src"}
+            env={**os.environ, "PYTHONPATH": "src"}
         )
 
         assert result.returncode == 0

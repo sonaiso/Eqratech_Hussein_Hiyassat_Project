@@ -7,6 +7,7 @@ Tests JSON structure, field presence, and correct behavior
 
 import json
 import subprocess
+import os
 import sys
 import pytest
 
@@ -14,7 +15,7 @@ import pytest
 def run_cli(text: str, *flags) -> dict:
     """Helper to run CLI and parse JSON output"""
     cmd = [sys.executable, "-m", "fvafk.cli", text, "--json"] + list(flags)
-    result = subprocess.run(cmd, capture_output=True, text=True, env={"PYTHONPATH": "src"})
+    result = subprocess.run(cmd, capture_output=True, text=True, env={**os.environ, "PYTHONPATH": "src"})
     assert result.returncode == 0, f"CLI failed: {result.stderr}"
     return json.loads(result.stdout)
 
@@ -127,7 +128,7 @@ class TestCLIErrorHandling:
             [sys.executable, "-m", "fvafk.cli", "", "--json"],
             capture_output=True,
             text=True,
-            env={"PYTHONPATH": "src"}
+            env={**os.environ, "PYTHONPATH": "src"}
         )
         assert result.returncode in [0, 1]
     

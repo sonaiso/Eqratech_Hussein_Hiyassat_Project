@@ -65,3 +65,15 @@ coq/**/*.glob
 coq/**/*.aux
 
 i3rab/
+
+# Python build artifacts
+dist/
+build/
+*.egg-info/
+.eggs/
+
+# Test and coverage artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
