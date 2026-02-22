@@ -5,7 +5,7 @@ Represents formal verification artifacts from Coq proofs.
 """
 
 from typing import Optional, List
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from enum import Enum
 
 
@@ -55,10 +55,10 @@ class ProofArtifact(BaseModel):
     def is_safe(self) -> bool:
         """Check if proof is safe to rely on (proven, not admitted)"""
         return self.status == ProofStatus.PROVEN
-    
-    class Config:
-        use_enum_values = False
-        json_schema_extra = {
+
+    model_config = ConfigDict(
+        use_enum_values=False,
+        json_schema_extra={
             "example": {
                 "theorem_name": "gate_sukun_preserves_length",
                 "status": "proven",
@@ -69,3 +69,4 @@ class ProofArtifact(BaseModel):
                 "notes": "Verified 2026-02-15"
             }
         }
+    )

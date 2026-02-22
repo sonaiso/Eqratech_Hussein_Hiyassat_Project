@@ -1,5 +1,6 @@
 import json
 import subprocess
+import os
 import sys
 
 
@@ -22,7 +23,7 @@ def test_cli_phonology_v2_witnesses_populated_and_has_long_vowel():
         ],
         capture_output=True,
         text=True,
-        env={"PYTHONPATH": "src"},
+        env={**os.environ, "PYTHONPATH": "src"},
     )
     assert result.returncode == 0, result.stderr
     data = json.loads(result.stdout)
