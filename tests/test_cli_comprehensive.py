@@ -7,13 +7,14 @@ Tests JSON structure, field presence, and correct behavior
 
 import json
 import subprocess
+import sys
 import pytest
 
 
 def run_cli(text: str, *flags) -> dict:
     """Helper to run CLI and parse JSON output"""
-    cmd = ["python3", "-m", "fvafk.cli", text, "--json"] + list(flags)
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    cmd = [sys.executable, "-m", "fvafk.cli", text, "--json"] + list(flags)
+    result = subprocess.run(cmd, capture_output=True, text=True, env={"PYTHONPATH": "src"})
     assert result.returncode == 0, f"CLI failed: {result.stderr}"
     return json.loads(result.stdout)
 
@@ -123,9 +124,10 @@ class TestCLIErrorHandling:
     def test_cli_handles_empty_input(self):
         """Test CLI handles empty input gracefully"""
         result = subprocess.run(
-            ["python3", "-m", "fvafk.cli", "", "--json"],
+            [sys.executable, "-m", "fvafk.cli", "", "--json"],
             capture_output=True,
-            text=True
+            text=True,
+            env={"PYTHONPATH": "src"}
         )
         assert result.returncode in [0, 1]
     
