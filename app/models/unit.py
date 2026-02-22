@@ -5,7 +5,7 @@ Represents a single unit in the encoded form, typically a character or character
 """
 
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Unit(BaseModel):
@@ -23,18 +23,19 @@ class Unit(BaseModel):
         >>> unit.text
         'ك'
     """
-    
-    text: str = Field(..., description="Unicode text of the unit")
-    category: str = Field(..., description="Category: LETTER, DIACRITIC, SPACE, etc.")
-    index: int = Field(..., ge=0, description="Position in original input (0-indexed)")
-    metadata: Optional[dict] = Field(default=None, description="Additional metadata")
-    
-    class Config:
-        json_schema_extra = {
+
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "text": "ك",
                 "category": "LETTER",
                 "index": 0,
-                "metadata": {"normalized": True}
+                "metadata": {"normalized": True},
             }
         }
+    )
+
+    text: str = Field(..., description="Unicode text of the unit")
+    category: str = Field(..., description="Category: LETTER, DIACRITIC, SPACE, etc.")
+    index: int = Field(..., ge=0, description="Position in original input (0-indexed)")
+    metadata: Optional[dict] = Field(default=None, description="Additional metadata")

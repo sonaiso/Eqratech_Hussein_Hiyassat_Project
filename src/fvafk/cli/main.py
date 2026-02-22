@@ -1044,6 +1044,20 @@ Examples:
 
     args = parser.parse_args()
 
+    # Guard against unreasonably large inputs (protects against accidental
+    # large-file pastes and potential DoS; 10 000 characters ≈ ~4 pages of text)
+    _MAX_INPUT_CHARS = 10_000
+    if len(args.text) > _MAX_INPUT_CHARS:
+        error_msg = (
+            f"Input too long: {len(args.text)} characters "
+            f"(maximum {_MAX_INPUT_CHARS}). Truncate your text and try again."
+        )
+        if args.json:
+            print(json.dumps({"success": False, "error": error_msg}, ensure_ascii=False))
+        else:
+            print(f"Error: {error_msg}", file=sys.stderr)
+        sys.exit(1)
+
     try:
         cli = MinimalCLI()
         result = cli.run(

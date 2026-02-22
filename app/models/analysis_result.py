@@ -5,7 +5,7 @@ Represents the complete output from FVAFK pipeline: C1 → C2a → C2b → C3.
 """
 
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from .unit import Unit
 from .syllable import Syllable
@@ -82,7 +82,36 @@ class AnalysisResult(BaseModel):
         >>> result.input
         'كِتَابٌ'
     """
-    
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "input": "مُحَمَّدٌ رَسُولُ اللَّهِ",
+                "c1": {"num_units": 23},
+                "c2a": {
+                    "syllables": [],
+                    "gates": [],
+                    "cv_pattern": "CV-CVC-CVC",
+                },
+                "c2b": {
+                    "words_count": 3,
+                    "words": [],
+                },
+                "syntax": {
+                    "word_forms": [],
+                    "links": {"isnadi": []},
+                },
+                "stats": {
+                    "c1_time_ms": 3.5,
+                    "c2a_time_ms": 18.2,
+                    "c2b_time_ms": 12.8,
+                    "total_time_ms": 34.5,
+                    "gates_count": 11,
+                },
+            }
+        }
+    )
+
     input: str = Field(..., description="Original input text")
     c1: C1Result = Field(..., description="C1 encoding result")
     c2a: C2aResult = Field(..., description="C2a phonology result")
@@ -91,31 +120,3 @@ class AnalysisResult(BaseModel):
     stats: Stats = Field(..., description="Performance statistics")
     proof_artifacts: Optional[List[ProofArtifact]] = Field(default=None, description="Coq proof artifacts")
     metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional metadata")
-    
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "input": "مُحَمَّدٌ رَسُولُ اللَّهِ",
-                "c1": {"num_units": 23},
-                "c2a": {
-                    "syllables": [],
-                    "gates": [],
-                    "cv_pattern": "CV-CVC-CVC"
-                },
-                "c2b": {
-                    "words_count": 3,
-                    "words": []
-                },
-                "syntax": {
-                    "word_forms": [],
-                    "links": {"isnadi": []}
-                },
-                "stats": {
-                    "c1_time_ms": 3.5,
-                    "c2a_time_ms": 18.2,
-                    "c2b_time_ms": 12.8,
-                    "total_time_ms": 34.5,
-                    "gates_count": 11
-                }
-            }
-        }

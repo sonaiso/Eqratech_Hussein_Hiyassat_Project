@@ -5,7 +5,7 @@ Represents a word with all its morphological and syntactic features.
 """
 
 from typing import Optional, Tuple
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from enum import Enum
 
 
@@ -97,23 +97,10 @@ class WordForm(BaseModel):
         >>> wf.pos
         <PartOfSpeech.NOUN: 'noun'>
     """
-    
-    word_id: int = Field(..., ge=0, description="Unique word ID in sentence")
-    surface: str = Field(..., description="Surface form with diacritics")
-    bare: str = Field(..., description="Bare form (no diacritics)")
-    pos: PartOfSpeech = Field(..., description="Part of speech")
-    span: Span = Field(..., description="Text span")
-    case: Optional[Case] = Field(default=None, description="Grammatical case")
-    number: Optional[Number] = Field(default=None, description="Grammatical number")
-    gender: Optional[Gender] = Field(default=None, description="Grammatical gender")
-    definiteness: bool = Field(default=False, description="Is definite (has ال)")
-    root: Optional[Root] = Field(default=None, description="Morphological root")
-    pattern: Optional[Pattern] = Field(default=None, description="Morphological pattern")
-    metadata: Optional[dict] = Field(default=None, description="Additional features")
-    
-    class Config:
-        use_enum_values = False  # Keep enum objects
-        json_schema_extra = {
+
+    model_config = ConfigDict(
+        use_enum_values=False,
+        json_schema_extra={
             "example": {
                 "word_id": 0,
                 "surface": "الْكِتَابُ",
@@ -127,13 +114,27 @@ class WordForm(BaseModel):
                 "root": {
                     "letters": ["ك", "ت", "ب"],
                     "formatted": "ك ت ب",
-                    "type": "triliteral"
+                    "type": "triliteral",
                 },
                 "pattern": {
                     "template": "فِعَال",
                     "type": "form_i",
                     "category": "noun",
-                    "confidence": 1.0
-                }
+                    "confidence": 1.0,
+                },
             }
-        }
+        },
+    )
+
+    word_id: int = Field(..., ge=0, description="Unique word ID in sentence")
+    surface: str = Field(..., description="Surface form with diacritics")
+    bare: str = Field(..., description="Bare form (no diacritics)")
+    pos: PartOfSpeech = Field(..., description="Part of speech")
+    span: Span = Field(..., description="Text span")
+    case: Optional[Case] = Field(default=None, description="Grammatical case")
+    number: Optional[Number] = Field(default=None, description="Grammatical number")
+    gender: Optional[Gender] = Field(default=None, description="Grammatical gender")
+    definiteness: bool = Field(default=False, description="Is definite (has ال)")
+    root: Optional[Root] = Field(default=None, description="Morphological root")
+    pattern: Optional[Pattern] = Field(default=None, description="Morphological pattern")
+    metadata: Optional[dict] = Field(default=None, description="Additional features")

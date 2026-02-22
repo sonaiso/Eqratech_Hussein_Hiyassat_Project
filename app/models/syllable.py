@@ -5,7 +5,7 @@ Represents a syllable in Arabic phonology with CV pattern.
 """
 
 from typing import Optional, List
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Syllable(BaseModel):
@@ -32,17 +32,9 @@ class Syllable(BaseModel):
         >>> syll.pattern
         'CVC'
     """
-    
-    pattern: str = Field(..., description="CV pattern: CV, CVV, or CVC")
-    units: List[int] = Field(..., description="Unit indices in this syllable")
-    start: int = Field(..., ge=0, description="Start position in text")
-    end: int = Field(..., ge=0, description="End position in text")
-    weight: str = Field(default="light", description="Syllable weight: light, heavy, superheavy")
-    stress: bool = Field(default=False, description="Whether syllable is stressed")
-    metadata: Optional[dict] = Field(default=None, description="Phonological features")
-    
-    class Config:
-        json_schema_extra = {
+
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "pattern": "CVC",
                 "units": [0, 1, 2],
@@ -50,6 +42,15 @@ class Syllable(BaseModel):
                 "end": 3,
                 "weight": "heavy",
                 "stress": False,
-                "metadata": {"open": False}
+                "metadata": {"open": False},
             }
         }
+    )
+
+    pattern: str = Field(..., description="CV pattern: CV, CVV, or CVC")
+    units: List[int] = Field(..., description="Unit indices in this syllable")
+    start: int = Field(..., ge=0, description="Start position in text")
+    end: int = Field(..., ge=0, description="End position in text")
+    weight: str = Field(default="light", description="Syllable weight: light, heavy, superheavy")
+    stress: bool = Field(default=False, description="Whether syllable is stressed")
+    metadata: Optional[dict] = Field(default=None, description="Phonological features")

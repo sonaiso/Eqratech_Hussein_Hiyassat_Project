@@ -5,7 +5,7 @@ Represents a syntactic dependency or relation between words.
 """
 
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from enum import Enum
 
 
@@ -40,23 +40,24 @@ class Link(BaseModel):
         >>> link.link_type
         <LinkType.ISNADI: 'isnadi'>
     """
-    
-    link_type: LinkType = Field(..., description="Type of syntactic link")
-    head_id: int = Field(..., ge=0, description="Head word ID")
-    dependent_id: int = Field(..., ge=0, description="Dependent word ID")
-    confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score")
-    reason: Optional[str] = Field(default=None, description="Explanation for link")
-    metadata: Optional[dict] = Field(default=None, description="Additional info")
-    
-    class Config:
-        use_enum_values = False
-        json_schema_extra = {
+
+    model_config = ConfigDict(
+        use_enum_values=False,
+        json_schema_extra={
             "example": {
                 "link_type": "isnadi",
                 "head_id": 0,
                 "dependent_id": 1,
                 "confidence": 1.0,
                 "reason": "ISNADI: case agreement, number agreement",
-                "metadata": {"checked_gender": True}
+                "metadata": {"checked_gender": True},
             }
-        }
+        },
+    )
+
+    link_type: LinkType = Field(..., description="Type of syntactic link")
+    head_id: int = Field(..., ge=0, description="Head word ID")
+    dependent_id: int = Field(..., ge=0, description="Dependent word ID")
+    confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score")
+    reason: Optional[str] = Field(default=None, description="Explanation for link")
+    metadata: Optional[dict] = Field(default=None, description="Additional info")

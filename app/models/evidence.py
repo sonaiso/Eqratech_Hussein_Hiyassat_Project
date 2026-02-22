@@ -5,7 +5,7 @@ Represents evidence supporting an analysis decision, with semantic gates integra
 """
 
 from typing import Optional, List
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class RealityLink(BaseModel):
@@ -44,26 +44,9 @@ class Evidence(BaseModel):
         >>> evidence.score
         0.85
     """
-    
-    score: float = Field(..., ge=0.0, le=1.0, description="Overall evidence score")
-    scope_ok: bool = Field(default=True, description="Scope constraints satisfied")
-    truth_ok: bool = Field(default=True, description="Truth conditions met")
-    reference_ok: bool = Field(default=True, description="References valid")
-    reality_links: List[RealityLink] = Field(default_factory=list, description="Corpus/lexicon links")
-    notes: Optional[str] = Field(default=None, description="Evidence explanation")
-    metadata: Optional[dict] = Field(default=None, description="Additional data")
-    
-    def is_acceptable(self, threshold: float = 0.5) -> bool:
-        """Check if evidence meets acceptance criteria"""
-        return (
-            self.score >= threshold
-            and self.scope_ok
-            and self.truth_ok
-            and self.reference_ok
-        )
-    
-    class Config:
-        json_schema_extra = {
+
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "score": 0.85,
                 "scope_ok": True,
@@ -73,9 +56,27 @@ class Evidence(BaseModel):
                     {
                         "reference": "Quran 1:1",
                         "weight": 1.0,
-                        "verified": True
+                        "verified": True,
                     }
                 ],
-                "notes": "Strong corpus evidence from classical texts"
+                "notes": "Strong corpus evidence from classical texts",
             }
         }
+    )
+
+    score: float = Field(..., ge=0.0, le=1.0, description="Overall evidence score")
+    scope_ok: bool = Field(default=True, description="Scope constraints satisfied")
+    truth_ok: bool = Field(default=True, description="Truth conditions met")
+    reference_ok: bool = Field(default=True, description="References valid")
+    reality_links: List[RealityLink] = Field(default_factory=list, description="Corpus/lexicon links")
+    notes: Optional[str] = Field(default=None, description="Evidence explanation")
+    metadata: Optional[dict] = Field(default=None, description="Additional data")
+
+    def is_acceptable(self, threshold: float = 0.5) -> bool:
+        """Check if evidence meets acceptance criteria"""
+        return (
+            self.score >= threshold
+            and self.scope_ok
+            and self.truth_ok
+            and self.reference_ok
+        )
