@@ -65,3 +65,5 @@ coq/**/*.glob
 coq/**/*.aux
 
 i3rab/
+snapshot_out.json
+package-lock.json
