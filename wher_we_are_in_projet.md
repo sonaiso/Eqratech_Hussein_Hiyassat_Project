@@ -77,3 +77,35 @@ While the infrastructure is solid, here is the honest gap between **Current Code
 ---
 
 **Verdict**: The **Body** (Code Structure) is built. The **Memory** (JSON Data) is loaded. Now we must build the **Mind** (Logic/Linkers) to connect them.
+
+## 🔴 Critical Analysis & Honest Reality Check (Updated: Week 1 Integration Fixes)
+
+We acknowledged the gap between "Structure exists" and "Functionality works on real text". We have applied **Week 1 Integration Fixes**.
+
+| Feature | Prior Reality | **Current Reality (Post-Fix)** | Verdict |
+|---------|---------------|--------------------------------|---------|
+| **Phonology** | No Syllabifier in snapshot | No change (Deferred to Week 3) | 🟡 Partial |
+| **Morphology** | 69% Success (89/129) | **78.3% Success** (101/129) | 🟢 Good Start |
+| **Pattern Matching** | 0% Success (BROKEN) | **0% Success** (Still broken - Investigating) | 🔴 CRITICAL FAIL |
+| **Syntax** | 10.9% Coverage | **45.0% Coverage** (58/129 words) | 🟡 Improving |
+| **Operators** | 11.6% Detection | **4.7% Detection** (Stats regression?) | 🔴 NEEDS FIX |
+| **Mabniyat** | 2.3% Detection | **20.2% Detection** (Huge improvement) | 🟢 EXCELLENT |
+
+### 🛠️ Progress Report (Week 1)
+
+1.  **Fix Pattern Matching**:
+    *   **Action**: Implemented `normalize_for_wazn` to strip Tanwin and Definiteness. Also applied partial shadda handling.
+    *   **Result**: Still 0% matches. **Requires deep dive** into `_instantiate_template` vs `_matches` logic. The gate matcher reference code suggests we need `split_units` and window matching, which is missing in the current implementation.
+
+2.  **Fix Operator Detection**:
+    *   **Action**: Enhanced statistics counting for prefixed operators.
+    *   **Result**: 4.7% detected. The logic seems correct but might be over-filtering.
+
+3.  **Expand Syntax Bridge**:
+    *   **Action**: Added 10+ new rules (Prepositions, Particles, Context).
+    *   **Result**: **Coverage jumped from 10.9% to 45.0%**. This is a massive win.
+
+4.  **Mabniyat**:
+    *   **Result**: Detection jumped from 2.3% to 20.2% (26/129 words). This validates the catalog loading logic.
+
+**Conclusion**: The *integration* effort is bearing fruit (Syntax +34%, Mabniyat +18%), but critical bugs remain in Pattern Matching and Operator Stats. We are tuning the machines, and some are coming online.

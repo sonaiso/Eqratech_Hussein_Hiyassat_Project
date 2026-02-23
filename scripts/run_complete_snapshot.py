@@ -8,7 +8,8 @@ Showcases:
 - Sprint 3: Morphology (feature extraction)
 - Sprint 4: Syntax (I3rab parsing, prediction, evaluation)
 - Enhanced: Particle detection using operators_catalog_split.csv
-- Enhanced: CV pattern analysis (C=consonant, V=vowel)
+- Enhanced: CV pattern analysis (C=consonant, V=vowel) [word-2-cv.py logic]
+- Enhanced: Wazn pattern matching [arabic_wazn_matcher_gate.py logic]
 - Enhanced: Tri-literal root extraction
 
 Usage (from repo root):
@@ -21,10 +22,511 @@ import argparse
 import json
 import sys
 import csv
+import unicodedata
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple
+from dataclasses import dataclass
 
-# آية الدين (سورة البقرة 2:282)
+# ==================== CV Pattern Generation (from word-2-cv.py) ====================
+
+# Arabic diacritics
+FATHATAN = "\u064B"
+DAMMATAN = "\u064C"
+KASRATAN = "\u064D"
+FATHA = "\u064E"
+DAMMA = "\u064F"
+KASRA = "\u0650"
+SHADDA = "\u0651"
+SUKUN = "\u0652"
+DAGGER_ALIF = "\u0670"
+
+TANWIN = {FATHATAN, DAMMATAN, KASRATAN}
+VOWELS = {FATHA, DAMMA, KASRA, SUKUN}
+DIACRITICS = set().union(TANWIN, VOWELS, {SHADDA, DAGGER_ALIF})
+
+# Long vowels
+ALIF = "\u0627"
+WAW = "\u0648"
+YA = "\u064a"
+ALIF_MAQSURA = "\u0649"
+ALIF_MADDA = "\u0622"   # آ
+ALIF_WASLA = "\u0671"   # ٱ
+
+# Pattern placeholders
+PLACEHOLDERS = {"ف", "ع", "ل"}
+
+SHORT_VOWELS = {FATHA, DAMMA, KASRA, FATHATAN, DAMMATAN, KASRATAN}
+ALL_MARKS = {FATHA, DAMMA, KASRA, SUKUN, SHADDA, FATHATAN, DAMMATAN, KASRATAN}
+
+
+@dataclass(frozen=True)
+class Unit:
+    """Base letter + diacritics unit."""
+    base: str
+    diacs: Tuple[str, ...]
+
+
+def _sorted_tuple(s):
+    return tuple(sorted(s))
+
+
+def is_arabic_letter(ch: str) -> bool:
+    return ("\u0600" <= ch <= "\u06FF") and unicodedata.category(ch).startswith("L")
+
+
+def normalize_word(w: str) -> str:
+    w = unicodedata.normalize("NFC", str(w))
+    w = w.replace("\u0640", "")  # tatweel
+    return w.strip()
+
+
+def split_units(text: str) -> List[Unit]:
+    """
+    Split Arabic text into (base_letter + diacritics) units.
+    Example: 'كَتَبَ' -> [ك+َ, ت+َ, ب+َ]
+    """
+    units: List[Unit] = []
+    cur_base: Optional[str] = None
+    cur_diacs = []
+
+    for ch in text:
+        if ch in DIACRITICS:
+            if cur_base is None:
+                continue
+            cur_diacs.append(ch)
+        else:
+            if cur_base is not None:
+                units.append(Unit(cur_base, _sorted_tuple(cur_diacs)))
+            cur_base = ch
+            cur_diacs = []
+
+    if cur_base is not None:
+        units.append(Unit(cur_base, _sorted_tuple(cur_diacs)))
+
+    return units
+
+
+def expand_shadda(units: List[Unit]) -> List[Unit]:
+    """Expand shadda into two consonants."""
+    expanded = []
+    for unit in units:
+        letter = unit.base
+        marks = unit.diacs
+        if SHADDA in marks:
+            second_marks = [m for m in marks if m != SHADDA]
+            expanded.append(Unit(letter, (SUKUN,)))       # first consonant
+            expanded.append(Unit(letter, _sorted_tuple(second_marks)))  # second
+        else:
+            expanded.append(Unit(letter, marks))
+    return expanded
+
+
+def has_any(marks, s):
+    return any(m in s for m in marks)
+
+
+def normalize_initial_hamza(word: str) -> str:
+    """Normalize initial hamza as per word-2-cv.py logic"""
+    WASL_NOUNS = {"اسم", "ابن", "ابنة", "امرؤ", "امرأة", "اثنان", "اثنتان", "ايم", "ايمن"}
+    
+    w = unicodedata.normalize("NFC", word.strip())
+    w = w.replace("\u0640", "")  # tatweel
+    bare = ''.join(c for c in w if c not in 'ًٌٍَُِّْٰ')
+    
+    if not bare or bare[0] not in {"ا"}:
+        return w
+    
+    if bare[0] in {"أ", "إ", "آ", ALIF_WASLA}:
+        return w
+        
+    is_wasl = False
+    if bare.startswith("ال"):
+        is_wasl = True
+    elif bare.startswith(("است", "ان", "افت", "اف")):
+        is_wasl = True
+    else:
+        for n in WASL_NOUNS:
+            if bare.startswith(n):
+                is_wasl = True
+                break
+    
+    idx = w.find("ا")
+    if idx == -1:
+        return w
+    
+    return w[:idx] + (ALIF_WASLA if is_wasl else "أ") + w[idx + 1:]
+
+def cv_pattern_advanced(word: str) -> Dict[str, Any]:
+    """
+    Generate CV pattern using word-2-cv.py logic.
+    - WRITTEN harakat only
+    - Shadda => CC
+    - Madd letters => V only if previous has matching written haraka
+    - Initial (ٱ/أ/إ/آ) => force starting CV (C+V) and remove that letter unit
+    """
+    w = normalize_initial_hamza(word)
+    # The split_units in this script returns Unit objects (frozen dataclass)
+    # But expand_shadda expects tuple unpacking (for letter, marks in units)
+    # We need to fix either expand_shadda or how we use it here.
+    
+    # Let's fix expand_shadda to handle Unit objects correctly.
+    # See updated expand_shadda function above.
+    
+    units = expand_shadda(split_units(w))
+
+    out = []
+    prev_marks = []
+
+    # Handle initial hamza
+    first_idx = None
+    for i, unit in enumerate(units):
+        if is_arabic_letter(unit.base):
+            first_idx = i
+            break
+
+    if first_idx is not None:
+        first_letter = units[first_idx].base
+        if first_letter in {ALIF_WASLA, "أ", "إ", "آ"}:
+            out.extend(["C", "V"])
+            units = units[:first_idx] + units[first_idx + 1:]
+
+    for unit in units:
+        letter = unit.base
+        marks = unit.diacs
+        
+        if not is_arabic_letter(letter):
+            prev_marks = marks
+            continue
+
+        is_madd = False
+        if letter == ALIF:
+            is_madd = has_any(prev_marks, {FATHA, FATHATAN})
+        elif letter == WAW:
+            is_madd = has_any(prev_marks, {DAMMA, DAMMATAN})
+        elif letter == YA or letter == ALIF_MAQSURA:
+            is_madd = has_any(prev_marks, {KASRA, KASRATAN})
+
+        if letter == ALIF_MADDA:
+            out.append("C")
+        elif is_madd:
+            out.append("V")
+        else:
+            out.append("C")
+            if has_any(marks, SHORT_VOWELS):
+                out.append("V")
+
+        prev_marks = marks
+
+    pattern_str = "".join(out)
+    
+    # CV Law compliance check
+    def follows_cv_law(cv: str) -> Tuple[bool, str]:
+        if not cv:
+            return False, "empty_cv"
+        if len(cv) < 2 or cv[0] != "C" or cv[1] != "V":
+            return False, "does_not_start_with_CV"
+        
+        i = 0
+        while True:
+            k = None
+            for j in range(i + 2, len(cv) - 1):
+                if cv[j] == "C" and cv[j + 1] == "V":
+                    k = j
+                    break
+            if k is None:
+                return True, "ok"
+            i = k
+    
+    cv_law_valid, cv_law_reason = follows_cv_law(pattern_str)
+    
+    # Classify common patterns
+    pattern_type = None
+    wazn_ar = None
+    if pattern_str == 'CVCVC':
+        pattern_type = 'faʕal (فَعَل)'
+        wazn_ar = 'فَعَل'
+    elif pattern_str == 'CVCCVC':
+        pattern_type = 'faʕʕal (فَعَّل)'
+        wazn_ar = 'فَعَّل'
+    elif pattern_str == 'CVCVVC':
+        pattern_type = 'faʕaal (فَعَال)'
+        wazn_ar = 'فَعَال'
+    elif pattern_str == 'CVCVVCVC':
+        pattern_type = 'faʕaalah (فَعَالَة)'
+        wazn_ar = 'فَعَالَة'
+    elif pattern_str == 'CVCCVVC':
+        pattern_type = 'mafʕuul (مَفْعُول)'
+        wazn_ar = 'مَفْعُول'
+    elif pattern_str == 'CVCVCCVC':
+        pattern_type = 'mufaʕʕil (مُفَعِّل)'
+        wazn_ar = 'مُفَعِّل'
+    elif pattern_str == 'CVVCVC':
+        pattern_type = 'faaʕil (فَاعِل)'
+        wazn_ar = 'فَاعِل'
+
+    return {
+        "pattern": pattern_str,
+        "pattern_type": pattern_type,
+        "wazn_ar": wazn_ar,
+        "length": len(out),
+        "consonant_count": out.count('C'),
+        "vowel_count": out.count('V'),
+        "cv_law_valid": cv_law_valid,
+        "cv_law_reason": cv_law_reason,
+        "normalized_word": w,
+    }
+
+
+# ==================== Wazn Pattern Matching (from arabic_wazn_matcher_gate.py) ====================
+
+REQUIRE_FAL_ORDER_IN_PATTERN = True
+MIN_PATTERN_UNITS = 3
+SUBSTRING_MATCHING = True
+ALLOW_MISSING_WORD_VOWELS = True
+IGNORE_LAST_VOWEL = False
+IGNORE_TANWIN = False
+
+
+def remove_al_and_shadda(word: str) -> str:
+    """Remove ال prefix and associated shadda."""
+    if word.startswith('ال'):
+        remaining = word[2:]
+        chars = list(remaining)
+        if len(chars) >= 2:
+            for i in range(1, min(3, len(chars))):
+                if chars[i] == SHADDA:
+                    new_chars = chars[:i] + chars[i+1:]
+                    remaining = ''.join(new_chars)
+                    break
+        return remaining
+    return word
+
+
+def has_fal_order_in_pattern(pattern: str) -> bool:
+    """Require ف then ع then ل in order inside pattern text."""
+    bases = [u.base for u in split_units(pattern)]
+    try:
+        i_f = bases.index("ف")
+        i_a = bases.index("ع", i_f + 1)
+        i_l = bases.index("ل", i_a + 1)
+        return True
+    except ValueError:
+        return False
+
+
+def pattern_effective_len(units: List[Unit]) -> int:
+    shadda_count = sum(1 for u in units if SHADDA in u.diacs)
+    return len(units) + shadda_count
+
+
+def count_fixed_letters(units: List[Unit]) -> int:
+    return sum(1 for u in units if u.base not in PLACEHOLDERS)
+
+
+def count_specified_diacritics(units: List[Unit]) -> int:
+    c = 0
+    for u in units:
+        for d in u.diacs:
+            if d in VOWELS or d in TANWIN or d == SHADDA:
+                c += 1
+    return c
+
+
+def unit_vowel(diacs: Tuple[str, ...]) -> Optional[str]:
+    for d in diacs:
+        if d in VOWELS:
+            return d
+    return None
+
+
+def unit_tanwin(diacs: Tuple[str, ...]) -> Optional[str]:
+    for d in diacs:
+        if d in TANWIN:
+            return d
+    return None
+
+
+def unit_has_shadda(diacs: Tuple[str, ...]) -> bool:
+    return SHADDA in diacs
+
+
+def normalize_units_for_options(units: List[Unit], ignore_last_vowel: bool, ignore_tanwin: bool) -> List[Unit]:
+    if not units:
+        return units
+    out = []
+    for idx, u in enumerate(units):
+        diacs = set(u.diacs)
+        if ignore_tanwin:
+            diacs -= TANWIN
+        if ignore_last_vowel and idx == len(units) - 1:
+            diacs -= VOWELS
+            diacs -= TANWIN
+        out.append(Unit(u.base, _sorted_tuple(diacs)))
+    return out
+
+
+def units_match(p: Unit, w: Unit, allow_missing_word_vowels: bool) -> bool:
+    """Check if pattern unit matches word unit."""
+    # Base letter
+    if p.base in PLACEHOLDERS:
+        base_ok = True
+    else:
+        base_ok = (p.base == w.base)
+    if not base_ok:
+        return False
+
+    # Shadda matching
+    p_sh = unit_has_shadda(p.diacs)
+    w_sh = unit_has_shadda(w.diacs)
+    
+    if p_sh and not w_sh:
+        return False
+    elif not p_sh and w_sh and p.base not in PLACEHOLDERS:
+        return False
+
+    # Vowel match
+    pv = unit_vowel(p.diacs)
+    wv = unit_vowel(w.diacs)
+    if pv is not None:
+        if wv is None and allow_missing_word_vowels:
+            pass
+        else:
+            if pv != wv:
+                return False
+
+    # Tanwin match
+    pt = unit_tanwin(p.diacs)
+    wt = unit_tanwin(w.diacs)
+    if pt is not None:
+        if wt is None and allow_missing_word_vowels:
+            pass
+        else:
+            if pt != wt:
+                return False
+
+    return True
+
+
+@dataclass
+class MatchHit:
+    pattern: str
+    reason: str
+    window_start: int
+    score_key: Tuple[int, int, int, int]
+
+
+def try_match_pattern_to_word(pattern: str, word: str) -> List[MatchHit]:
+    """
+    Match pattern to word using unit-based window matching.
+    Returns list of MatchHit objects.
+    """
+    word_processed = remove_al_and_shadda(word)
+    
+    p_units = split_units(pattern)
+    w_units = split_units(word_processed)
+
+    p_units = normalize_units_for_options(p_units, IGNORE_LAST_VOWEL, IGNORE_TANWIN)
+    w_units = normalize_units_for_options(w_units, IGNORE_LAST_VOWEL, IGNORE_TANWIN)
+
+    # Gates
+    if len(p_units) < MIN_PATTERN_UNITS:
+        return []
+    if REQUIRE_FAL_ORDER_IN_PATTERN and not has_fal_order_in_pattern(pattern):
+        return []
+
+    lp = len(p_units)
+    lw = len(w_units)
+
+    fixed = count_fixed_letters(p_units)
+    diac_spec = count_specified_diacritics(p_units)
+    eff_len = pattern_effective_len(p_units)
+
+    def make_score(reason: str) -> Tuple[int, int, int, int]:
+        reason_rank = 10 if reason == "FULLMATCH" else 1
+        return (reason_rank, eff_len, fixed, diac_spec)
+
+    # Longer than word -> reject
+    if lp > lw:
+        return []
+
+    # Equal -> fullmatch only
+    if lp == lw:
+        ok = True
+        for i in range(lp):
+            if not units_match(p_units[i], w_units[i], ALLOW_MISSING_WORD_VOWELS):
+                ok = False
+                break
+        if ok:
+            return [MatchHit(pattern, "FULLMATCH", 0, make_score("FULLMATCH"))]
+        return []
+
+    # Shorter -> window matching
+    if not SUBSTRING_MATCHING:
+        return []
+
+    best_start = None
+    for start in range(0, lw - lp + 1):
+        ok = True
+        for i in range(lp):
+            if not units_match(p_units[i], w_units[start + i], ALLOW_MISSING_WORD_VOWELS):
+                ok = False
+                break
+        if ok:
+            best_start = start
+            break
+
+    if best_start is None:
+        return []
+
+    return [MatchHit(pattern, "WINDOW", best_start, make_score("WINDOW"))]
+
+
+def best_hit(hits: List[MatchHit]) -> Optional[MatchHit]:
+    if not hits:
+        return None
+    hits_sorted = sorted(
+        hits,
+        key=lambda h: (h.score_key, len(h.pattern), h.pattern),
+        reverse=True
+    )
+    return hits_sorted[0]
+
+
+def load_patterns_from_csv(patterns_csv: Path) -> List[str]:
+    """Load wazn patterns from CSV."""
+    if not patterns_csv.exists():
+        return []
+    
+    patterns = []
+    try:
+        with open(patterns_csv, 'r', encoding='utf-8', newline='') as f:
+            # Simple delimiter sniffing
+            sample = f.read(1024)
+            f.seek(0)
+            delimiter = '\t' if '\t' in sample else ','
+            
+            reader = csv.DictReader(f, delimiter=delimiter)
+            for row in reader:
+                for col in ["الوزن", "wazn", "pattern", "Pattern"]:
+                    if col in row and row[col]:
+                        patterns.append(row[col].strip())
+                        break
+    except Exception as e:
+        print(f"Error loading patterns: {e}", file=sys.stderr)
+        return []
+    
+    # Deduplicate
+    seen = set()
+    out = []
+    for p in patterns:
+        if p not in seen:
+            seen.add(p)
+            out.append(p)
+    return out
+
+
+# ==================== Original Pipeline Components ====================
+
 AYAT_AL_DAYN = (
     "يَا أَيُّهَا الَّذِينَ آمَنُوا إِذَا تَدَايَنتُم بِدَيْنٍ إِلَى أَجَلٍ مُّسَمًّى فَاكْتُبُوهُ وَلْيَكْتُب بَّيْنَكُمْ كَاتِبٌ بِالْعَدْلِ وَلَا يَأْبَ كَاتِبٌ أَن يَكْتُبَ كَمَا عَلَّمَهُ اللَّهُ فَلْيَكْتُبْ وَلْيُمْلِلِ الَّذِي عَلَيْهِ الْحَقُّ وَلْيَتَّقِ اللَّهَ رَبَّهُ وَلَا يَبْخَسْ مِنْهُ شَيْئاً فَإِن كَانَ الَّذِي عَلَيْهِ الْحَقُّ سَفِيهاً أَوْ ضَعِيفاً أَوْ لَا يَسْتَطِيعُ أَن يُمِلَّ هُوَ فَلْيُمْلِلْ وَلِيُّهُ بِالْعَدْلِ وَاسْتَشْهِدُوا شَهِيدَيْنِ مِن رِّجَالِكُمْ فَإِن لَّمْ يَكُونَا رَجُلَيْنِ فَرَجُلٌ وَامْرَأَتَانِ مِمَّن تَرْضَوْنَ مِنَ الشُّهَدَاءِ أَن تَضِلَّ إِحْدَاهُمَا فَتُذَكِّرَ إِحْدَاهُمَا الْأُخْرَى وَلَا يَأْبَ الشُّهَدَاءُ إِذَا مَا دُعُوا وَلَا تَسْأَمُوا أَن تَكْتُبُوهُ صَغِيراً أَوْ كَبِيراً إِلَى أَجَلِهِ ذَلِكُمْ أَقْسَطُ عِندَ اللَّهِ وَأَقْوَمُ لِلشَّهَادَةِ وَأَدْنَى أَلَّا تَرْتَابُوا إِلَّا أَن تَكُونَ تِجَارَةً حَاضِرَةً تُدِيرُونَهَا بَيْنَكُمْ فَلَيْسَ عَلَيْكُمْ جُنَاحٌ أَلَّا تَكْتُبُوهَا وَأَشْهِدُوا إِذَا تَبَايَعْتُمْ وَلَا يُضَارَّ كَاتِبٌ وَلَا شَهِيدٌ وَإِن تَفْعَلُوا فَإِنَّهُ فُسُوقٌ بِكُمْ وَاتَّقُوا اللَّهَ وَيُعَلِّمُكُمُ اللَّهُ وَاللَّهُ بِكُلِّ شَيْءٍ عَلِيمٌ"
 )
@@ -78,7 +580,6 @@ def load_mabniyat_catalog(verbose: bool = False) -> Dict[str, Dict[str, Any]]:
     
     count = 0
     try:
-        # Recursive glob for all json files in data/arabic_json/2
         for json_file in catalog_path.rglob("*.json"):
             try:
                 with open(json_file, 'r', encoding='utf-8') as f:
@@ -93,16 +594,12 @@ def load_mabniyat_catalog(verbose: bool = False) -> Dict[str, Dict[str, Any]]:
                     if not isinstance(item, dict):
                         continue
                         
-                    # Key might be "الأداة" or similar. We look for the main term.
-                    # Based on inspected files, "الأداة" is the common key.
                     word = item.get("الأداة")
                     if not word:
                         continue
                         
-                    # Clean the word for lookup key
                     clean_word = ''.join(c for c in word if c not in 'ًٌٍَُِّْٰ')
                     
-                    # Handle multiple forms like "اللَّذَانِ / اللَّذَيْنِ"
                     forms = [f.strip() for f in clean_word.split('/')]
                     
                     for form in forms:
@@ -124,97 +621,8 @@ def load_mabniyat_catalog(verbose: bool = False) -> Dict[str, Dict[str, Any]]:
     return mabniyat
 
 
-def detect_cv_pattern(word: str) -> Dict[str, Any]:
-    """Detect CV (Consonant-Vowel) pattern in Arabic word."""
-    # Arabic consonants
-    consonants = set("بتثجحخدذرزسشصضطظعغفقكلمنهوي")
-    
-    # Arabic short vowels (diacritics)
-    short_vowels = {
-        'َ': 'a',  # fatha
-        'ُ': 'u',  # damma
-        'ِ': 'i',  # kasra
-    }
-    
-    # Arabic long vowels
-    long_vowels = {
-        'ا': 'aa',
-        'و': 'uu',
-        'ي': 'ii',
-        'ى': 'aa',
-    }
-    
-    pattern = []
-    phonetic = []
-    i = 0
-    
-    while i < len(word):
-        char = word[i]
-        
-        # Skip non-alphabetic diacritics
-        if char in 'ًٌٍّْٰ':
-            i += 1
-            continue
-        
-        # Consonant
-        if char in consonants:
-            pattern.append('C')
-            phonetic.append(char)
-            
-            # Check for following vowel diacritic
-            if i + 1 < len(word) and word[i + 1] in short_vowels:
-                pattern.append('V')
-                phonetic.append(short_vowels[word[i + 1]])
-                i += 2
-            else:
-                i += 1
-        
-        # Long vowel (treated as V)
-        elif char in long_vowels:
-            pattern.append('V')
-            phonetic.append(long_vowels[char])
-            i += 1
-        
-        # Hamza and alef variants
-        elif char in 'ءأإآؤئ':
-            pattern.append('C')
-            phonetic.append('ʔ')
-            i += 1
-        
-        else:
-            i += 1
-    
-    pattern_str = ''.join(pattern)
-    phonetic_str = ''.join(phonetic)
-    
-    # Classify common patterns
-    pattern_type = None
-    if pattern_str == 'CVCVC':
-        pattern_type = 'faʕal (فَعَل)'
-    elif pattern_str == 'CVCCVC':
-        pattern_type = 'faʕʕal (فَعَّل)'
-    elif pattern_str == 'CVCVVC':
-        pattern_type = 'faʕaal (فَعَال)'
-    elif pattern_str == 'CVCVVCVC':
-        pattern_type = 'faʕaalah (فَعَا��َة)'
-    elif pattern_str == 'CVCCVVC':
-        pattern_type = 'mafʕuul (مَفْعُول)'
-    elif pattern_str == 'CVCVCCVC':
-        pattern_type = 'mufaʕʕil (مُفَعِّل)'
-    
-    return {
-        "pattern": pattern_str,
-        "phonetic": phonetic_str,
-        "pattern_type": pattern_type,
-        "length": len(pattern),
-        "consonant_count": pattern.count('C'),
-        "vowel_count": pattern.count('V'),
-    }
-
-
 def extract_root(word: str, mabniyat_catalog: Optional[Dict[str, Dict[str, Any]]] = None) -> Dict[str, Any]:
     """Extract tri-literal root from Arabic word."""
-    # Remove diacritics
     clean = ''.join(c for c in word if c not in 'ًٌٍَُِّْٰ')
     
     original_clean = clean
@@ -228,7 +636,7 @@ def extract_root(word: str, mabniyat_catalog: Optional[Dict[str, Dict[str, Any]]
             "stem": clean,
             "root_trilateral": None,
             "root_quadrilateral": None,
-            "root_type": "mabni",  # Indeclinable
+            "root_type": "mabni",
             "confidence": 1.0,
             "consonants_extracted": 0,
             "method": "knowledge_base_lookup",
@@ -240,14 +648,14 @@ def extract_root(word: str, mabniyat_catalog: Optional[Dict[str, Dict[str, Any]]
             }
         }
     
-    # Remove common prefixes (longest first)
+    # Remove common prefixes
     prefixes = ["ال", "وال", "فال", "بال", "كال", "لل", "و", "ف", "ب", "ل", "ك", "س", "ت", "ي", "ن", "أ"]
     for prefix in prefixes:
         if clean.startswith(prefix) and len(clean) > len(prefix) + 2:
             clean = clean[len(prefix):]
             break
     
-    # Remove common suffixes (longest first)
+    # Remove common suffixes
     suffixes = ["ونه", "وها", "هما", "كما", "كن", "هم", "هن", "نا", "ني", "وا", "ون", "ين", "ان", "تان", "تين", "ة", "ه", "ها", "ت", "ك", "ي"]
     for suffix in suffixes:
         if clean.endswith(suffix) and len(clean) > len(suffix) + 2:
@@ -260,7 +668,6 @@ def extract_root(word: str, mabniyat_catalog: Optional[Dict[str, Dict[str, Any]]
     
     for char in clean:
         if char.isalpha() and char not in "ـ":
-            # Skip long vowels in the middle, but keep if at start
             if len(consonants) > 0 and char in weak_letters:
                 continue
             consonants.append(char)
@@ -294,7 +701,6 @@ def extract_root(word: str, mabniyat_catalog: Optional[Dict[str, Dict[str, Any]]
 
 def detect_operator(word: str, operators_catalog: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
     """Detect Arabic operator (particle/verb) using catalog."""
-    # Remove diacritics for matching
     clean_word = ''.join(c for c in word if c not in 'ًٌٍَُِّْٰ')
     
     # Direct match
@@ -517,7 +923,7 @@ def demo_morph_syntax_bridge(verbose: bool = False) -> Dict[str, Any]:
     return {
         "component": "Morph-Syntax Bridge",
         "task": "4.4",
-        "sentence": "الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ",
+        "sentence": "ال��حَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ",
         "reference": "Al-Fatiha 1:2",
         "words_predicted": len(results),
         "rules_applied": 5,
@@ -527,6 +933,19 @@ def demo_morph_syntax_bridge(verbose: bool = False) -> Dict[str, Any]:
 
 def process_orthography(text: str, verbose: bool = False) -> Dict[str, Any]:
     """Process text through orthography module (Sprint 1)."""
+    # Fallback normalization if module missing
+    def local_normalize(text):
+        # Alef normalization
+        text = text.replace("ٱ", "ا").replace("أ", "ا").replace("إ", "ا").replace("آ", "ا")
+        # Taa marbuta
+        text = text.replace("ة", "ت")
+        # Alef maqsurah
+        text = text.replace("ى", "ي")
+        return text
+
+    def local_remove_diacritics(text):
+        return ''.join(c for c in text if c not in 'ًٌٍَُِّْٰ')
+
     try:
         from fvafk.c2b.orthography import (
             normalize_arabic,
@@ -534,7 +953,15 @@ def process_orthography(text: str, verbose: bool = False) -> Dict[str, Any]:
             remove_diacritics,
             remove_tatweel,
         )
-        
+    except ImportError:
+        if verbose:
+            print("Warning: Orthography module not fully available, using local fallback", file=sys.stderr)
+        normalize_arabic = local_normalize
+        remove_diacritics = local_remove_diacritics
+        clean_arabic_text = lambda t: local_remove_diacritics(local_normalize(t))
+        remove_tatweel = lambda t: t.replace("ـ", "")
+
+    try:
         if verbose:
             print("\n=== SPRINT 1: ORTHOGRAPHY ===", file=sys.stderr)
             print(f"Processing {len(text)} characters...", file=sys.stderr)
@@ -553,7 +980,7 @@ def process_orthography(text: str, verbose: bool = False) -> Dict[str, Any]:
         
     except (ImportError, AttributeError) as e:
         if verbose:
-            print(f"Warning: Orthography module not fully available: {e}", file=sys.stderr)
+            print(f"Warning: Orthography module error: {e}", file=sys.stderr)
         
         return {
             "sprint": 1,
@@ -668,27 +1095,34 @@ def predict_syntax(morphology_data: List[Dict[str, Any]], verbose: bool = False)
     return results
 
 
-def enhance_word_analysis(words: List[str], operators_catalog: Dict[str, Dict[str, Any]], mabniyat_catalog: Dict[str, Dict[str, Any]], verbose: bool = False) -> List[Dict[str, Any]]:
-    """Enhanced analysis: operators, CV patterns, roots."""
+def enhance_word_analysis(
+    words: List[str], 
+    operators_catalog: Dict[str, Dict[str, Any]], 
+    mabniyat_catalog: Dict[str, Dict[str, Any]],
+    wazn_patterns: List[str],
+    verbose: bool = False
+) -> List[Dict[str, Any]]:
+    """Enhanced analysis: operators, CV patterns, roots, wazn matching."""
     if verbose:
-        print(f"\n=== ENHANCED ANALYSIS: OPERATORS, CV PATTERNS, ROOTS ===", file=sys.stderr)
+        print(f"\n=== ENHANCED ANALYSIS: OPERATORS, CV PATTERNS, ROOTS, WAZN ===", file=sys.stderr)
     
     results = []
     operator_count = 0
     root_count = 0
     mabni_count = 0
     pattern_types = {}
+    wazn_matches_total = 0
     
-    for word in words:
+    for i, word in enumerate(words):
         # Detect operator
         operator_info = detect_operator(word, operators_catalog)
-        if operator_info["is_operator"]:
+        if operator_info["is_operator"] or operator_info.get("has_operator_prefix", False):
             operator_count += 1
         
-        # CV pattern
-        cv_pattern = detect_cv_pattern(word)
-        if cv_pattern["pattern_type"]:
-            pattern_types[cv_pattern["pattern_type"]] = pattern_types.get(cv_pattern["pattern_type"], 0) + 1
+        # CV pattern (using advanced word-2-cv.py logic)
+        cv_pattern_result = cv_pattern_advanced(word)
+        if cv_pattern_result["pattern_type"]:
+            pattern_types[cv_pattern_result["pattern_type"]] = pattern_types.get(cv_pattern_result["pattern_type"], 0) + 1
         
         # Root extraction
         root_info = extract_root(word, mabniyat_catalog)
@@ -697,11 +1131,30 @@ def enhance_word_analysis(words: List[str], operators_catalog: Dict[str, Dict[st
         if root_info.get("root_type") == "mabni":
             mabni_count += 1
         
+        # Wazn pattern matching
+        wazn_match_result = None
+        if wazn_patterns:
+            all_hits = []
+            for pattern in wazn_patterns:
+                hits = try_match_pattern_to_word(pattern, word)
+                all_hits.extend(hits)
+            
+            if all_hits:
+                best = best_hit(all_hits)
+                wazn_match_result = {
+                    "pattern": best.pattern,
+                    "match_type": best.reason,
+                    "window_start": best.window_start,
+                    "score": best.score_key,
+                }
+                wazn_matches_total += 1
+        
         results.append({
             "word": word,
             "operator_analysis": operator_info,
-            "cv_pattern": cv_pattern,
+            "cv_pattern": cv_pattern_result,
             "root_extraction": root_info,
+            "wazn_match": wazn_match_result,
         })
     
     if verbose:
@@ -709,6 +1162,7 @@ def enhance_word_analysis(words: List[str], operators_catalog: Dict[str, Dict[st
         print(f"Roots extracted: {root_count}/{len(words)} ({root_count/len(words)*100:.1f}%)", file=sys.stderr)
         print(f"Mabniyat identified: {mabni_count}/{len(words)} ({mabni_count/len(words)*100:.1f}%)", file=sys.stderr)
         print(f"Pattern types found: {len(pattern_types)}", file=sys.stderr)
+        print(f"Wazn matches: {wazn_matches_total}/{len(words)} ({wazn_matches_total/len(words)*100:.1f}%)", file=sys.stderr)
     
     return results
 
@@ -739,9 +1193,11 @@ def compute_statistics(results: List[Dict[str, Any]], enhanced_analysis: List[Di
     # Morphology stats
     morph_with_case = sum(1 for r in results if r.get("morphology") and r["morphology"].get("case"))
     
-    # Enhanced stats
+    # Enhanced stats - Operators (FIX: count has_operator_prefix correctly)
     operator_stats = {
-        "total_operators": sum(1 for e in enhanced_analysis if e["operator_analysis"]["is_operator"]),
+        "total_operators": sum(1 for e in enhanced_analysis 
+                              if e["operator_analysis"]["is_operator"] 
+                              or e["operator_analysis"].get("has_operator_prefix", False)),
         "operator_groups": {},
     }
     
@@ -750,6 +1206,7 @@ def compute_statistics(results: List[Dict[str, Any]], enhanced_analysis: List[Di
             group = e["operator_analysis"].get("english_group", "unknown")
             operator_stats["operator_groups"][group] = operator_stats["operator_groups"].get(group, 0) + 1
     
+    # Root stats
     root_stats = {
         "total_roots_extracted": sum(1 for e in enhanced_analysis if e["root_extraction"]["root_trilateral"]),
         "trilateral_roots": sum(1 for e in enhanced_analysis if e["root_extraction"]["root_type"] == "trilateral"),
@@ -757,6 +1214,7 @@ def compute_statistics(results: List[Dict[str, Any]], enhanced_analysis: List[Di
         "mabniyat_identified": sum(1 for e in enhanced_analysis if e["root_extraction"].get("root_type") == "mabni"),
     }
     
+    # CV Pattern stats
     pattern_stats = {
         "patterns_identified": sum(1 for e in enhanced_analysis if e["cv_pattern"]["pattern_type"]),
         "pattern_types": {},
@@ -766,6 +1224,13 @@ def compute_statistics(results: List[Dict[str, Any]], enhanced_analysis: List[Di
         if e["cv_pattern"]["pattern_type"]:
             pt = e["cv_pattern"]["pattern_type"]
             pattern_stats["pattern_types"][pt] = pattern_stats["pattern_types"].get(pt, 0) + 1
+    
+    # Wazn matching stats (NEW)
+    wazn_stats = {
+        "total_matches": sum(1 for e in enhanced_analysis if e.get("wazn_match")),
+        "fullmatch_count": sum(1 for e in enhanced_analysis if e.get("wazn_match") and e["wazn_match"]["match_type"] == "FULLMATCH"),
+        "window_count": sum(1 for e in enhanced_analysis if e.get("wazn_match") and e["wazn_match"]["match_type"] == "WINDOW"),
+    }
     
     stats = {
         "total_words": total_words,
@@ -783,6 +1248,7 @@ def compute_statistics(results: List[Dict[str, Any]], enhanced_analysis: List[Di
         "operators": operator_stats,
         "roots": root_stats,
         "cv_patterns": pattern_stats,
+        "wazn_matching": wazn_stats,
     }
     
     if verbose:
@@ -790,6 +1256,7 @@ def compute_statistics(results: List[Dict[str, Any]], enhanced_analysis: List[Di
         print(f"Operators: {operator_stats['total_operators']} ({operator_stats['total_operators']/total_words*100:.1f}%)", file=sys.stderr)
         print(f"Roots: {root_stats['total_roots_extracted']} ({root_stats['total_roots_extracted']/total_words*100:.1f}%)", file=sys.stderr)
         print(f"CV Patterns: {pattern_stats['patterns_identified']} ({pattern_stats['patterns_identified']/total_words*100:.1f}%)", file=sys.stderr)
+        print(f"Wazn Matches: {wazn_stats['total_matches']} ({wazn_stats['total_matches']/total_words*100:.1f}%)", file=sys.stderr)
     
     return stats
 
@@ -803,9 +1270,15 @@ def process_complete_pipeline(text: str, args: argparse.Namespace) -> Dict[str, 
         print("COMPLETE PIPELINE SNAPSHOT - Sprints 1-4 + Enhanced Features", file=sys.stderr)
         print("=" * 80, file=sys.stderr)
     
-    # Load operators catalog
+    # Load catalogs
     operators_catalog = load_operators_catalog(verbose)
     mabniyat_catalog = load_mabniyat_catalog(verbose)
+    
+    # Load wazn patterns (NEW)
+    wazn_patterns_path = Path("awzan-claude-atwah.csv")
+    wazn_patterns = load_patterns_from_csv(wazn_patterns_path)
+    if verbose:
+        print(f"Loaded {len(wazn_patterns)} wazn patterns from {wazn_patterns_path}", file=sys.stderr)
     
     # Sprint 4 Component Demonstrations
     parser_demo = demo_i3rab_parser(verbose)
@@ -815,13 +1288,14 @@ def process_complete_pipeline(text: str, args: argparse.Namespace) -> Dict[str, 
     # Full Pipeline
     orthography_result = process_orthography(text, verbose)
     
-    words = orthography_result["no_diacritics"].split()
+    # Use normalized text (with diacritics) for analysis
+    words = orthography_result["normalized"].split()
     
     if verbose:
         print(f"\nTokenized into {len(words)} words", file=sys.stderr)
     
-    # Enhanced analysis
-    enhanced_analysis = enhance_word_analysis(words, operators_catalog, mabniyat_catalog, verbose)
+    # Enhanced analysis (NOW WITH WAZN)
+    enhanced_analysis = enhance_word_analysis(words, operators_catalog, mabniyat_catalog, wazn_patterns, verbose)
     
     # Morphology
     morphology_results = extract_morphology(words, verbose)
@@ -834,6 +1308,7 @@ def process_complete_pipeline(text: str, args: argparse.Namespace) -> Dict[str, 
         syntax_res["operator_analysis"] = enhanced["operator_analysis"]
         syntax_res["cv_pattern"] = enhanced["cv_pattern"]
         syntax_res["root_extraction"] = enhanced["root_extraction"]
+        syntax_res["wazn_match"] = enhanced.get("wazn_match")
     
     # Statistics
     statistics = compute_statistics(syntax_results, enhanced_analysis, verbose)
@@ -842,12 +1317,13 @@ def process_complete_pipeline(text: str, args: argparse.Namespace) -> Dict[str, 
         "metadata": {
             "title": "Complete Pipeline Snapshot - Sprints 1-4 + Enhanced Features",
             "source": "آية الدين (Al-Baqarah 2:282)",
-            "date": "2026-02-21",
+            "date": "2026-02-22",
             "total_tests": 564,
-            "pipeline_version": "2.0.0",
-            "features": ["orthography", "morphology", "syntax", "operators", "cv_patterns", "roots", "mabniyat"],
+            "pipeline_version": "2.1.0",
+            "features": ["orthography", "morphology", "syntax", "operators", "cv_patterns", "roots", "mabniyat", "wazn_matching"],
             "operators_catalog_loaded": len(operators_catalog),
             "mabniyat_catalog_loaded": len(mabniyat_catalog),
+            "wazn_patterns_loaded": len(wazn_patterns),
             "sprints": [
                 {"number": 1, "name": "Orthography", "status": "complete"},
                 {"number": 2, "name": "Evaluation", "status": "complete"},
@@ -887,7 +1363,14 @@ def process_complete_pipeline(text: str, args: argparse.Namespace) -> Dict[str, 
                     "total_extracted": statistics["roots"]["total_roots_extracted"],
                     "trilateral": statistics["roots"]["trilateral_roots"],
                     "quadrilateral": statistics["roots"]["quadrilateral_roots"],
+                    "mabniyat": statistics["roots"]["mabniyat_identified"],
                     "sample_analysis": [e["root_extraction"] for e in enhanced_analysis[:10]],
+                },
+                "wazn_matching": {
+                    "total_matches": statistics["wazn_matching"]["total_matches"],
+                    "fullmatch_count": statistics["wazn_matching"]["fullmatch_count"],
+                    "window_count": statistics["wazn_matching"]["window_count"],
+                    "sample_matches": [e.get("wazn_match") for e in enhanced_analysis[:20] if e.get("wazn_match")],
                 },
             },
             "sprint2_statistics": statistics,
@@ -916,11 +1399,6 @@ def main() -> int:
         help="Print verbose output to stderr",
     )
     parser.add_argument(
-        "--phonology-v2",
-        action="store_true",
-        help="Use Phonology V2 engine (if available)",
-    )
-    parser.add_argument(
         "--text",
         type=str,
         default=AYAT_AL_DAYN,
@@ -946,13 +1424,8 @@ def main() -> int:
             print(f"  Roots: {stats['roots']['total_roots_extracted']} ({stats['roots']['total_roots_extracted']/stats['total_words']*100:.1f}%)", file=sys.stderr)
             print(f"  Mabniyat: {stats['roots']['mabniyat_identified']} ({stats['roots']['mabniyat_identified']/stats['total_words']*100:.1f}%)", file=sys.stderr)
             print(f"  CV Patterns: {stats['cv_patterns']['patterns_identified']} ({stats['cv_patterns']['patterns_identified']/stats['total_words']*100:.1f}%)", file=sys.stderr)
+            print(f"  Wazn Matches: {stats['wazn_matching']['total_matches']} ({stats['wazn_matching']['total_matches']/stats['total_words']*100:.1f}%)", file=sys.stderr)
             print(f"  Syntax coverage: {stats['syntax']['coverage']:.1%}", file=sys.stderr)
-            
-            print("\n=" * 80, file=sys.stderr)
-        
-        print(f"Wrote {args.output}", file=sys.stderr)
-        return 0
-        
     except Exception as e:
         print(f"❌ Error: {e}", file=sys.stderr)
         if args.verbose:
@@ -963,3 +1436,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+            

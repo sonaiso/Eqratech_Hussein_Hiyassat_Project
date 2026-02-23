@@ -31,6 +31,7 @@ class MorphSyntaxBridge:
         position: int,
         total_words: int,
         prev_morph: Optional[MorphologyFlags] = None,
+        context: Optional[dict] = None
     ) -> Tuple[str, float]:
         """Infer I3rab type from morphology.
         
@@ -39,10 +40,15 @@ class MorphSyntaxBridge:
             position: Position in sentence (0-indexed)
             total_words: Total words in sentence
             prev_morph: Morphology of previous word (if available)
+            context: Additional context info (e.g. previous word token)
             
         Returns:
             Tuple of (i3rab_type_en, confidence)
         """
+        # Get previous word text if available
+        prev_word_text = context.get('prev_word_text') if context else None
+        curr_word_text = context.get('curr_word_text') if context else None
+        
         # Rule 1: Definite nominative at sentence start → مبتدأ (mubtada)
         if position == 0 and morph.definiteness and morph.case == "nominative":
             return "mubtada", 0.8
@@ -70,6 +76,52 @@ class MorphSyntaxBridge:
         # Rule 5: Last position with nominative → خبر (khabar)
         if position == total_words - 1 and morph.case == "nominative":
             return "khabar", 0.5
+            
+        # --- NEW RULES (Week 1 Integration) ---
+        
+        # Rule 6: Preposition followers -> Majrur
+        # Common prepositions: min, ila, an, ala, fi, bi, li, ka
+        if prev_word_text in ["من", "إلى", "عن", "على", "في", "ب", "ل", "ك", "حتى", "مذ", "منذ"]:
+             return "mudaf_ilayhi", 0.85 # Using mudaf_ilayhi as general Genitive role for now
+             
+        # Rule 7: Particles (Inna and sisters) -> Ism Inna (Accusative)
+        if prev_word_text in ["إن", "أن", "كأن", "لكن", "ليت", "لعل"] and morph.case == "accusative":
+            return "ism_inna", 0.85
+            
+        # Rule 8: Particles (Kana and sisters) -> Ism Kana (Nominative)
+        if prev_word_text in ["كان", "صار", "أصبح", "أمسى", "أضحى", "ظل", "بات", "ليس"] and morph.case == "nominative":
+            return "ism_kana", 0.85
+            
+        # Rule 9: Demonstrative Pronouns -> Mubtada (often)
+        if curr_word_text in ["هذا", "هذه", "هذان", "هاتان", "هؤلاء", "ذلك", "تلك", "أولئك"]:
+            return "mubtada", 0.75
+            
+        # Rule 10: Relative Pronouns -> Mawsul (Connector)
+        if curr_word_text in ["الذي", "التي", "الذين", "اللاتي", "اللواتي", "من", "ما"]:
+            return "mawsul", 0.75
+            
+        # Rule 11: Vocative (Ya ...) -> Munada
+        if prev_word_text in ["يا", "أيا", "هيا", "أي"]:
+            return "munada", 0.85
+            
+        # Rule 12: Haal (Condition) - Indefinite Accusative describing state
+        # Usually not at start, indefinite, accusative. 
+        # Hard to distinguish from Maf'ul Bihi without semantic context, but give it a chance if late in sentence.
+        if position > 2 and morph.case == "accusative" and not morph.definiteness:
+             return "hal", 0.5 # Lower confidence due to ambiguity
+             
+        # Rule 13: Tamyiz (Specification) - Indefinite Accusative after numbers or measures
+        # (Placeholder for number detection logic)
+        
+        # Rule 14: Exception (Mustathna) - after Illa
+        if prev_word_text == "إلا" and morph.case == "accusative":
+            return "mustathna", 0.85
+            
+        # Rule 15: Conjunction follower (Ma'touf)
+        # If previous is Wa/Fa/Thumma and matches case
+        if prev_word_text in ["و", "ف", "ثم", "أو", "أم", "لا", "بل", "لكن", "حتى"] and prev_morph:
+            if morph.case == prev_morph.case:
+                return "matouf", 0.7
         
         # Default: unknown
         return "unknown", 0.0
@@ -80,6 +132,7 @@ class MorphSyntaxBridge:
         position: int,
         total_words: int,
         prev_morph: Optional[MorphologyFlags] = None,
+        context: Optional[dict] = None
     ) -> SyntaxFeatures:
         """Predict syntax features from morphology.
         
@@ -88,13 +141,14 @@ class MorphSyntaxBridge:
             position: Position in sentence
             total_words: Total words in sentence
             prev_morph: Previous word's morphology
+            context: Context dictionary (e.g. word text)
             
         Returns:
             SyntaxFeatures with predictions
         """
         # Infer I3rab type
         i3rab_type_en, confidence = self.infer_i3rab_type(
-            morph, position, total_words, prev_morph
+            morph, position, total_words, prev_morph, context
         )
         
         # Map to syntactic role
@@ -117,12 +171,14 @@ class MorphSyntaxBridge:
     
     def predict_sentence(
         self,
-        morphologies: List[MorphologyFlags]
+        morphologies: List[MorphologyFlags],
+        words: Optional[List[str]] = None
     ) -> List[SyntaxFeatures]:
         """Predict syntax for entire sentence.
         
         Args:
             morphologies: List of morphology features for each word
+            words: Optional list of word strings for context
             
         Returns:
             List of syntax features (one per word)
@@ -133,11 +189,18 @@ class MorphSyntaxBridge:
         for i, morph in enumerate(morphologies):
             prev_morph = morphologies[i - 1] if i > 0 else None
             
+            context = {}
+            if words:
+                context['curr_word_text'] = words[i]
+                if i > 0:
+                    context['prev_word_text'] = words[i-1]
+            
             syntax = self.predict_syntax(
                 morph=morph,
                 position=i,
                 total_words=total_words,
                 prev_morph=prev_morph,
+                context=context
             )
             
             predictions.append(syntax)
@@ -214,15 +277,17 @@ class SimpleContextAnalyzer:
 
 # Convenience function
 def predict_syntax_from_morphology(
-    morphologies: List[MorphologyFlags]
+    morphologies: List[MorphologyFlags],
+    words: Optional[List[str]] = None
 ) -> List[SyntaxFeatures]:
     """Predict syntax from morphology (convenience function).
     
     Args:
         morphologies: List of morphology features
+        words: Optional list of word strings
         
     Returns:
         List of syntax predictions
     """
     bridge = MorphSyntaxBridge()
-    return bridge.predict_sentence(morphologies)
+    return bridge.predict_sentence(morphologies, words)
