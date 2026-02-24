@@ -3,17 +3,19 @@ import os
 import importlib
 from pathlib import Path
 
-class ComprehensiveSentenceGenerator:
+from engines.generation.base_sentence_generator import BaseSentenceGenerator
+
+
+class ComprehensiveSentenceGenerator(BaseSentenceGenerator):
     """
     مولد جمل شامل يستخدم جميع الـ engines المتاحة لإنتاج تشكيلات كاملة
     مع خوارزميات لاستثناء التراكيب غير الصحيحة نحوياً
     """
-    
+
     def __init__(self):
+        super().__init__()
         self.engines_data = {}
-        self.sentences = []
         self.seen_sentences = set()
-        self.MAX_SENTENCES = 5000  # زيادة الحد الأقصى للشمولية
         
     def load_all_engines(self):
         """تحميل جميع المحركات المتاحة"""
@@ -149,31 +151,22 @@ class ComprehensiveSentenceGenerator:
         """استخراج الأدوات من محرك معين"""
         if engine_name not in self.engines_data:
             return []
-        
+
         df = self.engines_data[engine_name]
         if df.empty:
             return []
-        
-        # البحث عن العمود المناسب للأدوات
-        possible_columns = ['الأداة', 'الكلمة', 'النص', 'العنصر']
-        tool_column = None
-        
-        for col in possible_columns:
-            if col in df.columns:
-                tool_column = col
-                break
-        
+
+        tool_column = self._get_tool_column(df)
         if not tool_column:
-            # استخدام العمود الأول كافتراضي
-            tool_column = df.columns[0]
-        
+            return []
+
         tools = []
         for item in df[tool_column].head(limit):
             if pd.notna(item):
                 tool_str = str(item).strip()
                 if tool_str and tool_str not in tools:
                     tools.append(tool_str)
-        
+
         return tools
     
     def is_valid_combination(self, components):
@@ -224,24 +217,23 @@ class ComprehensiveSentenceGenerator:
         sentence = sentence.strip()
         if not sentence or sentence in self.seen_sentences:
             return False
-        
+
         if not self.is_valid_combination(components):
             return False
-        
+
         if len(self.sentences) >= self.MAX_SENTENCES:
             return False
-            
+
         self.seen_sentences.add(sentence)
-        
-        # بناء معلومات المكونات
+
         comp_strings = []
         comp_utf8 = []
         comp_morph = []
-        
+
         for label, token in components:
             comp_strings.append(f"{label}={token}")
             comp_utf8.append(f"{label}:{self.utf8_hex(token)}")
-            
+
             # تحديد الوظيفة الاشتقاقية
             morph_func = ""
             if 'فعل' in label:
@@ -256,7 +248,7 @@ class ComprehensiveSentenceGenerator:
                 morph_func = 'ظرف'
             else:
                 morph_func = 'غير محدد'
-            
+
             comp_morph.append(f"{label}:{morph_func}")
         
         # إضافة الجملة

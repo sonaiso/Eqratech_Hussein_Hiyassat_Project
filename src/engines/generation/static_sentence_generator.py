@@ -2,14 +2,14 @@ import pandas as pd
 import sys
 import os
 
-class StaticSentenceGenerator:
+from engines.generation.base_sentence_generator import BaseSentenceGenerator
+
+
+class StaticSentenceGenerator(BaseSentenceGenerator):
     """
     مولد جمل يستخدم بيانات ثابتة لتجنب مشاكل المحركات
     """
-    
-    def __init__(self):
-        self.sentences = []
-        self.MAX_SENTENCES = 5000
+
         
     def get_static_data(self):
         """الحصول على بيانات ثابتة للتوليد"""
@@ -65,12 +65,9 @@ class StaticSentenceGenerator:
         sentence = sentence.strip()
         if not sentence or len(self.sentences) >= self.MAX_SENTENCES:
             return False
-        
-        # بناء معلومات المكونات
-        comp_strings = []
-        for label, token in components:
-            comp_strings.append(f"{label}={token}")
-        
+
+        comp_strings = self._build_comp_strings(components)
+
         self.sentences.append({
             'الأداة': sentence,
             'القالب/التركيب': pattern,

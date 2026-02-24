@@ -3,19 +3,22 @@ import sys
 import os
 import importlib
 
+from engines.generation.base_sentence_generator import BaseSentenceGenerator
+
 # حل مشكلة الترميز
 if sys.platform == "win32":
     os.environ['PYTHONIOENCODING'] = 'utf-8'
 
-class SimpleSentenceGenerator:
+class SimpleSentenceGenerator(BaseSentenceGenerator):
     """
     مولد جمل مبسط يتجنب مشاكل الترميز
     """
-    
+
+    MAX_SENTENCES = 3000
+
     def __init__(self):
+        super().__init__()
         self.engines_data = {}
-        self.sentences = []
-        self.MAX_SENTENCES = 3000
         
     def safe_print(self, text):
         """طباعة آمنة تتجنب مشاكل الترميز"""
@@ -81,26 +84,15 @@ class SimpleSentenceGenerator:
         """استخراج الأدوات بطريقة آمنة"""
         if engine_name not in self.engines_data:
             return []
-        
+
         df = self.engines_data[engine_name]
         if df.empty:
             return []
-        
-        # البحث عن العمود المناسب
-        possible_columns = ['الأداة', 'الكلمة', 'النص', 'العنصر']
-        tool_column = None
-        
-        for col in possible_columns:
-            if col in df.columns:
-                tool_column = col
-                break
-        
-        if not tool_column and len(df.columns) > 0:
-            tool_column = df.columns[0]
-        
+
+        tool_column = self._get_tool_column(df)
         if not tool_column:
             return []
-        
+
         tools = []
         try:
             for item in df[tool_column].head(limit):
@@ -111,7 +103,7 @@ class SimpleSentenceGenerator:
         except Exception as e:
             self.safe_print(f"[ERROR] Error extracting tools from {engine_name}: {str(e)}")
             return []
-        
+
         return tools
     
     def add_sentence_simple(self, sentence, pattern, stype, components):
@@ -119,12 +111,9 @@ class SimpleSentenceGenerator:
         sentence = sentence.strip()
         if not sentence or len(self.sentences) >= self.MAX_SENTENCES:
             return False
-        
-        # بناء معلومات المكونات
-        comp_strings = []
-        for label, token in components:
-            comp_strings.append(f"{label}={token}")
-        
+
+        comp_strings = self._build_comp_strings(components)
+
         self.sentences.append({
             'الأداة': sentence,
             'القالب/التركيب': pattern,

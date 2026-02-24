@@ -1,10 +1,12 @@
 """Sentence generation engines."""
 
+from engines.generation.base_sentence_generator import BaseSentenceGenerator
 from engines.generation.sentence_generation_engine import SentenceGenerationEngine
 from engines.generation.enhanced_sentence_generation_engine import EnhancedSentenceGenerationEngine
 from engines.generation.static_sentence_generator import StaticSentenceGenerator
 
 __all__ = [
+    'BaseSentenceGenerator',
     'SentenceGenerationEngine',
     'EnhancedSentenceGenerationEngine',
     'StaticSentenceGenerator'
