@@ -23,6 +23,8 @@ class AwzanPatternLoader:
     # Legacy fallback (kept for compatibility)
     CSV_PATH_LEGACY = Path(__file__).resolve().parents[3] / "awzan-claude-atwah.csv"
 
+    _cache: Optional[List[dict]] = None
+
     PATTERN_TYPE_MAP: Dict[str, PatternType] = {
         "فَعَلَ": PatternType.FORM_I,
         "فَعِلَ": PatternType.FORM_I,
@@ -68,6 +70,8 @@ class AwzanPatternLoader:
 
     @classmethod
     def load(cls) -> List[dict]:
+        if cls._cache is not None:
+            return cls._cache
         patterns: List[dict] = []
         if cls.CSV_PATH_PHONOLOGY_CLEAN.exists():
             csv_path = cls.CSV_PATH_PHONOLOGY_CLEAN
@@ -78,7 +82,8 @@ class AwzanPatternLoader:
         else:
             csv_path = cls.CSV_PATH_LEGACY
         if not csv_path.exists():
-            return patterns
+            cls._cache = patterns
+            return cls._cache
         with open(csv_path, encoding="utf-8-sig", newline="") as handle:
             sample = handle.read(2048)
             handle.seek(0)
@@ -110,7 +115,8 @@ class AwzanPatternLoader:
                         "notes": row.get("ملاحظات") or None,
                     }
                 )
-        return patterns
+        cls._cache = patterns
+        return cls._cache
 
     @staticmethod
     def _infer_category(row: Dict[str, str], pattern_type: PatternType) -> str:
