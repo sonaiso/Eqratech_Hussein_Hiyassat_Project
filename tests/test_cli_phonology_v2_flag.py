@@ -1,5 +1,6 @@
 import json
 import subprocess
+import os
 import sys
 
 
@@ -8,7 +9,7 @@ def test_cli_phonology_v2_flag_runs_and_sets_engine():
         [sys.executable, "-m", "fvafk.cli", "كِتَاب يَوْم قَوْل", "--json", "--phonology-v2"],
         capture_output=True,
         text=True,
-        env={"PYTHONPATH": "src"},
+        env={**os.environ, "PYTHONPATH": "src"},
     )
     assert result.returncode == 0
     data = json.loads(result.stdout)
@@ -29,7 +30,7 @@ def test_cli_phonology_v2_details_field():
         ],
         capture_output=True,
         text=True,
-        env={"PYTHONPATH": "src"},
+        env={**os.environ, "PYTHONPATH": "src"},
     )
     assert result.returncode == 0
     data = json.loads(result.stdout)

@@ -5,7 +5,7 @@ Represents a word with all its morphological and syntactic features.
 """
 
 from typing import Optional, Tuple
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from enum import Enum
 
 
@@ -110,10 +110,10 @@ class WordForm(BaseModel):
     root: Optional[Root] = Field(default=None, description="Morphological root")
     pattern: Optional[Pattern] = Field(default=None, description="Morphological pattern")
     metadata: Optional[dict] = Field(default=None, description="Additional features")
-    
-    class Config:
-        use_enum_values = False  # Keep enum objects
-        json_schema_extra = {
+
+    model_config = ConfigDict(
+        use_enum_values=False,
+        json_schema_extra={
             "example": {
                 "word_id": 0,
                 "surface": "الْكِتَابُ",
@@ -137,3 +137,4 @@ class WordForm(BaseModel):
                 }
             }
         }
+    )

@@ -223,7 +223,7 @@ def test_phonology_v2_availability():
     it should provide VC classification that's complementary.
     """
     try:
-        from fvafk.phonology_v2 import analyze_word
+        from fvafk.phonology_v2 import analyze_word, PhonologyV2Adapter
         adapter = PhonologyV2Adapter()
         print("\n✅ Phonology V2 is available")
         print(f"   Adapter type: {type(adapter)}")

@@ -107,12 +107,15 @@ class PatternDatabase:
                 )
             )
         self.patterns.extend(base)
+        self._by_category = {}
+        for p in base:
+            self._by_category.setdefault(p.category, []).append(p)
 
     def get_all(self) -> List[PatternTemplate]:
         return self.patterns
 
     def get_by_category(self, category: str) -> List[PatternTemplate]:
-        return [p for p in self.patterns if p.category == category]
+        return self._by_category.get(category, [])
 
 
 from fvafk.c1.cv_pattern import advanced_cv_pattern
