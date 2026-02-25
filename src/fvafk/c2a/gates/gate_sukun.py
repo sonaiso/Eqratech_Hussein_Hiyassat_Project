@@ -18,6 +18,7 @@ class GateSukun(PhonologicalGate):
 
     def apply(self, segments: List[Segment]) -> GateResult:
         result = [Segment(seg.text, seg.kind, seg.vk) for seg in segments]
+        deltas: List[str] = []
         for i in range(len(result) - 3):
             if self._is_consonant(result[i]) and self._is_sukun(result[i + 1]):
                 for j in range(i + 2, min(len(result) - 1, i + 10)):
@@ -27,15 +28,18 @@ class GateSukun(PhonologicalGate):
                             kind=SegmentKind.VOWEL,
                             vk=self.FATHA,
                         )
+                        deltas.append(f"double_sukun_repaired:{i+1}")
                         return GateResult(
                             status=GateStatus.REPAIR,
                             output=result,
                             reason="double-sukun repaired",
+                            deltas=deltas,
                         )
         return GateResult(
             status=GateStatus.ACCEPT,
             output=result,
             reason="no double sukun detected",
+            deltas=[],
         )
 
     def postcondition(

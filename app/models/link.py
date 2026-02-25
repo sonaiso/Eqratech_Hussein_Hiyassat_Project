@@ -5,7 +5,7 @@ Represents a syntactic dependency or relation between words.
 """
 
 from typing import Optional
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 from enum import Enum
 
 
@@ -47,10 +47,10 @@ class Link(BaseModel):
     confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score")
     reason: Optional[str] = Field(default=None, description="Explanation for link")
     metadata: Optional[dict] = Field(default=None, description="Additional info")
-
-    model_config = ConfigDict(
-        use_enum_values=False,
-        json_schema_extra={
+    
+    class Config:
+        use_enum_values = False
+        json_schema_extra = {
             "example": {
                 "link_type": "isnadi",
                 "head_id": 0,
@@ -60,4 +60,3 @@ class Link(BaseModel):
                 "metadata": {"checked_gender": True}
             }
         }
-    )

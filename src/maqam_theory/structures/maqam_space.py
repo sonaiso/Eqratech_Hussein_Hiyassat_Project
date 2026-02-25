@@ -51,7 +51,7 @@ class RequestType(Enum):
     AMR = "أمر"            # Command
     NAHY = "نهي"           # Prohibition
     ILTIMAS = "التماس"     # Request (polite)
-    DUA = "دعاء"          # Supplication
+    DU'A = "دعاء"          # Supplication
     ISTIFHAM = "استفهام"   # Question (as request)
 
 
@@ -151,7 +151,7 @@ class MaqamVector:
             RequestType.AMR: self.t_amr,
             RequestType.NAHY: self.t_nahy,
             RequestType.ILTIMAS: self.t_iltimas,
-            RequestType.DUA: self.t_dua,
+            RequestType.DU'A: self.t_dua,
             RequestType.ISTIFHAM: self.t_istifham
         }
         max_type, max_val = max(requests.items(), key=lambda x: x[1])

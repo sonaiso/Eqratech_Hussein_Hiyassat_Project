@@ -99,12 +99,50 @@ class TestRootExtractorNormalization:
         assert root2 is not None
         assert root1.letters == root2.letters
 
+    def test_hamza_carrier_normalization(self):
+        extractor = RootExtractor()
+
+        root = extractor.extract("مُؤْمِنُونَ")
+        assert root is not None
+        assert root.letters == ("ا", "م", "ن")
+
+        root = extractor.extract("أَكَلَ")
+        assert root is not None
+        assert root.letters[0] == "ا"
+
+        root = extractor.extract("إِيمَانٌ")
+        assert root is not None
+        assert root.letters[0] == "ا"
+        assert "م" in root.letters
+        assert "إ" not in root.letters
+
+        root = extractor.extract("خَطِيئَة")
+        assert root is not None
+        assert "ئ" not in root.letters
+        assert "ي" in root.letters
+
+
     def test_alif_maqsurah(self):
         extractor = RootExtractor()
         root = extractor.extract("رَمَى")
         assert root is not None
         assert len(root.letters) == 3
 
+
+class TestRootExtractorAffixes:
+    def test_affix_identification(self):
+        extractor = RootExtractor()
+
+        context = extractor.extract_with_affixes("والِكِتَاب")
+        assert context.prefix == "وال"
+        assert context.stripped_word == "كتاب"
+        assert context.root is not None
+        assert context.root.letters == ("ك", "ت", "ب")
+
+        context = extractor.extract_with_affixes("كَاتِبُونَ")
+        assert context.suffix == "ون"
+        assert context.root is not None
+        assert context.root.letters == ("ك", "ت", "ب")
 
 class TestRootExtractorValidation:
     def test_empty_string(self):
@@ -142,3 +180,65 @@ class TestRootExtractorRealWorld:
         root = extractor.extract("الرَّحْمَٰنِ")
         assert root is not None
         assert len(root.letters) == 3
+
+    def test_quran_exception_vision_verb_with_pronoun(self):
+        extractor = RootExtractor()
+        context = extractor.extract_with_affixes("تَرَاهُمْ")
+        assert context.root is not None
+        # رأى/يرى/ترى -> ر-أ-ي (stored as ر-ا-ي after hamza normalization)
+        assert context.root.letters == ("ر", "أ", "ي")
+        assert context.suffix == "هم"
+
+    def test_tanwin_does_not_segment_as_na(self):
+        extractor = RootExtractor()
+        context = extractor.extract_with_affixes("وَرِضْوَانًا")
+        assert "نا" not in (context.suffix or "").split("+")
+
+    def test_sima_no_split_only_peel_pronoun(self):
+        extractor = RootExtractor()
+        context = extractor.extract_with_affixes("سِيمَاهُمْ")
+        assert context.suffix == "هم"
+        # do not strip "س" or "سي" from سيما
+        assert context.stripped_word.startswith("سيما")
+
+    def test_lam_ta3leel_segments_before_imperfect(self):
+        extractor = RootExtractor()
+        ctx = extractor.extract_with_affixes("لِيَغِيظَ")
+        assert ctx.root is not None
+        assert ctx.root.letters == ("غ", "ي", "ظ")
+        assert "ل" in (ctx.prefix or "").split("+")
+
+    def test_istawa_stripped_has_three_letters(self):
+        extractor = RootExtractor()
+        ctx = extractor.extract_with_affixes("فَاسْتَوَىٰ")
+        assert ctx.root is not None
+        assert ctx.root.letters == ("س", "و", "ي")
+        assert ctx.stripped_word == "سوي"
+
+    def test_wa_clitic_strips_before_past_plural(self):
+        extractor = RootExtractor()
+        ctx = extractor.extract_with_affixes("وَعَمِلُوا")
+        assert "و" in (ctx.prefix or "").split("+")
+        assert ctx.stripped_word == "عمل"
+        assert ctx.suffix == "وا"
+
+    def test_wujoohihim_does_not_split_h_before_hum(self):
+        extractor = RootExtractor()
+        ctx = extractor.extract_with_affixes("وُجُوهِهِم")
+        assert ctx.suffix == "هم"
+        assert ctx.stripped_word == "وجوه"
+
+    def test_fadlan_does_not_strip_fa_as_clitic(self):
+        extractor = RootExtractor()
+        ctx = extractor.extract_with_affixes("فَضْلًا")
+        assert ctx.root is not None
+        assert ctx.root.letters == ("ف", "ض", "ل")
+        assert (ctx.prefix or "") == ""
+        assert ctx.stripped_word == "فضل"
+
+    def test_azeeman_strips_tanwin_support_alif(self):
+        extractor = RootExtractor()
+        ctx = extractor.extract_with_affixes("عَظِيمًا")
+        assert ctx.root is not None
+        assert ctx.root.letters == ("ع", "ظ", "م")
+        assert ctx.stripped_word == "عظيم"

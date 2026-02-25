@@ -9,6 +9,16 @@ from .morpheme import PatternType
 
 class AwzanPatternLoader:
     # Preferred awzan file (new default)
+    # 1) Package-local copy (when you want it under src/fvafk/phonology/)
+    #    This is the primary awzan source for the project.
+    CSV_PATH_PHONOLOGY_CLEAN = (
+        Path(__file__).resolve().parents[1] / "phonology" / "awzan_merged_final_clean.csv"
+    )
+    # 2) Optional full table (kept as fallback)
+    CSV_PATH_PHONOLOGY_FULL = (
+        Path(__file__).resolve().parents[1] / "phonology" / "awzan_merged_final.csv"
+    )
+    # 2) Project-level data/ (default for this repo)
     CSV_PATH = Path(__file__).resolve().parents[3] / "data" / "awzan_merged_final.csv"
     # Legacy fallback (kept for compatibility)
     CSV_PATH_LEGACY = Path(__file__).resolve().parents[3] / "awzan-claude-atwah.csv"
@@ -57,9 +67,16 @@ class AwzanPatternLoader:
     }
 
     @classmethod
-    def load(cls) -> List[PatternTemplate]:
+    def load(cls) -> List[dict]:
         patterns: List[dict] = []
-        csv_path = cls.CSV_PATH if cls.CSV_PATH.exists() else cls.CSV_PATH_LEGACY
+        if cls.CSV_PATH_PHONOLOGY_CLEAN.exists():
+            csv_path = cls.CSV_PATH_PHONOLOGY_CLEAN
+        elif cls.CSV_PATH_PHONOLOGY_FULL.exists():
+            csv_path = cls.CSV_PATH_PHONOLOGY_FULL
+        elif cls.CSV_PATH.exists():
+            csv_path = cls.CSV_PATH
+        else:
+            csv_path = cls.CSV_PATH_LEGACY
         if not csv_path.exists():
             return patterns
         with open(csv_path, encoding="utf-8-sig", newline="") as handle:

@@ -5,7 +5,7 @@ Represents the complete output from FVAFK pipeline: C1 → C2a → C2b → C3.
 """
 
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 
 from .unit import Unit
 from .syllable import Syllable
@@ -91,9 +91,9 @@ class AnalysisResult(BaseModel):
     stats: Stats = Field(..., description="Performance statistics")
     proof_artifacts: Optional[List[ProofArtifact]] = Field(default=None, description="Coq proof artifacts")
     metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional metadata")
-
-    model_config = ConfigDict(
-        json_schema_extra={
+    
+    class Config:
+        json_schema_extra = {
             "example": {
                 "input": "مُحَمَّدٌ رَسُولُ اللَّهِ",
                 "c1": {"num_units": 23},
@@ -119,4 +119,3 @@ class AnalysisResult(BaseModel):
                 }
             }
         }
-    )

@@ -5,7 +5,7 @@ Represents evidence supporting an analysis decision, with semantic gates integra
 """
 
 from typing import Optional, List
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 
 
 class RealityLink(BaseModel):
@@ -52,7 +52,7 @@ class Evidence(BaseModel):
     reality_links: List[RealityLink] = Field(default_factory=list, description="Corpus/lexicon links")
     notes: Optional[str] = Field(default=None, description="Evidence explanation")
     metadata: Optional[dict] = Field(default=None, description="Additional data")
-
+    
     def is_acceptable(self, threshold: float = 0.5) -> bool:
         """Check if evidence meets acceptance criteria"""
         return (
@@ -61,9 +61,9 @@ class Evidence(BaseModel):
             and self.truth_ok
             and self.reference_ok
         )
-
-    model_config = ConfigDict(
-        json_schema_extra={
+    
+    class Config:
+        json_schema_extra = {
             "example": {
                 "score": 0.85,
                 "scope_ok": True,
@@ -79,4 +79,3 @@ class Evidence(BaseModel):
                 "notes": "Strong corpus evidence from classical texts"
             }
         }
-    )

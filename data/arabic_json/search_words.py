@@ -363,7 +363,7 @@ def main():
                 # Convert to relative path
                 try:
                     rel_path = os.path.relpath(file_path, base_dir)
-                except ValueError:
+                except:
                     rel_path = file_path
                 
                 # Remove .json extension

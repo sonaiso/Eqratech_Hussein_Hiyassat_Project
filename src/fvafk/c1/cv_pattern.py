@@ -474,7 +474,7 @@ def _cv_from_segments(segments) -> Dict[str, str]:
     }
 
 
-def analyze_text_for_cv_after_phonology(text: str) -> Dict[str, object]:
+def analyze_text_for_cv_after_phonology(text: str, *, engine: str = "c2a") -> Dict[str, object]:
     """
     CV analysis AFTER phonological normalization (C2a gates).
 
@@ -507,11 +507,11 @@ def analyze_text_for_cv_after_phonology(text: str) -> Dict[str, object]:
     orchestrator = GateOrchestrator(
         gates=[
             GateSukun(),
-            GateIdgham(),
             GateShadda(),
             GateWasl(),
             GateHamza(),
             GateWaqf(),
+            GateIdgham(),
             GateMadd(),
             GateAssimilation(),
             GateTanwin(),
@@ -532,13 +532,55 @@ def analyze_text_for_cv_after_phonology(text: str) -> Dict[str, object]:
         if special and special.get("kind") == "excluded_name":
             excluded_names += 1
             continue
-        segs = encoder.encode(tok)
-        final_segs, _gate_results = orchestrator.run(segs)
-        computed.append(_cv_from_segments(final_segs))
+        if engine == "phonology_v2":
+            # Use the syllable-lattice engine (Assumption A) to compute CV.
+            from fvafk.phonology_v2 import analyze_word as analyze_word_v2
+
+            wa = analyze_word_v2(tok, verbose=False)
+            # Fallback to C2a segments if V2 can't syllabify the token.
+            if not wa.cv_pattern or not wa.best_syllabification:
+                segs = encoder.encode(tok)
+                final_segs, _gate_results = orchestrator.run(segs)
+                computed.append(_cv_from_segments(final_segs))
+            else:
+                # Build cv_advanced from the chosen syllabification.
+                # Long vowels emit a doubled nucleus, then normalized (VaVa -> VA, etc).
+                out_adv: List[str] = []
+                for syl in wa.best_syllabification:
+                    for seg in list(syl.onset) + [syl.nucleus] + list(syl.coda):
+                        # Local enum name to avoid importing phonology_v2 types here
+                        kind_name = getattr(getattr(seg, "kind", None), "name", "")
+                        surf = getattr(seg, "surface", "") or ""
+                        if kind_name == "C":
+                            out_adv.append("C")
+                            continue
+                        if kind_name == "V_SHORT":
+                            sym = "a" if surf == FATHA else "i" if surf == KASRA else "o" if surf == DAMMA else ""
+                            out_adv.extend(["V", sym] if sym else ["V"])
+                            continue
+                        if kind_name == "V_LONG":
+                            sym = "a" if surf in {"ا", "آ", "ى"} else "o" if surf == "و" else "i" if surf == "ي" else ""
+                            if sym:
+                                out_adv.extend(["V", sym, "V", sym])
+                            else:
+                                out_adv.append("V")
+                            continue
+                        out_adv.append("C")
+                computed.append(
+                    {
+                        "cv": wa.cv_pattern,
+                        "cv_advanced": normalize_long_vowels("".join(out_adv)),
+                    }
+                )
+        else:
+            segs = encoder.encode(tok)
+            final_segs, _gate_results = orchestrator.run(segs)
+            computed.append(_cv_from_segments(final_segs))
 
     return {
         "total_words_input": len(spans),
         "total_words_computed": len(computed),
         "excluded_names": excluded_names,
+        "engine": engine,
         "words": computed,
     }

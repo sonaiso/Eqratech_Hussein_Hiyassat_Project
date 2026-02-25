@@ -87,8 +87,6 @@ __all__ = [
     "format_syllabification",
     "print_vc_witnesses",
     "validate_syllabification",
-    "analyze_word",
-    "PhonologyV2Adapter",
 ]
 
 
@@ -150,7 +148,5 @@ def analyze_word(text: str, verbose: bool = False) -> WordAnalysis:
     )
 
 
-# Adapter imported last to avoid circular imports:
-# phonology_adapter.py imports analyze_word from this module.
-from .phonology_adapter import PhonologyV2Adapter  # noqa: F401
+__all__.append("analyze_word")
 

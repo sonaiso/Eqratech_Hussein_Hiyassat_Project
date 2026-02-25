@@ -90,16 +90,8 @@ class ExistenceUniquenessTheorem:
         V_star, E_min, success = self.optimizer.solve_numerical(C_L, C_R, flags)
         
         if not success:
-            # Existence is a theoretical guarantee (Weierstrass) under our assumptions.
-            # Numerical non-convergence should not negate existence; fall back to a
-            # stable closed-form approximation and continue.
-            log.append("   ✗ FAILED: المُصغِّر لم يتقارب! (fallback → closed-form)")
-            V_star = self.optimizer.solve_closed_form(C_L, C_R, flags)
-            E_min = float(self.energy(V_star, C_L, C_R, flags))
-            log.append(f"   V*_fallback = {V_star}")
-            log.append(f"   E_min(fallback) = {E_min:.6f}")
-            log.append("   ✓ يوجد V* (EXISTS) [theoretical + fallback]")
-            return True, V_star, E_min, log
+            log.append("   ✗ FAILED: المُصغِّر لم يتقارب!")
+            return False, None, np.inf, log
         
         log.append(f"   V* = {V_star}")
         log.append(f"   E_min = {E_min:.6f}")
