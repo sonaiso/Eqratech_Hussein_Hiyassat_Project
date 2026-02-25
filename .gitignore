@@ -66,6 +66,9 @@ coq/**/*.aux
 
 i3rab/
 
+# Large data directories (downloaded/external data, not source code)
+data/arabic_json/
+
 # Python build artifacts
 dist/
 build/
