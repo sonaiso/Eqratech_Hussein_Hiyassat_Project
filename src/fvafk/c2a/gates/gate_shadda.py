@@ -10,7 +10,6 @@ class GateShadda(PhonologicalGate):
 
     def apply(self, segments: List[Segment]) -> GateResult:
         result: List[Segment] = []
-        deltas: List[str] = []
         i = 0
         while i < len(segments):
             current = segments[i]
@@ -34,12 +33,14 @@ class GateShadda(PhonologicalGate):
                         Segment(text="", kind=SegmentKind.VOWEL, vk=VowelKind.FATHA)
                     )
                     i += 2
-                deltas.append(f"shadda_expanded:{i}")
             else:
                 result.append(current)
                 i += 1
 
-        status = GateStatus.REPAIR if deltas else GateStatus.ACCEPT
-        reason = "shadda geminated" if deltas else "no shadda detected"
+        status = GateStatus.ACCEPT
+        reason = "shadda expanded"
+        if result != segments:
+            status = GateStatus.REPAIR
+            reason = "shadda geminated"
 
-        return GateResult(status=status, output=result, reason=reason, deltas=deltas)
+        return GateResult(status=status, output=result, reason=reason)

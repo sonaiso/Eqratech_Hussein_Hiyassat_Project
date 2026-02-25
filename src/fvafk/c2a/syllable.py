@@ -34,7 +34,6 @@ class Segment:
     text: str
     kind: SegmentKind
     vk: Optional[VowelKind] = None
-    cid: Optional[int] = None
 
 
 @dataclass
