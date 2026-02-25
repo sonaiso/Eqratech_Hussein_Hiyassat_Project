@@ -5,6 +5,7 @@ PatternMatcher: Recognize Arabic morphological patterns.
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -136,6 +137,29 @@ class PatternMatcher:
         normalized = self._normalize(word)
         categories = ["verb", "noun", "plural"]
         checked = set()
+        best_pattern: Optional[Pattern] = None
+        best_confidence: float = -1.0
+
+        def _consider(tmpl: PatternTemplate) -> None:
+            nonlocal best_pattern, best_confidence
+            candidate = self._instantiate_template(tmpl.template, root)
+            matched, confidence = self._matches(
+                normalized,
+                candidate,
+                tmpl.pattern_type,
+                advanced_cv_word,
+                tmpl,
+            )
+            if matched and confidence > best_confidence:
+                best_confidence = confidence
+                best_pattern = Pattern(
+                    name=tmpl.pattern_type.value,
+                    template=tmpl.template,
+                    pattern_type=tmpl.pattern_type,
+                    stem=word,
+                    features={**tmpl.feature_map(), "confidence": f"{confidence:.2f}"},
+                )
+
         for category in categories:
             for template in self.database.get_by_category(category):
                 if id(template) in checked:
@@ -143,43 +167,16 @@ class PatternMatcher:
                 checked.add(id(template))
                 if not template.matches_root_type(root):
                     continue
-                candidate = self._instantiate_template(template.template, root)
-                matched, confidence = self._matches(
-                    normalized,
-                    candidate,
-                    template.pattern_type,
-                    advanced_cv_word,
-                    template,
-                )
-                if matched:
-                    return Pattern(
-                        name=template.pattern_type.value,
-                        template=template.template,
-                        pattern_type=template.pattern_type,
-                        stem=word,
-                        features={**template.feature_map(), "confidence": f"{confidence:.2f}"},
-                    )
+                _consider(template)
         for template in self.database.get_all():
             if id(template) in checked:
                 continue
             if not template.matches_root_type(root):
                 continue
-            candidate = self._instantiate_template(template.template, root)
-            matched, confidence = self._matches(
-                normalized,
-                candidate,
-                template.pattern_type,
-                advanced_cv_word,
-                template,
-            )
-            if matched:
-                return Pattern(
-                    name=template.pattern_type.value,
-                    template=template.template,
-                    pattern_type=template.pattern_type,
-                    stem=word,
-                    features={**template.feature_map(), "confidence": f"{confidence:.2f}"},
-                )
+            _consider(template)
+
+        if best_pattern is not None:
+            return best_pattern
 
         # ------------------------------------------------------------------
         # CV-based fallback (golden rule from docs/awzan_test_report.md)
@@ -213,6 +210,8 @@ class PatternMatcher:
         return None
 
     def _normalize(self, word: str) -> str:
+        # Canonicalize diacritic order (e.g. shadda+fatha vs fatha+shadda)
+        text = unicodedata.normalize('NFC', word)
         # Convert Tanwin to standard short vowels
         # This is critical for matching catalog patterns (e.g., matching "كاتبٌ" with "فاعل")
         text = word.replace('ً', 'َ').replace('ٌ', 'ُ').replace('ٍ', 'ِ')
@@ -273,7 +272,7 @@ class PatternMatcher:
                 l_count += 1
             else:
                 chars.append(ch)
-        return ''.join(chars)
+        return unicodedata.normalize('NFC', ''.join(chars))
 
     def _matches(
         self,
