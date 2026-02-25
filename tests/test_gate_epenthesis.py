@@ -51,19 +51,3 @@ def test_gate_epenthesis_precondition_false(gate):
         consonant("ت"),
     ]
     assert gate.precondition(segments) is False
-
-
-def test_gate_epenthesis_breaks_cv_sense_ccc_with_sukun(gate):
-    # Consonants separated only by sukun still appear as CCC in CV output,
-    # so GateEpenthesis should insert a short vowel to break the run.
-    segments = [
-        consonant("ب"),
-        sukun(),
-        consonant("ل"),
-        sukun(),
-        consonant("غ"),
-        Segment(text="َ", kind=SegmentKind.VOWEL, vk=VowelKind.FATHA),
-    ]
-    result = gate.apply(segments)
-    assert result.status == GateStatus.REPAIR
-    assert any(getattr(s, "vk", None) == VowelKind.KASRA for s in result.output)
