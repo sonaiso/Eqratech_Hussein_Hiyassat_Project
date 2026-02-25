@@ -1,38 +1,40 @@
 """
-Word Boundary Detector - Plan B (Syllable-Based)
+WordBoundaryDetector Plan B - Syllable-based word boundary detection.
 
-This module provides syllable-based word boundary detection for Arabic text.
-Plan B uses syllable structure analysis combined with clitic detection to
-identify word boundaries more accurately than character-pattern-based approaches.
+This module provides sophisticated word boundary detection for Arabic text
+using syllabification, morphological clues, and pattern matching.
 
-Classes:
-    WordBoundary: Represents a detected word boundary with metadata
-    CliticDatabase: Database of Arabic clitics (prefixes and suffixes)
-    WordBoundaryDetectorPlanB: Main detector class using syllable analysis
+Plan B (this implementation) uses:
+- Syllable structure analysis
+- Clitic detection (ال، و، ف، ب، ل، ك)
+- Morpheme boundary markers
+- Confidence scoring
+
+Plan A (simple whitespace tokenization) is in word_boundary.py for comparison.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import List, Optional, Set, Tuple
 import re
 
+from .syllabifier import syllabify, ArabicSyllabifier
 
-@dataclass
+
+@dataclass(frozen=True)
 class WordBoundary:
     """
-    Represents a detected word boundary.
-
+    Represents a detected word boundary with metadata.
+    
     Attributes:
-        text: The word text
-        start: Start position in original text
-        end: End position in original text
-        confidence: Confidence score [0.0, 1.0]
-        syllable_count: Number of syllables in the word
-        has_prefix: Whether word has clitic prefix
-        has_suffix: Whether word has clitic suffix
-        prefix: Detected prefix clitic (if any)
-        suffix: Detected suffix clitic (if any)
+        text: The word text (including any attached clitics)
+        start: Character offset start position in original text
+        end: Character offset end position in original text
+        confidence: Confidence score 0.0-1.0 for this boundary
+        syllable_count: Number of syllables detected in this word
+        has_prefix: Whether word has prefix clitic (e.g., ال، و، ف)
+        has_suffix: Whether word has suffix clitic (e.g., ه، ها، هم)
     """
     text: str
     start: int
@@ -41,310 +43,303 @@ class WordBoundary:
     syllable_count: int
     has_prefix: bool = False
     has_suffix: bool = False
-    prefix: Optional[str] = None
-    suffix: Optional[str] = None
-
+    
     def __post_init__(self):
-        """Validate boundary constraints."""
-        assert 0.0 <= self.confidence <= 1.0, "Confidence must be in [0, 1]"
-        assert self.start <= self.end, "Start must be <= end"
+        assert 0.0 <= self.confidence <= 1.0, f"Confidence must be in [0,1], got {self.confidence}"
+        assert self.start <= self.end, f"Invalid span: start={self.start}, end={self.end}"
 
 
 class CliticDatabase:
-    """
-    Database of Arabic clitic morphemes (prefixes and suffixes).
-
-    Clitics are function words that attach to content words.
-    Examples: ال (the), و (and), ب (with), ه (his)
-    """
-
-    # Simple prefixes
-    SIMPLE_PREFIXES = [
-        'ال',  # definite article (al-)
-        'و',   # conjunction (and)
-        'ف',   # conjunction (then)
-        'ب',   # preposition (with/in)
-        'ل',   # preposition (to/for)
-        'ك',   # preposition (like)
-        'س',   # future marker
+    """Database of Arabic clitics (prefixes and suffixes)."""
+    
+    # Common prefixes (sorted by length, longest first for greedy matching)
+    PREFIXES: List[str] = [
+        'ال',      # definite article
+        'و',       # conjunction 'and'
+        'ف',       # conjunction 'then'
+        'ب',       # preposition 'in/with'
+        'ل',       # preposition 'to/for'
+        'ك',       # preposition 'like'
     ]
-
-    # Compound prefixes (combinations)
-    COMPOUND_PREFIXES = [
-        'وال',  # و + ال
-        'فال',  # ف + ال
-        'بال',  # ب + ال
-        'لل',   # ل + ال
-        'كال',  # ك + ال
-        'ولل',  # و + لل
-        'فلل',  # ف + لل
+    
+    # Common suffixes (sorted by length, longest first)
+    SUFFIXES: List[str] = [
+        'كم',      # your (plural masculine)
+        'كن',      # your (plural feminine)
+        'هم',      # their/them (plural masculine)
+        'هن',      # their/them (plural feminine)
+        'نا',      # our/us
+        'ه',       # his/him
+        'ها',      # her
+        'ك',       # your (singular)
+        'ي',       # my
     ]
-
-    # Attached pronoun suffixes
-    PRONOUN_SUFFIXES = [
-        'ه',    # he/his/him
-        'ها',   # she/her
-        'هم',   # they/their/them (masc)
-        'هن',   # they/their/them (fem)
-        'ك',    # you/your (masc sing)
-        'كم',   # you/your (masc plural)
-        'كن',   # you/your (fem plural)
-        'ي',    # me/my
-        'نا',   # we/our/us
+    
+    # Compound prefixes (multiple clitics)
+    COMPOUND_PREFIXES: List[str] = [
+        'وال',     # و + ال
+        'فال',     # ف + ال
+        'بال',     # ب + ال
+        'لل',      # ل + ال (with assimilation)
+        'كال',     # ك + ال
     ]
-
+    
     @classmethod
-    def get_all_prefixes(cls) -> List[str]:
-        """Get all prefix clitics (simple + compound)."""
-        return cls.SIMPLE_PREFIXES + cls.COMPOUND_PREFIXES
-
+    def get_all_prefixes(cls) -> Set[str]:
+        """Get all prefixes including compounds."""
+        return set(cls.PREFIXES + cls.COMPOUND_PREFIXES)
+    
     @classmethod
-    def get_all_suffixes(cls) -> List[str]:
-        """Get all suffix clitics."""
-        return cls.PRONOUN_SUFFIXES
+    def get_all_suffixes(cls) -> Set[str]:
+        """Get all suffixes."""
+        return set(cls.SUFFIXES)
 
 
 class WordBoundaryDetectorPlanB:
-    """
-    Syllable-based word boundary detector for Arabic text.
-
-    Plan B uses syllable structure analysis to detect word boundaries,
-    combined with clitic detection for improved accuracy.
-
+    """Sophisticated word boundary detector using syllabification and morphological analysis.
+    
     Algorithm:
-        1. Split text on whitespace to get candidate words
-        2. Analyze syllable structure of each candidate
-        3. Detect and strip clitic prefixes/suffixes
-        4. Compute confidence based on syllable count and clitic presence
-        5. Return word boundaries with metadata
-
-    Attributes:
-        syllabifier: Reference to syllabification engine (optional)
-        clitics: Clitic database instance
+    1. Split text on whitespace (initial boundaries)
+    2. For each token:
+       a. Use syllabifier to find syllable breaks
+       b. Detect and separate clitics (prefixes/suffixes)
+       c. Score boundary confidence based on features
+    3. Return list of WordBoundary objects with metadata
+    
+    Examples:
+        >>> detector = WordBoundaryDetectorPlanB()
+        >>> boundaries = detector.detect_boundaries("الكتاب")
+        >>> boundaries[0].text
+        'الكتاب'
+        >>> boundaries[0].has_prefix
+        True
     """
-
-    def __init__(self, syllabifier=None):
-        """Initialize detector.
-
-        Args:
-            syllabifier: Optional syllabifier instance for advanced analysis
-        """
-        self.syllabifier = syllabifier
+    
+    def __init__(self):
+        """Initialize detector with clitic database."""
         self.clitics = CliticDatabase()
-
+    
     def detect_boundaries(self, text: str) -> List[WordBoundary]:
         """Detect word boundaries in Arabic text.
-
+        
         Args:
-            text: Arabic text to analyze
-
+            text: Input Arabic text (may contain multiple words)
+            
         Returns:
-            List of WordBoundary objects with metadata
+            List of WordBoundary objects with detected boundaries
+            
+        Examples:
+            >>> detector = WordBoundaryDetectorPlanB()
+            >>> boundaries = detector.detect_boundaries("الكتاب على الطاولة")
+            >>> len(boundaries)
+            3
+            >>> boundaries[0].text
+            'الكتاب'
         """
         if not text or not text.strip():
             return []
-
-        boundaries = []
-
-        # Split on whitespace to get candidate words
-        words = text.split()
-        current_pos = 0
-
-        for word in words:
-            # Find actual position in original text
-            start = text.find(word, current_pos)
-            end = start + len(word)
-            current_pos = end
-
-            # Analyze word
-            boundary = self._analyze_word(word, start, end)
+        
+        # Initial tokenization on whitespace
+        tokens = self._initial_tokenize(text)
+        
+        boundaries: List[WordBoundary] = []
+        current_offset = 0
+        
+        for token_text, token_start, token_end in tokens:
+            # Analyze this token
+            boundary = self._analyze_token(token_text, token_start, token_end)
             boundaries.append(boundary)
-
+            
+            current_offset = token_end
+        
         return boundaries
-
-    def _analyze_word(self, word: str, start: int, end: int) -> WordBoundary:
-        """Analyze a single word to detect boundaries and clitics.
-
+    
+    def _initial_tokenize(self, text: str) -> List[Tuple[str, int, int]]:
+        """Initial tokenization on whitespace.
+        
+        Returns:
+            List of (token_text, start_offset, end_offset) tuples
+        """
+        tokens: List[Tuple[str, int, int]] = []
+        
+        # Split on whitespace but keep track of positions
+        pattern = re.compile(r'\S+')
+        for match in pattern.finditer(text):
+            tokens.append((match.group(), match.start(), match.end()))
+        
+        return tokens
+    
+    def _analyze_token(self, text: str, start: int, end: int) -> WordBoundary:
+        """Analyze a single token to create WordBoundary.
+        
         Args:
-            word: Word text
-            start: Start position in original text
-            end: End position in original text
-
+            text: Token text
+            start: Start offset in original text
+            end: End offset in original text
+            
         Returns:
             WordBoundary object with analysis results
         """
-        # Detect prefixes
-        prefix, has_prefix = self._detect_prefix(word)
-
-        # Detect suffixes
-        suffix, has_suffix = self._detect_suffix(word)
-
-        # Count syllables (approximate)
-        syllable_count = self._count_syllables(word)
-
-        # Compute confidence
+        # Remove diacritics for analysis (but keep original text)
+        clean_text = self._remove_diacritics(text)
+        
+        # Detect prefixes and suffixes
+        has_prefix, prefix_len = self._detect_prefix(clean_text)
+        has_suffix, suffix_len = self._detect_suffix(clean_text)
+        
+        # Get syllable count (use clean text)
+        try:
+            result = syllabify(clean_text)
+            syllable_count = len(result.syllables) if result and result.syllables else 0
+        except Exception:
+            syllable_count = 0
+        
+        # Always use estimate if syllabifier failed
+        if syllable_count == 0:
+            syllable_count = self._estimate_syllables(clean_text)
+        
+        # Compute confidence score
         confidence = self._compute_confidence(
-            word, has_prefix, has_suffix, syllable_count
+            text=clean_text,
+            has_prefix=has_prefix,
+            has_suffix=has_suffix,
+            syllable_count=syllable_count
         )
-
+        
         return WordBoundary(
-            text=word,
+            text=text,
             start=start,
             end=end,
             confidence=confidence,
             syllable_count=syllable_count,
             has_prefix=has_prefix,
-            has_suffix=has_suffix,
-            prefix=prefix,
-            suffix=suffix,
+            has_suffix=has_suffix
         )
-
-    def _detect_prefix(self, word: str) -> Tuple[Optional[str], bool]:
-        """Detect clitic prefix in word.
-
-        Args:
-            word: Word text
-
+    
+    def _detect_prefix(self, text: str) -> Tuple[bool, int]:
+        """Detect if text starts with a clitic prefix.
+        
         Returns:
-            Tuple of (prefix_text, has_prefix)
+            (has_prefix: bool, prefix_length: int)
         """
-        word_bare = self._remove_diacritics(word)
-
-        # Check compound prefixes first (longer matches)
+        # Try compound prefixes first (longest match)
         for prefix in sorted(self.clitics.COMPOUND_PREFIXES, key=len, reverse=True):
-            if word_bare.startswith(prefix) and len(word_bare) - len(prefix) >= 3:
-                return prefix, True
-
-        # Check simple prefixes; require minimum stem length to avoid false positives
-        # (e.g. "كتاب" should not be split as ك + تاب; ك is root letter)
-        for prefix in sorted(self.clitics.SIMPLE_PREFIXES, key=len, reverse=True):
-            remaining = len(word_bare) - len(prefix)
-            if word_bare.startswith(prefix) and remaining >= 3:
-                if len(prefix) == 1 and remaining < 4:
-                    continue  # single-char prefix needs longer stem
-                return prefix, True
-
-        return None, False
-
-    def _detect_suffix(self, word: str) -> Tuple[Optional[str], bool]:
-        """Detect clitic suffix in word.
-
-        Args:
-            word: Word text
-
+            if text.startswith(prefix) and len(text) - len(prefix) >= 3:
+                return (True, len(prefix))
+        
+        # Try simple prefixes - be strict with single-letter prefixes
+        for prefix in sorted(self.clitics.PREFIXES, key=len, reverse=True):
+            remaining_length = len(text) - len(prefix)
+            if text.startswith(prefix) and remaining_length >= 3:
+                # Extra check: single-letter prefixes need longer stem
+                if len(prefix) == 1 and remaining_length < 4:
+                    continue
+                return (True, len(prefix))
+        
+        return (False, 0)
+    
+    def _detect_suffix(self, text: str) -> Tuple[bool, int]:
+        """Detect if text ends with a clitic suffix.
+        
         Returns:
-            Tuple of (suffix_text, has_suffix)
+            (has_suffix: bool, suffix_length: int)
         """
-        # Remove diacritics for suffix detection
-        word_bare = self._remove_diacritics(word)
-
-        # Check suffixes (longest first for better matching)
-        for suffix in sorted(self.clitics.PRONOUN_SUFFIXES, key=len, reverse=True):
-            if word_bare.endswith(suffix) and len(word_bare) > len(suffix):
-                return suffix, True
-
-        return None, False
-
-    def _count_syllables(self, word: str) -> int:
-        """Approximate syllable count for Arabic word.
-
-        Uses syllabifier when available; otherwise a simplified heuristic
-        based on vowel counting.
-
-        Args:
-            word: Word text
-
-        Returns:
-            Estimated syllable count
-        """
-        if self.syllabifier:
-            try:
-                result = self.syllabifier.syllabify(word)
-                n = len(result.syllables) if result.syllables else 0
-                return max(1, n)
-            except Exception:
-                pass
-
-        try:
-            from .syllabifier import syllabify
-            result = syllabify(word)
-            n = len(result.syllables) if result.syllables else 0
-            return max(1, n)
-        except Exception:
-            pass
-
-        # Fallback: count short vowels as syllable markers
-        vowel_marks = ['َ', 'ِ', 'ُ']  # fatha, kasra, damma
-        count = sum(1 for char in word if char in vowel_marks)
-
-        # Minimum 1 syllable per word
-        return max(1, count)
-
+        # Try suffixes (longest first)
+        for suffix in sorted(self.clitics.SUFFIXES, key=len, reverse=True):
+            if text.endswith(suffix) and len(text) - len(suffix) >= 3:
+                return (True, len(suffix))
+        
+        return (False, 0)
+    
     def _compute_confidence(
         self,
-        word: str,
+        text: str,
         has_prefix: bool,
         has_suffix: bool,
-        syllable_count: int,
+        syllable_count: int
     ) -> float:
-        """Compute confidence score for word boundary detection.
-
-        Confidence is higher when:
-        - Word has clear clitics
-        - Word has reasonable syllable count
-        - Word length is reasonable
-
-        Args:
-            word: Word text
-            has_prefix: Whether prefix detected
-            has_suffix: Whether suffix detected
-            syllable_count: Number of syllables
-
+        """Compute confidence score for this boundary.
+        
+        Higher confidence for:
+        - Longer words (more information)
+        - Words with recognized clitics
+        - Words with 2-4 syllables (typical Arabic word length)
+        
         Returns:
-            Confidence score [0.0, 1.0]
+            Confidence score in [0.0, 1.0]
         """
         confidence = 0.5  # Base confidence
-
-        # Boost for clitic presence
-        if has_prefix:
+        
+        # Length factor: longer words are more reliable
+        if len(text) >= 5:
             confidence += 0.2
+        elif len(text) >= 3:
+            confidence += 0.1
+        
+        # Clitic factor: recognized clitics increase confidence
+        if has_prefix:
+            confidence += 0.1
         if has_suffix:
             confidence += 0.1
-
-        # Boost for reasonable syllable count (1-4 syllables)
-        if 1 <= syllable_count <= 4:
+        
+        # Syllable factor: typical words have 2-4 syllables
+        if 2 <= syllable_count <= 4:
             confidence += 0.1
-
-        # Slight boost for reasonable word length
-        word_length = len(self._remove_diacritics(word))
-        if 3 <= word_length <= 12:
-            confidence += 0.1
-
-        # Cap at 1.0
-        return min(1.0, confidence)
-
+        
+        # Clamp to [0, 1]
+        return min(1.0, max(0.0, confidence))
+    
     def _remove_diacritics(self, text: str) -> str:
-        """Remove Arabic diacritics from text.
-
-        Args:
-            text: Text with diacritics
-
-        Returns:
-            Text without diacritics
+        """Remove Arabic diacritics for analysis.
+        
+        Removes:
+        - Short vowels (َ ُ ِ)
+        - Tanwin (ً ٌ ٍ)
+        - Sukun (ْ)
+        - Shadda (ّ)
         """
-        # Arabic diacritics Unicode range
-        diacritics = re.compile(r'[\u064B-\u065F\u0670]')
-        return diacritics.sub('', text)
+        diacritics = [
+            '\u064B',  # Fathatan
+            '\u064C',  # Dammatan
+            '\u064D',  # Kasratan
+            '\u064E',  # Fatha
+            '\u064F',  # Damma
+            '\u0650',  # Kasra
+            '\u0651',  # Shadda
+            '\u0652',  # Sukun
+        ]
+        
+        for diacritic in diacritics:
+            text = text.replace(diacritic, '')
+        
+        return text
+    
+    def _estimate_syllables(self, text: str) -> int:
+        """Estimate syllable count by counting vowels.
+        
+        Fallback method when syllabifier fails.
+        """        
+        vowels = {'ا', 'و', 'ي', 'ى'}  # Long vowels in Arabic
+        count = sum(1 for c in text if c in vowels)
+        
+        # At least 1 syllable for any non-empty word
+        return max(1, count)
 
 
+# Convenience function for quick access
 def detect_word_boundaries(text: str) -> List[WordBoundary]:
-    """Convenience function to detect word boundaries using Plan B.
-
+    """Convenience function to detect word boundaries.
+    
     Args:
-        text: Arabic text to analyze
-
+        text: Input Arabic text
+        
     Returns:
         List of WordBoundary objects
+        
+    Examples:
+        >>> boundaries = detect_word_boundaries("الكتاب على الطاولة")
+        >>> [b.text for b in boundaries]
+        ['الكتاب', 'على', 'الطاولة']
     """
     detector = WordBoundaryDetectorPlanB()
     return detector.detect_boundaries(text)
