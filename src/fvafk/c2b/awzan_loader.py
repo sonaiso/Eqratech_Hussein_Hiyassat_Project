@@ -9,21 +9,9 @@ from .morpheme import PatternType
 
 class AwzanPatternLoader:
     # Preferred awzan file (new default)
-    # 1) Package-local copy (when you want it under src/fvafk/phonology/)
-    #    This is the primary awzan source for the project.
-    CSV_PATH_PHONOLOGY_CLEAN = (
-        Path(__file__).resolve().parents[1] / "phonology" / "awzan_merged_final_clean.csv"
-    )
-    # 2) Optional full table (kept as fallback)
-    CSV_PATH_PHONOLOGY_FULL = (
-        Path(__file__).resolve().parents[1] / "phonology" / "awzan_merged_final.csv"
-    )
-    # 2) Project-level data/ (default for this repo)
     CSV_PATH = Path(__file__).resolve().parents[3] / "data" / "awzan_merged_final.csv"
     # Legacy fallback (kept for compatibility)
     CSV_PATH_LEGACY = Path(__file__).resolve().parents[3] / "awzan-claude-atwah.csv"
-
-    _cache: Optional[List[dict]] = None
 
     PATTERN_TYPE_MAP: Dict[str, PatternType] = {
         "فَعَلَ": PatternType.FORM_I,
@@ -69,21 +57,11 @@ class AwzanPatternLoader:
     }
 
     @classmethod
-    def load(cls) -> List[dict]:
-        if cls._cache is not None:
-            return cls._cache
+    def load(cls) -> List[PatternTemplate]:
         patterns: List[dict] = []
-        if cls.CSV_PATH_PHONOLOGY_CLEAN.exists():
-            csv_path = cls.CSV_PATH_PHONOLOGY_CLEAN
-        elif cls.CSV_PATH_PHONOLOGY_FULL.exists():
-            csv_path = cls.CSV_PATH_PHONOLOGY_FULL
-        elif cls.CSV_PATH.exists():
-            csv_path = cls.CSV_PATH
-        else:
-            csv_path = cls.CSV_PATH_LEGACY
+        csv_path = cls.CSV_PATH if cls.CSV_PATH.exists() else cls.CSV_PATH_LEGACY
         if not csv_path.exists():
-            cls._cache = patterns
-            return cls._cache
+            return patterns
         with open(csv_path, encoding="utf-8-sig", newline="") as handle:
             sample = handle.read(2048)
             handle.seek(0)
@@ -115,8 +93,7 @@ class AwzanPatternLoader:
                         "notes": row.get("ملاحظات") or None,
                     }
                 )
-        cls._cache = patterns
-        return cls._cache
+        return patterns
 
     @staticmethod
     def _infer_category(row: Dict[str, str], pattern_type: PatternType) -> str:
