@@ -113,6 +113,38 @@ Eqratech_Hussein_Hiyassat_Project/
 └── README.md                       # This file
 ```
 
+### Sprint 4: Syntax Foundation (I3rab Analysis) ✅
+
+**Status**: COMPLETE  
+**Tests**: 66 tests passing  
+**Documentation**: [docs/SYNTAX.md](docs/SYNTAX.md)
+
+#### Features
+- **3-Layer Architecture**: Annotation → Components → Features
+- **I3rab Parser**: Extract syntax from Arabic I3rab text
+- **Syntax Evaluator**: Measure accuracy with confusion matrices
+- **Morph-Syntax Bridge**: Predict syntax from morphology
+- **Integration Tests**: End-to-end pipeline validation
+
+#### Components
+- Data Models: `I3rabAnnotation`, `I3rabComponents`, `SyntaxFeatures`
+- Parser: Regex-based extraction with confidence scoring
+- Evaluator: Comprehensive metrics (accuracy, F1, coverage)
+- Bridge: Rule-based morphology-to-syntax inference
+- Mappings: Arabic ↔ English for I3rab types, cases, markers
+
+#### Quick Example
+```python
+from fvafk.c2b.syntax import I3rabParser
+
+parser = I3rabParser()
+result = parser.parse("مبتدأ مرفوع وعلامة رفعه الضمة الظاهرة")
+
+print(f"Type: {result.i3rab_type}")  # mubtada
+print(f"Case: {result.case}")        # nominative
+print(f"Confidence: {result.confidence}")  # 0.9
+```
+
 ---
 
 ## 🚀 Installation

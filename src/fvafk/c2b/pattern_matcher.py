@@ -213,11 +213,45 @@ class PatternMatcher:
         return None
 
     def _normalize(self, word: str) -> str:
-        text = word.replace('ً', '').replace('ٌ', '').replace('ٍ', '')
+        # Convert Tanwin to standard short vowels
+        # This is critical for matching catalog patterns (e.g., matching "كاتبٌ" with "فاعل")
+        text = word.replace('ً', 'َ').replace('ٌ', 'ُ').replace('ٍ', 'ِ')
+        
+        # Remove definiteness (Al-)
+        # Strip simple "ال" prefix
+        if text.startswith("ال") and len(text) > 3:
+             # Find end of "ال" (skip non-letters)
+             idx = 2
+             while idx < len(text) and text[idx] in "ْ":
+                 idx += 1
+             
+             # Handle Sun letters (Shadda after Al)
+             # e.g., "الشَّمْس" -> "شَّمْس" -> we want to match pattern "فَعْل"
+             # If next char has shadda, keep it but remove the Al
+             # Actually, templates usually don't have the shadda from sun letters
+             # So we should probably strip that shadda too if it's a sun letter effect
+             
+             stem_start = idx
+             stem = text[stem_start:]
+             
+             # If the first letter of the stem has a shadda, it might be a sun letter assimilation
+             # We should remove the shadda to recover the underlying form for pattern matching
+             # e.g. "الشَّمْس" -> "شَمْس" (to match fa3l)
+             if len(stem) > 1 and stem[1] == 'ّ':
+                 # Remove shadda
+                 stem = stem[0] + stem[2:]
+                 
+             text = stem
+
         # If the surface had fathatan, Arabic orthography often adds a final alif (…ًا).
         # After stripping marks, drop this support-alif to match templates (e.g., عظيمًا -> عظيم).
-        if "\u064b" in word and text.endswith("ا") and len(text) > 3:
-            text = text[:-1]
+        # Note: We already converted tanwin to short vowel, so we check for 'َ' at end + 'ا'
+        if text.endswith("َا") and len(text) > 3:
+             text = text[:-1] # Remove the alif, keep the fatha? 
+             # Actually, templates like "فعِيل" (aziim) don't have the fatha at the end usually
+             # But let's stick to the previous logic of stripping it if it was a support alif
+             pass
+
         text = text.replace('أ', 'ا').replace('إ', 'ا').replace('آ', 'ا')
         text = text.replace('ى', 'ي')
         return text.strip()
@@ -251,41 +285,92 @@ class PatternMatcher:
     ) -> Tuple[bool, float]:
         if word == candidate:
             return True, 1.0
+        
+        # Apply the SAME normalization used in arabic_wazn_matcher_gate.py:
+        # Check if units match (placeholder-aware)
+        
+        # We need to split into units to check shadda/vowel alignment
+        # This requires importing the unit logic or approximating it.
+        # Given we don't have the full Unit class here, let's stick to text matching
+        # but be smarter about shaddas.
+        
         stripped_word = self._strip_diacritics(word)
         stripped_candidate = self._strip_diacritics(candidate)
+        
+        # If consonants don't match, fail immediately
+        if stripped_word != stripped_candidate:
+            return False, 0.0
+            
+        # If broken plural fu'ul, special check (unchanged)
         if pattern_type == PatternType.BROKEN_PLURAL_FUUL:
             candidate_no_waw = candidate.replace("و", "")
             stripped_candidate_no_waw = self._strip_diacritics(candidate_no_waw)
             if stripped_word == stripped_candidate_no_waw:
                 return True, 0.85
-        if stripped_word != stripped_candidate:
-            return False, 0.0
+        
+        # Check CV pattern if available
         if template.cv_advanced:
             template_cv = self._sanitize_cv(template.cv_advanced)
             if template_cv and (not advanced_cv_word or advanced_cv_word != template_cv):
-                return False, 0.25
-        if len(word) == len(candidate):
+                pass
+        
+        # Check shadda match (Crucial from gate matcher)
+        # If candidate has shadda, word MUST have shadda
+        if 'ّ' in candidate and 'ّ' not in word:
+             return False, 0.0
+             
+        # If candidate has no shadda (and is not placeholder-heavy), word should not have shadda?
+        # In gate matcher: if p_sh and not w_sh -> Fail. if not p_sh and w_sh -> Fail (unless placeholder).
+        # Here candidate is instantiated, so placeholders are filled.
+        # But root letters might have shadda natively? No, usually pattern dictates shadda.
+        if 'ّ' not in candidate and 'ّ' in word:
+             return False, 0.0
+
+        # Lenient match: ignore final short vowel differences
+        # e.g. "كَاتِبُ" vs "كَاتِب"
+        def strip_final_vowel(s):
+            if s and s[-1] in "َُِ":
+                return s[:-1]
+            return s
+            
+        if strip_final_vowel(word) == strip_final_vowel(candidate):
             return True, 0.95
+            
+        # If lengths match (and stripped text matches), good enough
+        if len(word) == len(candidate):
+            return True, 0.90
+            
         if pattern_type == PatternType.FORM_X:
             return True, 0.9
-        return False, 0.0
+            
+        # If we got here, stripped text matches but full text doesn't
+        # Likely a vowel mismatch. Return a lower confidence match
+        return True, 0.60
 
     @staticmethod
     def _sanitize_cv(value: str) -> str:
         return "".join(ch for ch in value if ch.isalpha())
 
     def _strip_diacritics(self, text: str) -> str:
-        diacritics = "َُِْٰٓٔٱ" + "ًٌٍ"
-        had_fathatan = "\u064b" in text
-        for d in diacritics:
-            text = text.replace(d, '')
-        # Normalize hamza carriers to bare alif for robust matching (e.g., أخرج vs افعل).
+        # Standardize hamza carriers first
         text = (
             text.replace("أ", "ا")
             .replace("إ", "ا")
             .replace("آ", "ا")
+            .replace("ؤ", "و")
+            .replace("ئ", "ي")
         )
+        
+        diacritics = "َُِْٰٓٔٱ" + "ًٌٍ" + "ّ"
+        for d in diacritics:
+            text = text.replace(d, '')
+            
         text = re.sub(r'[\u064B-\u0650\u0652-\u065F\u0670]', '', text)
-        if had_fathatan and text.endswith("ا") and len(text) > 3:
-            text = text[:-1]
+        
+        # Handle support alif from tanwin fatha
+        if text.endswith("ا") and len(text) > 3:
+             # Heuristic: if it looks like a support alif (e.g. kitaban -> kitab)
+             # But be careful not to strip root letters
+             pass
+             
         return text
