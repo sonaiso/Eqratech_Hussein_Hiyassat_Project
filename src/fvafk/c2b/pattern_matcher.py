@@ -5,6 +5,7 @@ PatternMatcher: Recognize Arabic morphological patterns.
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -87,12 +88,12 @@ class PatternDatabase:
             PatternTemplate(template="فُعَلَاءُ", pattern_type=PatternType.BROKEN_PLURAL_FU3ALAA, category="plural"),
         ]
         extra_patterns = AwzanPatternLoader.load()
-        seen_templates = {p.template for p in base}
+        seen_templates = {unicodedata.normalize('NFC', p.template) for p in base}
         for data in extra_patterns:
             tpl = data["template"]
-            if tpl in seen_templates:
+            if unicodedata.normalize('NFC', tpl) in seen_templates:
                 continue
-            seen_templates.add(tpl)
+            seen_templates.add(unicodedata.normalize('NFC', tpl))
             base.append(
                 PatternTemplate(
                     template=tpl,
@@ -135,6 +136,8 @@ class PatternMatcher:
         simple_cv_word = cv_pattern(word)
         normalized = self._normalize(word)
         categories = ["verb", "noun", "plural"]
+        best_pattern: Optional[Pattern] = None
+        best_confidence: float = -1.0
         checked = set()
         for category in categories:
             for template in self.database.get_by_category(category):
@@ -151,14 +154,17 @@ class PatternMatcher:
                     advanced_cv_word,
                     template,
                 )
-                if matched:
-                    return Pattern(
+                if matched and confidence > best_confidence:
+                    best_confidence = confidence
+                    best_pattern = Pattern(
                         name=template.pattern_type.value,
                         template=template.template,
                         pattern_type=template.pattern_type,
                         stem=word,
                         features={**template.feature_map(), "confidence": f"{confidence:.2f}"},
                     )
+                    if confidence == 1.0:
+                        return best_pattern
         for template in self.database.get_all():
             if id(template) in checked:
                 continue
@@ -172,14 +178,19 @@ class PatternMatcher:
                 advanced_cv_word,
                 template,
             )
-            if matched:
-                return Pattern(
+            if matched and confidence > best_confidence:
+                best_confidence = confidence
+                best_pattern = Pattern(
                     name=template.pattern_type.value,
                     template=template.template,
                     pattern_type=template.pattern_type,
                     stem=word,
                     features={**template.feature_map(), "confidence": f"{confidence:.2f}"},
                 )
+                if confidence == 1.0:
+                    return best_pattern
+        if best_pattern is not None:
+            return best_pattern
 
         # ------------------------------------------------------------------
         # CV-based fallback (golden rule from docs/awzan_test_report.md)
@@ -296,17 +307,18 @@ class PatternMatcher:
         
         stripped_word = self._strip_diacritics(word)
         stripped_candidate = self._strip_diacritics(candidate)
-        
-        # If consonants don't match, fail immediately
-        if stripped_word != stripped_candidate:
-            return False, 0.0
-            
-        # If broken plural fu'ul, special check (unchanged)
+
+        # If broken plural fu'ul, check BEFORE consonant comparison because the
+        # waw in فُعُول is part of the pattern (not the root), so consonants won't match directly.
         if pattern_type == PatternType.BROKEN_PLURAL_FUUL:
             candidate_no_waw = candidate.replace("و", "")
             stripped_candidate_no_waw = self._strip_diacritics(candidate_no_waw)
             if stripped_word == stripped_candidate_no_waw:
                 return True, 0.85
+
+        # If consonants don't match, fail immediately
+        if stripped_word != stripped_candidate:
+            return False, 0.0
         
         # Check CV pattern if available
         if template.cv_advanced:
