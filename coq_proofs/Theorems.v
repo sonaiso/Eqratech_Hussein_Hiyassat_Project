@@ -14,6 +14,7 @@ Require Import Canonical.
 Require Import Minimizer.
 Require Import SyntaxGates.
 Require Import Maqam.
+Require Import XBar.
 
 Import ListNotations.
 
@@ -169,3 +170,33 @@ Qed.
 
 Print Assumptions theorem2_y0_exists.
 (* Should show only axioms from Assumptions.v *)
+
+(** ** Theorem 11: X-bar C1/C2/C3 Chain *)
+
+(** For every token, the C1→C2→C3 chain is constructible and well-formed,
+    with C2 bridging C1 and C3. *)
+Theorem theorem11_xbar_c1_c2_c3 : forall tok,
+  let head   := XHead tok in
+  let bar    := XBarNode head None in
+  let phrase := XPhrase None bar in
+  (** (a) Each node is at its correct X-bar / pipeline level *)
+  xbar_level head   = Head   /\
+  xbar_level bar    = Bar    /\
+  xbar_level phrase = Phrase /\
+  (** (b) C2 is directly linked to C1 *)
+  c1_feeds_c2 head bar /\
+  (** (c) C2 is directly linked to C3 *)
+  c2_feeds_c3 bar phrase /\
+  (** (d) C1 and C3 are indirectly related through C2 *)
+  c1_related_c3 head phrase /\
+  (** (e) The full tree is well-formed *)
+  xbar_wf phrase.
+Proof.
+  intros tok. simpl. repeat split.
+  - unfold c1_feeds_c2. repeat split. reflexivity.
+  - unfold c2_feeds_c3. repeat split. reflexivity.
+  - eapply c2_bridges_c1_c3.
+    + unfold c1_feeds_c2. repeat split. reflexivity.
+    + unfold c2_feeds_c3. repeat split. reflexivity.
+  - simpl. auto.
+Qed.

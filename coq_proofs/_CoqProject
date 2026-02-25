@@ -8,4 +8,5 @@ Canonical.v
 Minimizer.v
 SyntaxGates.v
 Maqam.v
+XBar.v
 Theorems.v
