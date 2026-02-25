@@ -4,7 +4,7 @@ Basic morphological dataclasses and helpers.
 
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Iterable, List, Optional, Sequence, Tuple
 
 
 class RootType(Enum):
@@ -45,8 +45,6 @@ class PatternType(Enum):
     BROKEN_PLURAL_FIAAL = "broken_plural_fiaal"
     BROKEN_PLURAL_AFAAL = "broken_plural_afaal"
     BROKEN_PLURAL_FIUL = "broken_plural_fiul"
-    BROKEN_PLURAL_FU33AL = "broken_plural_fu33al"
-    BROKEN_PLURAL_FU3ALAA = "broken_plural_fu3alaa"
 
 
 class AffixType(Enum):
@@ -87,7 +85,6 @@ class Pattern:
     stem: Optional[str] = None
     description: Optional[str] = None
     weight: int = 1
-    features: Dict[str, str] = field(default_factory=dict)
 
     def matches(self, stem: str) -> bool:
         consonants = [ch for ch in stem if ch.isalpha()]
