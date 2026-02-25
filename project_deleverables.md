@@ -11,12 +11,11 @@
 - **واجهة الاستخدام الأساسية الآن**: `src/fvafk/cli/main.py` عبر:
   - `python -m fvafk.cli "نص" --json`
   - `python -m fvafk.cli "نص" --morphology --json`
-- **الخطة التفصيلية (6 أجزاء + 6 سبرنتات)**: انظر `docs/MASTER_PLAN_CHECKLIST.md` و `ENHANCED_ROADMAP.md` و `PROJECT_STATUS.md`.
 
 ---
 
 ## 2) خط الأساس الحالي (Baseline Snapshot)
-- **الاختبارات**: `pytest` ✅ **269 passed** (آخر تحقق: 2026-02-01). انظر `PROJECT_STATUS.md` و `ENHANCED_ROADMAP.md` للخارطة التالية.
+- **الاختبارات**: `pytest` ✅ **229 passed** (آخر تحقق: 2026-02-05).
 - **مخرجات CV في CLI**: `c1.cv_analysis.words` تحتوي فقط:
   - `cv`
   - `cv_advanced`
@@ -71,7 +70,7 @@
   - `RootExtractionResult` يعيد: `root`, `normalized_word`, `stripped_word`, `prefix`, `suffix`.
 - **Pattern matching + تحميل قاعدة أوزان خارجية**
   - `src/fvafk/c2b/pattern_matcher.py`
-  - `src/fvafk/c2b/awzan_loader.py` يقرأ `src/fvafk/phonology/awzan_merged_final_clean.csv` (مع fallback إلى جداول أكبر عند الحاجة) ويضيف قوالب.
+  - `src/fvafk/c2b/awzan_loader.py` يقرأ `data/awzan_merged_final.csv` (مع fallback إلى `awzan-claude-atwah.csv`) ويضيف قوالب.
   - مطابقة CV المتقدم (إذا توفر في القالب) + `confidence`.
 - **PatternAnalyzer (طبقة مستقلة)**
   - `src/fvafk/c2b/pattern_analyzer.py` (واجهة ثابتة فوق `PatternMatcher`)
@@ -84,7 +83,7 @@
   - يدعم stripping diacritics + peeling prefixes + compound matching.
 
 **بيانات مرتبطة**
-- `src/fvafk/phonology/awzan_merged_final_clean.csv` (مصدر الأوزان الحالي)
+- `data/awzan_merged_final.csv` (مصدر الأوزان الحالي)
 - `awzan-claude-atwah.csv` (مصدر قديم/احتياطي)
 - `operators_catalog_split.csv` (مصدر الأدوات/الحروف؛ يُبحث عنه عبر env/مسارات افتراضية)
 
@@ -137,10 +136,9 @@
 - Feature extraction V1 داخل `c2b.features`.
 - Operators classification من CSV.
 - C1: `FormCodecV2` + `Trace V1` (replayable trace).
-- اختبارات شاملة تمر (269). انظر `PROJECT_STATUS.md` و `ENHANCED_ROADMAP.md`.
+- اختبارات شاملة تمر (228).
 
-### ⏳ التالي (أعلى أولوية حسب الخطة و ENHANCED_ROADMAP.md)
-- **ربط النحو في الـ CLI**: بناء WordForm من C2b وتشغيل ISNADI وإضافة `result["syntax"]` (Sprint 1).
+### ⏳ التالي (أعلى أولوية حسب الخطة)
 - **اشتقاق سمات صرفية/نحوية** من الوزن والزوائد (مثل: number/gender/case، وضمائر مثل `هُمْ`).
 - توحيد طبقة “تصنيف الكلمة” (noun/verb/particle/pronoun) بدل الاقتصار على operators فقط.
 - تجهيز “WordForm” وسيط يربط: token → (operator|root|pattern|features) لاستخدامه في المرحلة النحوية.
