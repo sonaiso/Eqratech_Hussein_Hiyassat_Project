@@ -5,6 +5,7 @@ PatternMatcher: Recognize Arabic morphological patterns.
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -87,12 +88,12 @@ class PatternDatabase:
             PatternTemplate(template="فُعَلَاءُ", pattern_type=PatternType.BROKEN_PLURAL_FU3ALAA, category="plural"),
         ]
         extra_patterns = AwzanPatternLoader.load()
-        seen_templates = {p.template for p in base}
+        seen_templates = {unicodedata.normalize('NFC', p.template) for p in base}
         for data in extra_patterns:
             tpl = data["template"]
-            if tpl in seen_templates:
+            if unicodedata.normalize('NFC', tpl) in seen_templates:
                 continue
-            seen_templates.add(tpl)
+            seen_templates.add(unicodedata.normalize('NFC', tpl))
             base.append(
                 PatternTemplate(
                     template=tpl,
@@ -136,6 +137,18 @@ class PatternMatcher:
         normalized = self._normalize(word)
         categories = ["verb", "noun", "plural"]
         checked = set()
+        best_pattern: Optional[Pattern] = None
+        best_confidence: float = 0.0
+
+        def _make_pattern(template: PatternTemplate, confidence: float) -> Pattern:
+            return Pattern(
+                name=template.pattern_type.value,
+                template=template.template,
+                pattern_type=template.pattern_type,
+                stem=word,
+                features={**template.feature_map(), "confidence": f"{confidence:.2f}"},
+            )
+
         for category in categories:
             for template in self.database.get_by_category(category):
                 if id(template) in checked:
@@ -151,14 +164,11 @@ class PatternMatcher:
                     advanced_cv_word,
                     template,
                 )
-                if matched:
-                    return Pattern(
-                        name=template.pattern_type.value,
-                        template=template.template,
-                        pattern_type=template.pattern_type,
-                        stem=word,
-                        features={**template.feature_map(), "confidence": f"{confidence:.2f}"},
-                    )
+                if matched and confidence > best_confidence:
+                    best_confidence = confidence
+                    best_pattern = _make_pattern(template, confidence)
+                    if confidence >= 1.0:
+                        return best_pattern
         for template in self.database.get_all():
             if id(template) in checked:
                 continue
@@ -172,14 +182,14 @@ class PatternMatcher:
                 advanced_cv_word,
                 template,
             )
-            if matched:
-                return Pattern(
-                    name=template.pattern_type.value,
-                    template=template.template,
-                    pattern_type=template.pattern_type,
-                    stem=word,
-                    features={**template.feature_map(), "confidence": f"{confidence:.2f}"},
-                )
+            if matched and confidence > best_confidence:
+                best_confidence = confidence
+                best_pattern = _make_pattern(template, confidence)
+                if confidence >= 1.0:
+                    return best_pattern
+
+        if best_pattern:
+            return best_pattern
 
         # ------------------------------------------------------------------
         # CV-based fallback (golden rule from docs/awzan_test_report.md)
@@ -213,9 +223,11 @@ class PatternMatcher:
         return None
 
     def _normalize(self, word: str) -> str:
+        # Canonicalize Unicode combining character order (e.g. shadda+vowel vs vowel+shadda)
+        text = unicodedata.normalize('NFC', word)
         # Convert Tanwin to standard short vowels
         # This is critical for matching catalog patterns (e.g., matching "كاتبٌ" with "فاعل")
-        text = word.replace('ً', 'َ').replace('ٌ', 'ُ').replace('ٍ', 'ِ')
+        text = text.replace('ً', 'َ').replace('ٌ', 'ُ').replace('ٍ', 'ِ')
         
         # Remove definiteness (Al-)
         # Strip simple "ال" prefix
@@ -283,6 +295,8 @@ class PatternMatcher:
         advanced_cv_word: str,
         template: PatternTemplate,
     ) -> Tuple[bool, float]:
+        word = unicodedata.normalize('NFC', word)
+        candidate = unicodedata.normalize('NFC', candidate)
         if word == candidate:
             return True, 1.0
         
