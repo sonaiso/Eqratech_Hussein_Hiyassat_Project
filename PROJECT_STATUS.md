@@ -1,318 +1,115 @@
 # FVAFK Project Status
 
-**Last Updated:** February 15, 2026  
-**Branch:** sprint2/gate-unification  
-**Version:** 0.1.0  
-**Tests:** 358 passing ✅
+Single source of truth for **current progress** and **roadmap**. Updated at sprint boundaries and when major features land.
+
+**Last updated:** 2026-02-16
 
 ---
 
-## 📊 Overall Progress
+## 1. Current progress
 
-### Sprint Summary
+### 1.1 Baseline
 
-| Sprint | Status | Progress | Tests | Time Spent |
-|--------|--------|----------|-------|------------|
-| Sprint 1: Foundation & Packaging | ✅ Complete | 100% (9/9) | +16 | ~8 hours |
-| Sprint 2: Phonology Gates & Testing | ⏳ In Progress | 67% (6/9) | +25 | ~6 hours |
-| Sprint 3: Morphology & Corpus | 🔲 Not Started | 0% | - | - |
-| Sprint 4: Syntax Linkers | 🔲 Not Started | 0% | - | - |
-| Sprint 5: Constraints & Validator | 🔲 Not Started | 0% | - | - |
-| Sprint 6: Integration & Ops | 🔲 Not Started | 0% | - | - |
+| Item | Status |
+|------|--------|
+| **Tests** | 373 passing, 1 skipped; CI green ✅ |
+| **Package** | `bayan-fvafk` v0.1.0 (pyproject.toml) ✅ |
+| **Pipeline** | C1 → C2a → C2b → Syntax working in CLI ✅ |
+| **Phonology V2** | Integrated; `--phonology-v2`, `--phonology-v2-details`, `--phonology-v2-witnesses` ✅ |
+| **WordForm** | Implemented and in CLI output ✅ |
+| **ISNADI** | V1 and V1.1 implemented; **in CLI output** ✅ |
+| **Structure** | `src/fvafk/`, `app/`, `tests/`, `docs/`, `theories/` ✅ |
 
-**Total Progress:** ~28% (15/54 tasks across all sprints)
+### 1.2 What’s done (by phase)
 
----
+- **Phase 1 (Infrastructure):** Segment inventory, orthography, C1 encoder, FormCodecV2, Trace V1, gate framework.
+- **Phase 2 (Gates):** All 11 gates unified with BaseGate; orchestrator; property tests with Hypothesis; Coq skeletons (GateSukun, GateShadda, GateTanwin).
+- **Phase 3 (Morphology):** Word boundaries (Plan A), root extraction, pattern matcher, awzan loader, pattern analyzer, word classifier, features V1, operators catalog.
+- **Phase 4 (Syntax):** WordForm bridge, ISNADI linker (in package and CLI); **TADMINI/TAQYIDI and parser not implemented yet.**
+- **Phase 5 (Constraints):** Not started.
+- **Phase 6 (Integration):** CLI and C2b integrated; no corpus evaluation or C2c yet.
 
-## ✅ Sprint 1: Foundation & Packaging (100% Complete)
+### 1.3 Known gaps
 
-### Completed Tasks
-
-- ✅ **1.1** `pyproject.toml` added - Package metadata, dependencies, CLI entry point
-- ✅ **1.3** Pydantic models defined - 7 models (Unit, Syllable, WordForm, Link, Evidence, ProofArtifact, AnalysisResult)
-- ✅ **1.4** OrthographyAdapter + FormCodecV2 integration - Reversible encoding with normalization rules
-- ✅ **1.5** Directory alignment - `theories/`, `docs/`, `app/`, `cli/`, `tests/`
-- ✅ **1.6** Documentation updated - README, PROJECT_STATUS
-- ✅ **1.7** CLI JSON with syntax - `word_forms` + `isnadi_links` output
-- ✅ **1.8** 10+ CLI tests - 13 comprehensive CLI tests
-- ✅ **1.9** CLI_SCHEMA.md - Complete JSON schema documentation
-
-### Deliverables
-
-- **Package:** `bayan-fvafk` v0.1.0
-- **Tests:** 317 → 333 (+16 tests)
-- **Files:** 12 new files, 8 modified
-- **Documentation:** 5 new docs
-
-### Key Achievements
-
-- ✅ Modern Python packaging with `pyproject.toml`
-- ✅ Type-safe data models with Pydantic
-- ✅ Reversible orthography with FormCodecV2
-- ✅ Complete CLI test coverage
-- ✅ Syntax layer integrated into CLI
+- TADMINI and TAQYIDI linkers not implemented.
+- No single SyntacticParser; no constraint modules or validator.
+- No corpus F1/UAS/LAS evaluation.
+- Plan B word boundaries (from syllables) deferred.
+- Part 2.5 (semantic gates) not started.
+- Part 5 (constraints) not started.
+- C2c and full integration not started.
 
 ---
 
-## ⏳ Sprint 2: Phonology Gates & Testing (67% Complete)
+## 2. Roadmap
 
-### Completed Tasks (6/9)
+The **full task checklist** (Parts 1–6) is in **`docs/MASTER_PLAN_CHECKLIST.md`**. The **sprint plan** is in **`ENHANCED_ROADMAP.md`**.
 
-#### Part 2.1: Gate Interface Unification ✅
+| Sprint | Weeks | Focus | Outcome |
+|--------|--------|--------|---------|
+| 1 | 1–2 | Part 1: packaging + ISNADI in CLI | pyproject.toml, bayan-fvafk, Pydantic models, CLI JSON (tokens, WordForm, ISNADI), 10+ tests |
+| 2 | 3–4 | Part 2 (+ 2.5): phonology + Coq | Gates, OrthographyAdapter rules, syllabifier, Coq skeletons; semantic gates base |
+| 3 | 5–6 | Part 3: morphology + corpus | Plan B boundaries, PatternCatalog bridge, morph_flags, gold corpus, F1 ≥ 0.85 |
+| 4 | 7–8 | Part 4: syntax + events | ISNADI/TADMINI/TAQYIDI, SyntacticParser, EventExtractor, UAS/LAS |
+| 5 | 9–10 | Part 5: constraints | 5 constraints + Amil-Sign, ConstraintValidator, Coq predicates |
+| 6 | 11–14 | Part 6: integration + ops | Full pipeline, corpus eval, proof mode, FastAPI, CI/CD, docs |
 
-- ✅ **2.1.1** GateResult canonical shape
-  - Introduced `GateDelta` for structured changes
-  - Canonical fields: `status`, `input_units`, `output_units`, `delta`, `time_ms`, `notes`
-  - Custom `__init__` for backward compatibility
-  - All 46 gate tests passing
-
-- ✅ **2.1.2** Unified all gates
-  - `PhonologicalGate = BaseGate` alias
-  - All 11 gates use uniform interface
-  - `GateOrchestrator` with automatic time tracking
-
-#### Part 2.2: Reference Syllabifier ✅
-
-- ✅ **2.2.1** Syllabifier as reference
-  - Enhanced `syllabifier.py` docstring with CV/CVV/CVC taxonomy
-  - Created `src/fvafk/c2b/README.md`
-  - Audit completed: no duplication found
-  - Phonology V2 confirmed as complementary (not duplicate)
-
-- ✅ **2.2.2** Integration tests (+16 tests)
-  - 4 baseline tests: كَتَبَ, السَّمَاوَات, يَبْتَغُونَ, أَشِدَّاءُ
-  - 4 CV structure validation tests
-  - 4 FormCodecV2 integration tests
-  - 3 invariant tests + 1 availability test
-
-#### Part 2.3: Property-Based Testing ✅
-
-- ✅ **2.3.1** Property tests with Hypothesis (+25 tests)
-  - 6 individual gate tests
-  - 18 parametrized tests (3 invariants × 6 gates)
-  - Gates: Sukun, Shadda, Tanwin, Hamza, Wasl, Waqf
-  - Invariants: non-empty output, valid segments, bounded length
-  - Automatic edge case discovery
-
-### Remaining Tasks (3/9)
-
-- ⏳ **2.4.1** Phonology V2 Trace (3h) - **NEXT**
-  - Create `phonology_trace.py`
-  - Integrate with existing Trace V1
-  - Add replay capability
-  - 5+ trace tests
-
-- ⏳ **2.5.1** Coq Skeletons (3-4h)
-  - Create `coq/` directory
-  - `GateSukun.v`, `GateShadda.v`, `GateTanwin.v`
-  - Definitions and Lemmas (Admitted initially)
-  - CI job to compile Coq
-
-- ⏳ **2.6.1** CI for Phonology (2h)
-  - GitHub Actions workflow
-  - Pytest + property tests
-  - Optional Coq build
-
-- ⏳ **2.7** Cleanup & Docs (3-4h)
-  - Remove any duplication
-  - Create `docs/PHONOLOGY.md`
-  - Document gate order and invariants
-
-### Deliverables
-
-- **Tests:** 333 → 358 (+25 tests)
-- **Files:** 8 new files (5 docs, 3 code/tests)
-- **Commits:** 4 commits to `sprint2/gate-unification`
-- **Status:** Pushed to GitHub, ready for PR
-
-### Key Achievements
-
-- ✅ Canonical gate interface with backward compatibility
-- ✅ Syllabifier validated as single source of truth
-- ✅ Property-based testing with Hypothesis
-- ✅ Zero breaking changes
-- ✅ 100% test pass rate
+**Critical path:** Part 1 (Sprint 1) → Part 2 → Part 3 → Part 4 → Part 5 → Part 6.
 
 ---
 
-## 🔲 Sprint 3-6: Not Started
+## 3. Related docs
 
-### Sprint 3: Morphology & Gold Corpus
-
-- Refine WordBoundaryDetector
-- Map PatternAnalyzer to PatternCatalog
-- Build gold corpus loader (Quran/Hadith/MSA)
-- Target: F1 ≥ 0.85 for morphology
-
-### Sprint 4: Syntax Linkers & Parser
-
-- Build TADMINI and TAQYIDI linkers
-- Create SyntacticParser orchestrator
-- Implement EventExtractor
-- Add link visualization
-
-### Sprint 5: Constraints & Validator
-
-- Implement 6 constraints (no verb without subject, etc.)
-- Build ConstraintValidator
-- Add property tests for constraints
-- Create Coq predicates
-
-### Sprint 6: Integration & Operations
-
-- Complete pipeline wiring (C1→C2a→C2b→C3)
-- Corpus evaluation (100 ayahs + 50 hadith + 50 MSA)
-- Performance reports
-- FastAPI deployment
-- CI/CD with GitHub Actions
+- **docs/MASTER_PLAN_CHECKLIST.md** – Full 6-part checklist (foundation, phonology, semantics, morphology, syntax, constraints, integration); use for GitHub issues.
+- **ENHANCED_ROADMAP.md** – Sprint deliverables, success metrics, weeks 1–14.
+- **docs/PLAN_MERGE_ANALYSIS.md** – Gaps/overlaps between current state and 6-phase plan.
+- **WHERE_WE_ARE_VS_PLAN.md** – Phase-by-phase status vs master plan.
+- **project_deleverables.md** – Living deliverables (Arabic + English).
+- **src/fvafk/phonology/INTEGRATION_PLAN.md** – Phonology V2 integration + post-integration milestones.
 
 ---
 
-## 📈 Metrics
+## 4. Current Sprint Status (Updated 2026-02-16)
 
-### Test Coverage
+### Sprint 1: Foundation and Packaging (100% Complete ✅)
 
-| Category | Count | Change |
-|----------|-------|--------|
-| Total Tests | 358 | +41 from start |
-| C1 Tests | 50 | - |
-| C2A Tests | 60 | +25 |
-| C2B Tests | 80 | - |
-| Syntax Tests | 15 | +16 |
-| CLI Tests | 25 | +16 |
-| Integration Tests | 20 | +16 |
-| Property Tests | 25 | +25 |
-| Utilities | 83 | - |
+**Completed:**
+1. ✅ Task 1.1: pyproject.toml with package metadata
+2. ✅ Task 1.2: Package modules as typed library (bayan-fvafk)
+3. ✅ Task 1.3: Pydantic models (Unit, Syllable, WordForm, Link, Evidence, ProofArtifact, AnalysisResult)
+4. ✅ Task 1.4: OrthographyAdapter + FormCodecV2 integration
+5. ✅ Task 1.5: Directory alignment (app/, theories/)
+6. ✅ Task 1.6: Documentation updates (README, PROJECT_STATUS)
+7. ✅ Task 1.7: CLI with syntax output (WordForm + ISNADI)
+8. ✅ Task 1.8: 13 comprehensive CLI tests
+9. ✅ Task 1.9: CLI schema documentation (CLI_SCHEMA.md)
 
-### Code Quality
+### Sprint 2: Phonology Unification (100% Complete ✅)
 
-- **Test Pass Rate:** 100% (358/358)
-- **Linter:** Clean (Pydantic warnings acceptable)
-- **Type Coverage:** High (Pydantic models)
-- **Documentation:** Comprehensive
-- **CI Status:** ✅ Green (local)
+**Completed:**
+1. ✅ Task 2.1: Gate interface unification (BaseGate, 11 gates, GateResult canonical)
+2. ✅ Task 2.2: Reference syllabifier with CV/CVV/CVC documentation
+3. ✅ Task 2.3: Property tests with Hypothesis (25 tests)
+4. ✅ Task 2.4: Phonology trace integration (phonology_trace.py, 15 tests)
+5. ✅ Task 2.5: Coq skeletons (GateSukun.v, GateShadda.v, GateTanwin.v)
+6. ✅ Task 2.6: CI integration (pytest + coqc)
+7. ✅ Task 2.7: Cleanup and PHONOLOGY.md documentation
 
-### Performance
+**Current Stats:**
+- Tests: 373 passed, 1 skipped
+- Branch: sprint2/gate-unification (ready for merge)
+- CI: Green ✅
 
-- **CLI Response:** ~30ms average
-- **Gate Execution:** <1ms per gate
-- **Property Tests:** ~1.1s for 25 tests
-- **Full Test Suite:** ~6.8s
+**Next: Sprint 3 (Weeks 5-6) 🎯**
+- Morphology + corpus evaluation
+- WordBoundaryDetector Plan B
+- PatternCatalog integration
+- Gold corpus with F1 ≥ 0.85
 
----
-
-## 📂 Key Files
-
-### Core Implementation
-
-- `src/fvafk/c1/form_codec_v2.py` - Reversible encoding
-- `src/fvafk/c1/orthography_adapter.py` - Normalization rules
-- `src/fvafk/c2a/gate_framework.py` - Gate interface & orchestrator
-- `src/fvafk/c2b/syllabifier.py` - Reference syllabifier
-- `src/fvafk/c2b/word_form/` - WordForm bridge to syntax
-- `src/fvafk/syntax/isnadi_linker.py` - ISNADI linker
-- `src/fvafk/cli/main.py` - CLI entry point
-
-### Pydantic Models (app/)
-
-- `app/models/unit.py`
-- `app/models/syllable.py`
-- `app/models/word_form.py`
-- `app/models/link.py`
-- `app/models/evidence.py`
-- `app/models/proof_artifact.py`
-- `app/models/analysis_result.py`
-
-### Documentation
-
-- `README.md` - Project overview
-- `PROJECT_STATUS.md` - This file
-- `docs/CLI_SCHEMA.md` - CLI output schema
-- `docs/SPRINT2_PLAN.md` - Sprint 2 roadmap
-- `docs/ENHANCED_ROADMAP.md` - 6-sprint plan
-- `docs/MASTER_PLAN_CHECKLIST.md` - Complete task list
-
-### Tests
-
-- `tests/test_cli_comprehensive.py` - 13 CLI tests
-- `tests/test_syllabifier_vs_phonology_v2.py` - 16 integration tests
-- `tests/test_gate_properties.py` - 25 property tests
-- `tests/test_orthography_integration.py` - 20 orthography tests
-- `tests/test_pydantic_models.py` - 15 model tests
+**Alternative Next Steps:**
+- Part 2.5: Semantic gates (can run alongside Sprint 3)
+- Sprint 4: TADMINI/TAQYIDI syntax linkers
 
 ---
 
-## 💾 Git Status
-
-### Current Branch
-
-- **Branch:** `sprint2/gate-unification`
-- **Base:** `main`
-- **Status:** ✅ Pushed to GitHub
-- **Commits:** 4 new commits
-
-### Recent Commits
-
-1. `e241601` - test(sprint2): Add property-based tests (Task 2.3.1)
-2. `146ab52` - docs(sprint2): Update Sprint 2 progress
-3. `992556b` - test(sprint2): Add syllabifier integration tests (Task 2.2.2)
-4. `7052bd7` - docs(sprint2): Mark syllabifier as reference (Task 2.2.1)
-
-### Pull Request
-
-- **Status:** Not created yet
-- **URL:** https://github.com/sonaiso/Eqratech_Hussein_Hiyassat_Project/compare/main...sprint2/gate-unification
-- **Ready:** Yes (all tests passing)
-
----
-
-## 🚀 Next Actions
-
-### Immediate (This Session)
-
-1. **Task 2.4.1:** Phonology V2 Trace (3h)
-   - Create trace system
-   - Integrate with Trace V1
-   - Add tests
-
-### Short Term (This Week)
-
-2. **Task 2.5.1:** Coq Skeletons (3-4h)
-3. **Task 2.6.1:** CI Integration (2h)
-4. **Task 2.7:** Cleanup & Docs (3-4h)
-5. **Complete Sprint 2** (100%)
-6. **Create & Merge PR**
-
-### Medium Term (Next 2 Weeks)
-
-- Start Sprint 3 (Morphology)
-- Gold corpus integration
-- F1 metrics
-
----
-
-## ⚠️ Known Issues
-
-### Current
-
-- None (all tests passing)
-
-### Tech Debt
-
-- Pydantic V2 deprecation warnings (acceptable)
-- Some performance tests are flaky (timing-dependent)
-- Coq proof system not yet implemented (planned for Sprint 2.5)
-
----
-
-## 📞 Contact & Links
-
-- **Repository:** https://github.com/sonaiso/Eqratech_Hussein_Hiyassat_Project
-- **Package:** `bayan-fvafk` v0.1.0
-- **Python:** >=3.10
-- **License:** MIT
-
----
-
-**Last Updated:** 2026-02-15  
-**Next Review:** After Sprint 2 completion
+*For detailed acceptance criteria and GitHub issue list, see ENHANCED_ROADMAP.md.*

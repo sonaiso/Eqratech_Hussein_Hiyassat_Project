@@ -4,7 +4,7 @@ This report maps the **current project state** to the master plan in **🎯 خط
 
 **Reference:** Plan = 6 phases (Infrastructure → Gates → Morphology → Syntax → Constraints → Integration), 16–17 weeks, SMART goals (tests, F1, UAS, Coq, performance, docs).
 
-**Current baseline:** 269 tests passing; CLI C1→C2a→C2b (+ Phonology V2, morphology); WordForm + ISNADI in code but syntax not in CLI; CVC theory fixed (β=12.0); no Coq in this repo; no C2c/Meaning/Corpus.
+**Current baseline:** 373 tests passing (1 skipped); CLI C1→C2a→C2b (+ Phonology V2, morphology); WordForm + ISNADI in CLI; Sprint 2 complete (gate unification, Coq skeletons); no Coq proofs yet; no C2c/Meaning/Corpus.
 
 ---
 
@@ -12,19 +12,19 @@ This report maps the **current project state** to the master plan in **🎯 خط
 
 | Area | Plan target | Current state | Status |
 |------|-------------|---------------|--------|
-| **Tests** | 300+ tests, 95%+ pass | 269 pass | 🟡 Close (≈90%) |
+| **Tests** | 300+ tests, 95%+ pass | 373 pass, 1 skipped | 🟢 Target exceeded (≈124%) |
 | **C1 (Infrastructure)** | Segment inventory, syllable system, gate framework, OrthographyAdapter | All present; no Coq | 🟢 Done (no formal proofs) |
-| **C2a (10 gates)** | 10 gates, 100+ tests, Coq | 11 gates implemented, many tests; no Coq in repo | 🟢 Done (lighter framework) |
+| **C2a (10 gates)** | 10 gates, 100+ tests, Coq | 11 gates unified with BaseGate, property tests (Hypothesis), Coq skeletons | 🟢 Done (Sprint 2 complete) |
 | **C2b (Morphology)** | Word boundary, pattern, classifier, root, features, F1≥0.85 | Plan A boundaries, pattern/classifier/root/features; no corpus F1 | 🟢 Core done; 🟡 no corpus metric |
 | **Phonology V2** | (Not in original plan; added) | Lattice + witnesses + CLI | 🟢 Done |
 | **Syntax (Phase 4)** | ISNADI + TADMINI + TAQYIDI, parser, UAS≥0.80 | ISNADI only; not in CLI; no TADMINI/TAQYIDI | 🟡 Partial |
 | **Constraints (Phase 5)** | 5 (or 6) constraints, 0 violations on correct text | Not implemented | 🔴 Not started |
 | **C2c / Meaning / Corpus** | Semantic gate, meaning, corpus evaluation | Not implemented | 🔴 Not started |
-| **Coq** | 50+ theorems, 100% Qed | No Coq in this repo | 🔴 Not in repo |
+| **Coq** | 50+ theorems, 100% Qed | 3 Coq skeletons (GateSukun, GateShadda, GateTanwin); CI compiles them | 🟡 Skeletons only (no proofs yet) |
 | **CLI** | `python -m fvafk.cli`, --verbose, --json | Full CLI with --morphology, --phonology-v2, etc. | 🟢 Done |
 | **Documentation** | 50,000+ words, 100% coverage | README, deliverables, plan; not measured | 🟡 Partial |
 
-**Overall:** Phases 1–3 and CLI/Phonology V2 are **largely done** relative to the plan (with the noted gaps: no Coq, no corpus F1, Plan B word boundaries not done). Phase 4 (syntax) is **partially done** (ISNADI in package only). Phases 5 and 6 (constraints, C2c, full integration, corpus, formal proofs) are **not done**.
+**Overall:** Phases 1–2 (foundation + phonology) are **complete** (Sprint 1 + Sprint 2 ✅). Phase 3 (morphology core) is **largely done**. Phase 4 (syntax) is **partially done** (ISNADI implemented and in CLI). Phases 5 and 6 (constraints, C2c, full integration, corpus evaluation) are **not started**.
 
 ---
 
