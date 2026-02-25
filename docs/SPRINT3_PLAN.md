@@ -1,303 +1,355 @@
-# Sprint 3: Morphology + Corpus Implementation Plan
+# SPRINT3_PLAN.md — Morphology Layer
 
-**Duration**: 4 weeks  
-**Goal**: Implement sophisticated morphological analysis with gold corpus evaluation  
-**Success Metric**: F1 score ≥ 0.85 on morphological analysis
-
----
-
-## 📋 Overview
-
-Sprint 3 builds on the existing phonology pipeline (Sprint 1-2) to add comprehensive morphological analysis capabilities. This sprint focuses on practical, measurable outcomes with a gold standard corpus.
-
-### Current State (Post-Sprint 2)
-- ✅ 373 tests passing
-- ✅ Phonology gates operational (11 gates)
-- ✅ Basic morphology components exist:
-  - `pattern_matcher.py` (PatternMatcher, PatternDatabase)
-  - `root_extractor.py` (RootExtractor)
-  - `awzan_loader.py` (external pattern loading)
-  - `syllabifier.py` (39 tests)
-  - `word_form/` (bridge to syntax)
-
-### Gaps to Fill
-1. **WordBoundaryDetector Plan B** - Syllable-based detection
-2. **PatternCatalog expansion** - 50+ patterns needed
-3. **Gold corpus** - 50-100 annotated sentences
-4. **Evaluation framework** - F1 score measurement
-5. **Integration tests** - End-to-end morphology pipeline
+**Sprint:** 3 of 6  
+**Branch:** sprint3/morphology-layer  
+**Prerequisites:** Sprint 1 ✅ Sprint 2 ✅ (373 tests passing)  
+**Goal:** Build morphological analysis layer with word boundaries, root/pattern extraction, and feature tagging
 
 ---
 
-## 🎯 Objectives
+## Overview
 
-### Primary Deliverables
-1. **WordBoundaryDetector Plan B** - Sophisticated boundary detection using syllabification
-2. **Complete PatternCatalog** - Comprehensive Arabic morphological patterns
-3. **Gold Corpus V1** - 50-100 annotated sentences with root/pattern/POS tags
-4. **Evaluation Framework** - F1 score computation for morphology
-5. **Integration Tests** - 80+ new tests (target: 450+ total)
+Sprint 3 implements the morphology layer (Part 3 of MASTER_PLAN_CHECKLIST.md), focusing on:
 
-### Success Criteria
-- F1 score ≥ 0.85 on:
-  - Root extraction
-  - Pattern matching
-  - Word boundary detection
-- All tests passing (450+ tests)
-- Documentation complete
-- Ready for Sprint 4 (Syntax)
+1. **Word Boundary Detection** — Segment Arabic text into words
+2. **Pattern Catalog** — Extract roots and patterns (فَعَلَ، فَاعِل، etc.)
+3. **Morphological Flags** — Tag definiteness, gender, number, case
+4. **Gold Corpus** — Annotated dataset with F1 ≥ 0.85 target
 
 ---
 
-## 📅 4-Week Timeline
+## Success Criteria
 
-### Week 1: WordBoundaryDetector + Pattern Expansion
-**Focus**: Core morphology components
-
-**Tasks**:
-- [ ] Implement `WordBoundaryDetectorPlanB` class
-  - Uses syllabifier for boundary hints
-  - Handles clitics (ال، و، ف، ب، ل)
-  - Confidence scoring for boundaries
-- [ ] Expand `PatternDatabase` to 50+ patterns
-  - Add all verb forms (I-X)
-  - Add noun patterns (broken plurals, participles)
-  - Load from `data/awzan/` JSON files
-- [ ] Write 20+ unit tests for new components
-
-**Deliverables**:
-- `src/fvafk/c2b/word_boundary_detector.py`
-- `data/awzan/patterns_extended.json`
-- `tests/test_word_boundary_detector.py`
-- `tests/test_pattern_catalog.py`
+| Metric | Target |
+|--------|--------|
+| Word boundary F1 | ≥ 0.85 |
+| Pattern catalog coverage | ≥ 20 patterns |
+| Gold corpus size | ≥ 200 words |
+| New tests | ≥ 100 |
+| Coq skeletons | ≥ 2 files |
 
 ---
 
-### Week 2: Gold Corpus Creation
-**Focus**: Build evaluation dataset
+## Tasks
 
-**Tasks**:
-- [ ] Create corpus structure in `data/corpus/`
-- [ ] Annotate 50+ Arabic sentences with:
-  - Word boundaries
-  - Roots (ك-ت-ب format)
-  - Patterns (فِعَال format)
-  - POS tags (noun, verb, particle)
-  - Morphological features (prefix, suffix, case)
-- [ ] Split into train/val/test sets (60/20/20)
-- [ ] Create JSON schema for corpus format
-- [ ] Validate annotations for consistency
+### 3.1 Word Boundary Detector
 
-**Deliverables**:
-- `data/corpus/gold_corpus_v1.md` (human-readable)
-- `data/corpus/gold_corpus_v1.json` (machine-readable)
-- `data/corpus/test_set.json`
-- `data/corpus/validation_set.json`
-- `data/corpus/README.md` (annotation guidelines)
+**Goal:** Segment Arabic text into words, handling clitics and compounds
 
-**Example Sentence Structure**:
-```json
-{
-  "id": "sent_001",
-  "text": "الْكِتَابُ عَلَى الطَّاوِلَةِ",
-  "translation": "The book is on the table",
-  "words": [
-    {
-      "surface": "الْكِتَابُ",
-      "root": "ك-ت-ب",
-      "pattern": "فِعَال",
-      "pos": "noun",
-      "prefix": "ال",
-      "case": "nominative"
-    },
-    ...
-  ]
-}
+#### 3.1.1 Implement Plan B Algorithm
+- **Description:** Simpler rule-based algorithm (fallback from ML approach)
+- **Approach:**
+  - Detect common prefixes: ال (definite), و/ف/ب/ك/ل (conjunctions/prepositions)
+  - Detect common suffixes: ها/هم/هن/ك/كم/كن (pronouns)
+  - Handle compound cases (والكتاب → و + ال + كتاب)
+- **Files:**
+  - `src/fvafk/c3/word_boundary.py` — `WordBoundaryDetector` class
+  - `src/fvafk/c3/__init__.py` — Module init
+- **Tests:** `tests/test_word_boundary.py` (30+ cases)
+- **Acceptance:**
+  - Correctly segments 10 test sentences
+  - Handles edge cases (no clitics, multiple clitics, compounds)
+
+#### 3.1.2 Handle Clitics
+- **Description:** Extract and classify clitics
+- **Clitics to handle:**
+  - **Prefixes:** ال، و، ف، ب، ك، ل
+  - **Suffixes:** ها، هم، هن، ك، كم، كن، ي، نا
+- **Output:** `CliticAnalysis` model with prefix/stem/suffix
+- **Tests:** `tests/test_clitics.py` (20+ cases)
+- **Acceptance:**
+  - Correctly identifies clitics in 95% of test cases
+  - Handles ambiguous cases (هل vs ه + ل)
+
+#### 3.1.3 Integration with Pipeline
+- **Description:** Connect to existing phonology pipeline
+- **Input:** `AnalysisResult` from phonology layer
+- **Output:** `MorphologicalAnalysis` with word boundaries
+- **Files:**
+  - Update `app/models/analysis.py` — Add `MorphologicalAnalysis` model
+  - Update `app/cli.py` — Add `--morphology` flag
+- **Tests:** `tests/test_morphology_integration.py` (15+ cases)
+- **Acceptance:**
+  - CLI outputs word boundaries in JSON
+  - Backward compatible (morphology is optional)
+
+#### 3.1.4 Gold Annotations (Word Boundaries)
+- **Description:** Create gold-standard annotations for evaluation
+- **Format:** JSON with `{text, boundaries: [{start, end, word}]}`
+- **Files:** `data/gold/word_boundaries.json`
+- **Size:** 50-100 sentences
+- **Acceptance:**
+  - Manual review by 2 annotators
+  - Inter-annotator agreement ≥ 0.90
+
+---
+
+### 3.2 Pattern Catalog
+
+**Goal:** Extract roots and identify morphological patterns
+
+#### 3.2.1 Root Extraction Logic
+- **Description:** Extract trilateral/quadrilateral roots
+- **Approach:**
+  - Strip prefixes/suffixes
+  - Remove vowels/diacritics
+  - Identify 3-4 consonant root
+- **Files:** `src/fvafk/c3/root_extractor.py`
+- **Tests:** `tests/test_root_extraction.py` (40+ cases)
+- **Acceptance:**
+  - Correctly extracts roots from 20 known words
+  - Handles irregular roots (أخذ، قال، etc.)
+
+#### 3.2.2 Pattern Templates
+- **Description:** Catalog of common Arabic patterns
+- **Patterns to include:**
+  - **Verbs:** فَعَلَ، فَعَّلَ، فَاعَلَ، أَفْعَلَ، تَفَعَّلَ، اِنْفَعَلَ، اِسْتَفْعَلَ
+  - **Nouns:** فَاعِل، مَفْعُول، مَفْعَل، فَعِيل، فُعَال
+- **Files:** `src/fvafk/c3/pattern_catalog.py`
+- **Format:** `Pattern` class with template string and morphological features
+- **Tests:** `tests/test_pattern_catalog.py` (30+ cases)
+- **Acceptance:**
+  - Catalog contains ≥ 20 patterns
+  - Each pattern has examples and tests
+
+#### 3.2.3 Pattern Matching Algorithm
+- **Description:** Match words to pattern templates
+- **Approach:**
+  - Given root + word, identify pattern
+  - Use template matching (ف ع ل positions)
+  - Return pattern name + morphological features
+- **Files:** `src/fvafk/c3/pattern_matcher.py`
+- **Tests:** `tests/test_pattern_matching.py` (50+ cases)
+- **Acceptance:**
+  - Correctly matches 30 known root-pattern pairs
+  - Handles ambiguous cases (multiple valid patterns)
+
+#### 3.2.4 Pattern-Based Features
+- **Description:** Derive morphological features from patterns
+- **Features:**
+  - **Voice:** active (مَفْعُول vs فَاعِل)
+  - **Aspect:** perfective/imperfective (for verbs)
+  - **Transitivity:** transitive/intransitive
+- **Files:** Update `app/models/morphology.py` — Add `PatternFeatures` model
+- **Acceptance:**
+  - Feature extraction covers 15+ patterns
+  - Property-based tests verify consistency
+
+---
+
+### 3.3 Morphological Flags
+
+**Goal:** Tag words with morphological features
+
+#### 3.3.1 Flag Data Model
+- **Description:** Pydantic models for morphological features
+- **Fields:**
+  - `definiteness`: definite/indefinite/none
+  - `gender`: masculine/feminine/none
+  - `number`: singular/dual/plural/none
+  - `case`: nominative/accusative/genitive/none
+  - `person`: 1st/2nd/3rd/none (for verbs/pronouns)
+  - `tense`: past/present/imperative/none (for verbs)
+- **Files:** `app/models/morphology.py` — `MorphFlags` class
+- **Acceptance:**
+  - Model validates correct values
+  - JSON serialization works
+
+#### 3.3.2 Feature Extractors
+- **Description:** Extract features from word forms
+- **Extractors:**
+  - `DefinitenessExtractor` — Detect ال prefix
+  - `GenderExtractor` — Detect ة، ات، ين endings
+  - `NumberExtractor` — Detect plural patterns (أَفْعَال، فِعَال، etc.)
+  - `CaseExtractor` — Detect case endings (ُ، َ، ِ، ٌ، ً، ٍ)
+- **Files:** `src/fvafk/c3/feature_extractors.py`
+- **Tests:** `tests/test_feature_extraction.py` (60+ cases)
+- **Acceptance:**
+  - Each extractor has 15+ test cases
+  - Handles ambiguous/missing diacritics
+
+#### 3.3.3 Integration with WordForm
+- **Description:** Add `morph_flags` to `WordForm` model
+- **Changes:**
+  - Update `app/models/word.py` — Add `morph_flags: Optional[MorphFlags]`
+  - Update CLI output to include flags
+- **Files:** `app/models/word.py`, `app/cli.py`
+- **Acceptance:**
+  - CLI outputs morphological flags in JSON
+  - Backward compatible (flags are optional)
+
+#### 3.3.4 Property-Based Tests
+- **Description:** Use Hypothesis to test morphological invariants
+- **Properties to test:**
+  - If word has ال prefix, definiteness = definite
+  - If word has ة ending, gender likely feminine
+  - If word has ُونَ ending, number = plural, gender = masculine
+- **Files:** `tests/test_morph_properties.py`
+- **Tests:** ≥ 20 property tests
+- **Acceptance:**
+  - All properties pass on generated examples
+  - No false positives on known edge cases
+
+---
+
+### 3.4 Gold Corpus
+
+**Goal:** Build annotated corpus for evaluation
+
+#### 3.4.1 Annotation Format
+- **Description:** Design JSON schema for morphological annotations
+- **Fields:**
+  - `text`: original Arabic text
+  - `words`: list of word objects
+    - `surface`: surface form
+    - `root`: extracted root
+    - `pattern`: identified pattern
+    - `morph_flags`: morphological features
+    - `boundaries`: start/end character positions
+- **Files:** `data/gold/schema.json`, `docs/ANNOTATION_FORMAT.md`
+- **Acceptance:**
+  - Schema validates example annotations
+  - Documentation explains each field
+
+#### 3.4.2 Corpus Collection
+- **Description:** Annotate 200+ words from diverse sources
+- **Sources:**
+  - Quranic verses (50 words)
+  - News articles (50 words)
+  - Literary texts (50 words)
+  - Constructed examples (50 words)
+- **Files:** `data/gold/corpus.json`
+- **Tools:** Create annotation script `tools/annotate_morphology.py`
+- **Acceptance:**
+  - 200+ words annotated
+  - Covers diverse morphological phenomena
+
+#### 3.4.3 Inter-Annotator Agreement
+- **Description:** Validate annotation quality
+- **Approach:**
+  - 2 annotators independently annotate 50 words
+  - Calculate agreement (Cohen's Kappa or F1)
+  - Resolve disagreements, update guidelines
+- **Files:** `docs/ANNOTATION_GUIDELINES.md`
+- **Target:** Agreement ≥ 0.90
+- **Acceptance:**
+  - Agreement report documented
+  - Guidelines updated based on disagreements
+
+#### 3.4.4 Evaluation Tools
+- **Description:** Measure system performance on gold corpus
+- **Metrics:**
+  - **Word boundaries:** Precision, Recall, F1
+  - **Root extraction:** Accuracy
+  - **Pattern matching:** Accuracy
+  - **Feature tagging:** Accuracy per feature
+- **Files:** `tools/evaluate_morphology.py`
+- **Tests:** `tests/test_evaluation.py`
+- **Acceptance:**
+  - Tool outputs F1 ≥ 0.85 on word boundaries
+  - Report shows per-feature performance
+
+---
+
+### 3.5 Coq Formalization (Optional)
+
+**Goal:** Formal proofs for morphological properties
+
+#### 3.5.1 Morphology Predicates
+- **Description:** Define predicates for morphological concepts
+- **Predicates:**
+  - `IsDefinite(word)` — Word has ال prefix
+  - `HasRoot(word, root)` — Word derives from root
+  - `MatchesPattern(word, pattern)` — Word fits pattern
+- **Files:** `coq/Morphology/Predicates.v`
+- **Acceptance:**
+  - File compiles with `coqc`
+  - 3+ predicates defined
+
+#### 3.5.2 Word Boundary Proofs (Skeleton)
+- **Description:** Proof skeletons for boundary detection correctness
+- **Theorems:**
+  - `word_boundary_preserves_text` — Segmentation doesn't lose characters
+  - `clitic_boundary_valid` — Clitic boundaries respect grammar
+- **Files:** `coq/Morphology/WordBoundary.v`
+- **Acceptance:**
+  - Theorems stated (admitted for now)
+  - Comments explain proof strategy
+
+#### 3.5.3 CI Integration
+- **Description:** Add Coq morphology files to CI
+- **Changes:** Update `.github/workflows/ci.yml`
+- **Acceptance:**
+  - CI compiles morphology Coq files
+  - No build errors
+
+---
+
+## Timeline (6 weeks)
+
+| Week | Focus | Deliverables |
+|------|-------|--------------|
+| **1-2** | Word boundaries | 3.1.1–3.1.4 (detector, clitics, integration, annotations) |
+| **3-4** | Patterns | 3.2.1–3.2.4 (roots, templates, matching, features) |
+| **5** | Features | 3.3.1–3.3.4 (model, extractors, integration, properties) |
+| **6** | Corpus & eval | 3.4.1–3.4.4 (format, collection, agreement, evaluation) |
+| *Ongoing* | Coq | 3.5.1–3.5.3 (predicates, proofs, CI) |
+
+---
+
+## Dependencies
+
+| From Sprint 2 | Used in Sprint 3 |
+|---------------|------------------|
+| `Unit` model | Word boundary detection (phoneme sequences) |
+| `Syllable` model | Pattern matching (syllable structure) |
+| `WordForm` model | Extended with `morph_flags` |
+| `AnalysisResult` model | Input to morphological analysis |
+| OrthographyAdapter | Convert between representations |
+
+---
+
+## File Structure
+
 ```
+src/fvafk/c3/
+├── __init__.py
+├── word_boundary.py      # WordBoundaryDetector
+├── root_extractor.py
+├── pattern_catalog.py
+├── pattern_matcher.py
+└── feature_extractors.py
 
----
+app/models/
+├── analysis.py           # + MorphologicalAnalysis
+├── morphology.py         # MorphFlags, PatternFeatures, CliticAnalysis
+└── word.py               # + morph_flags on WordForm
 
-### Week 3: Integration & Testing
-**Focus**: Wire everything together
+data/gold/
+├── schema.json
+├── word_boundaries.json
+└── corpus.json
 
-**Tasks**:
-- [ ] Integrate all morphology components into pipeline
-- [ ] Create `MorphologyPipeline` orchestrator class
-- [ ] Write integration tests:
-  - End-to-end word → root → pattern
-  - Multi-word sentence parsing
-  - Edge cases (unknown words, ambiguous patterns)
-- [ ] Property-based tests using Hypothesis
-- [ ] Performance benchmarking
-- [ ] Debug and fix issues
+coq/Morphology/
+├── Predicates.v
+└── WordBoundary.v
 
-**Deliverables**:
-- `src/fvafk/c2b/morphology_pipeline.py`
-- `tests/test_morphology_integration.py`
-- `tests/test_morphology_properties.py`
-- Performance benchmarks document
+docs/
+├── ANNOTATION_FORMAT.md
+└── ANNOTATION_GUIDELINES.md
 
-**Test Targets**:
-- 30+ integration tests
-- 50+ unit tests for new components
-- **Total: 450+ tests** (currently 373)
+tools/
+├── annotate_morphology.py
+└── evaluate_morphology.py
 
----
-
-### Week 4: Evaluation & Polish
-**Focus**: Measure performance and optimize
-
-**Tasks**:
-- [ ] Implement `MorphologyEvaluator` class
-- [ ] Run evaluation on gold corpus:
-  - Root extraction accuracy
-  - Pattern matching accuracy
-  - Boundary detection F1
-  - Overall pipeline F1
-- [ ] Generate evaluation report
-- [ ] Optimize low-performing components
-- [ ] Update documentation
-- [ ] Create Sprint 3 completion report
-
-**Deliverables**:
-- `src/fvafk/evaluation/morphology_evaluator.py`
-- `tests/test_evaluation.py`
-- `docs/SPRINT3_EVALUATION_REPORT.md`
-- `docs/SPRINT3_COMPLETION.md`
-
-**Success Metric**: F1 ≥ 0.85 on all morphology tasks
-
----
-
-## 🏗️ Architecture
-
-### Component Diagram
+tests/
+├── test_word_boundary.py
+├── test_clitics.py
+├── test_morphology_integration.py
+├── test_root_extraction.py
+├── test_pattern_catalog.py
+├── test_pattern_matching.py
+├── test_feature_extraction.py
+├── test_morph_properties.py
+└── test_evaluation.py
 ```
-Text Input
-    ↓
-WordBoundaryDetector Plan B
-    ↓ (word tokens)
-RootExtractor
-    ↓ (roots)
-PatternMatcher
-    ↓ (patterns)
-WordFormBuilder
-    ↓
-Syntax Layer (Sprint 4)
-```
-
-### Key Classes
-
-#### 1. WordBoundaryDetectorPlanB
-```python
-class WordBoundaryDetectorPlanB:
-    """Syllable-based word boundary detection"""
-    
-    def __init__(self):
-        self.syllabifier = Syllabifier()
-        self.clitic_patterns = load_clitics()
-    
-    def detect_boundaries(self, text: str) -> List[WordBoundary]:
-        """Detect word boundaries with confidence scores"""
-        pass
-```
-
-#### 2. PatternCatalog
-```python
-class PatternCatalog:
-    """Complete morphological pattern catalog"""
-    
-    @classmethod
-    def load_full_catalog(cls) -> Dict[str, List[PatternTemplate]]:
-        """Load 50+ patterns from awzan + built-in"""
-        pass
-    
-    def get_patterns_by_category(self, category: str) -> List[PatternTemplate]:
-        """Get patterns by category (verb, noun, plural)"""
-        pass
-```
-
-#### 3. MorphologyEvaluator
-```python
-class MorphologyEvaluator:
-    """Evaluate morphology against gold standard"""
-    
-    def evaluate_root_extraction(self, gold, predicted) -> EvaluationMetrics:
-        """Compute precision/recall/F1 for root extraction"""
-        pass
-    
-    def evaluate_pattern_matching(self, gold, predicted) -> EvaluationMetrics:
-        """Compute precision/recall/F1 for pattern matching"""
-        pass
-```
-
----
-
-## 📊 Metrics & Tracking
-
-### Weekly Progress Metrics
-- Tests written / Tests passing
-- Lines of code added
-- Corpus sentences annotated
-- F1 score (week 4)
-
-### Sprint 3 KPIs
-| Metric | Target | Current |
-|--------|--------|---------|
-| Total Tests | 450+ | 373 |
-| Corpus Sentences | 50+ | 0 |
-| Pattern Catalog Size | 50+ | ~25 |
-| Root Extraction F1 | ≥0.85 | TBD |
-| Pattern Matching F1 | ≥0.85 | TBD |
-| Boundary Detection F1 | ≥0.85 | TBD |
-
----
-
-## 🔗 Dependencies
-
-### Prerequisites (Already Complete)
-- ✅ Sprint 1: Foundation + CLI
-- ✅ Sprint 2: Phonology gates
-
-### Sprint 3 Enables
-- Sprint 4: Syntax (TADMINI/TAQYIDI)
-- Sprint 5: Constraints
-- Sprint 6: Full pipeline integration
-
----
-
-## 📚 References
-
-- **Master Plan**: `docs/MASTER_PLAN_CHECKLIST.md` (Part 3: Morphology)
-- **Existing Code**: `src/fvafk/c2b/`
-- **Pattern Data**: `data/awzan/`
-- **Previous Sprints**: `docs/SPRINT1_COMPLETION.md`, `docs/SPRINT2_COMPLETION.md`
-
----
-
-## 🚀 Getting Started
-
-### Day 1 Checklist
-1. Create branch: `sprint3-morphology-corpus`
-2. Review existing morphology code (`src/fvafk/c2b/`)
-3. Set up corpus directory structure
-4. Begin WordBoundaryDetector implementation
-
-### Development Workflow
-1. Write tests first (TDD)
-2. Implement feature
-3. Run full test suite: `pytest tests/ -v`
-4. Document code
-5. Commit with descriptive messages
-
----
-
-**Sprint Owner**: @sonaiso  
-**Start Date**: 2026-02-16  
-**Target Completion**: 2026-03-16  
-**Status**: 🟢 IN PROGRESS
-
----
-
-*Generated: 2026-02-16*  
-*Last Updated: 2026-02-16*
