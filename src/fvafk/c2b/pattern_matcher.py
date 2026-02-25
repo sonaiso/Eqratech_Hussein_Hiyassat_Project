@@ -5,6 +5,7 @@ PatternMatcher: Recognize Arabic morphological patterns.
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -129,13 +130,31 @@ class PatternMatcher:
     def match(self, word: str, root: Root) -> Optional[Pattern]:
         if not word or not root:
             return None
+        # NFC-normalize so combining diacritics are in canonical order.
+        word = unicodedata.normalize("NFC", word)
         # IMPORTANT (per awzan_test_report): compute CV from the ORIGINAL word (with tashkeel)
         # not from stripped/normalized stems.
         advanced_cv_word = self._sanitize_cv(advanced_cv_pattern(word))
         simple_cv_word = cv_pattern(word)
         normalized = self._normalize(word)
+
+        best_pattern: Optional[Pattern] = None
+        best_confidence: float = -1.0
+
+        def _update_best(tmpl: PatternTemplate, conf: float) -> None:
+            nonlocal best_pattern, best_confidence
+            if conf > best_confidence:
+                best_confidence = conf
+                best_pattern = Pattern(
+                    name=tmpl.pattern_type.value,
+                    template=tmpl.template,
+                    pattern_type=tmpl.pattern_type,
+                    stem=word,
+                    features={**tmpl.feature_map(), "confidence": f"{conf:.2f}"},
+                )
+
         categories = ["verb", "noun", "plural"]
-        checked = set()
+        checked: Set[int] = set()
         for category in categories:
             for template in self.database.get_by_category(category):
                 if id(template) in checked:
@@ -152,13 +171,8 @@ class PatternMatcher:
                     template,
                 )
                 if matched:
-                    return Pattern(
-                        name=template.pattern_type.value,
-                        template=template.template,
-                        pattern_type=template.pattern_type,
-                        stem=word,
-                        features={**template.feature_map(), "confidence": f"{confidence:.2f}"},
-                    )
+                    _update_best(template, confidence)
+
         for template in self.database.get_all():
             if id(template) in checked:
                 continue
@@ -173,13 +187,10 @@ class PatternMatcher:
                 template,
             )
             if matched:
-                return Pattern(
-                    name=template.pattern_type.value,
-                    template=template.template,
-                    pattern_type=template.pattern_type,
-                    stem=word,
-                    features={**template.feature_map(), "confidence": f"{confidence:.2f}"},
-                )
+                _update_best(template, confidence)
+
+        if best_pattern is not None:
+            return best_pattern
 
         # ------------------------------------------------------------------
         # CV-based fallback (golden rule from docs/awzan_test_report.md)
@@ -194,23 +205,11 @@ class PatternMatcher:
             if template.cv_advanced:
                 template_cv_adv = self._sanitize_cv(template.cv_advanced)
                 if template_cv_adv and template_cv_adv == advanced_cv_word:
-                    return Pattern(
-                        name=template.pattern_type.value,
-                        template=template.template,
-                        pattern_type=template.pattern_type,
-                        stem=word,
-                        features={**template.feature_map(), "confidence": "0.75"},
-                    )
-            if template.cv_simple and template.cv_simple == simple_cv_word:
-                return Pattern(
-                    name=template.pattern_type.value,
-                    template=template.template,
-                    pattern_type=template.pattern_type,
-                    stem=word,
-                    features={**template.feature_map(), "confidence": "0.70"},
-                )
+                    _update_best(template, 0.75)
+            elif template.cv_simple and template.cv_simple == simple_cv_word:
+                _update_best(template, 0.70)
 
-        return None
+        return best_pattern
 
     def _normalize(self, word: str) -> str:
         # Convert Tanwin to standard short vowels
@@ -286,27 +285,22 @@ class PatternMatcher:
         if word == candidate:
             return True, 1.0
         
-        # Apply the SAME normalization used in arabic_wazn_matcher_gate.py:
-        # Check if units match (placeholder-aware)
-        
-        # We need to split into units to check shadda/vowel alignment
-        # This requires importing the unit logic or approximating it.
-        # Given we don't have the full Unit class here, let's stick to text matching
-        # but be smarter about shaddas.
-        
         stripped_word = self._strip_diacritics(word)
         stripped_candidate = self._strip_diacritics(candidate)
-        
-        # If consonants don't match, fail immediately
-        if stripped_word != stripped_candidate:
-            return False, 0.0
-            
-        # If broken plural fu'ul, special check (unchanged)
+
+        # Special check for BROKEN_PLURAL_FUUL: كُتُب matches فُعُول by removing
+        # the medial waw from the instantiated form (كُتُول -> كتل stripped, but
+        # كُتُب stripped is كتب).  This must run BEFORE the consonant equality
+        # check below, because stripped_candidate ("كتول") != stripped_word ("كتب").
         if pattern_type == PatternType.BROKEN_PLURAL_FUUL:
             candidate_no_waw = candidate.replace("و", "")
             stripped_candidate_no_waw = self._strip_diacritics(candidate_no_waw)
             if stripped_word == stripped_candidate_no_waw:
                 return True, 0.85
+        
+        # If consonants don't match, fail immediately
+        if stripped_word != stripped_candidate:
+            return False, 0.0
         
         # Check CV pattern if available
         if template.cv_advanced:
