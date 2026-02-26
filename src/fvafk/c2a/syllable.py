@@ -35,6 +35,7 @@ class Segment:
     kind: SegmentKind
     vk: Optional[VowelKind] = None
     cid: Optional[int] = None
+    deleted: bool = False
 
 
 @dataclass
