@@ -139,7 +139,7 @@ class PatternMatcher:
 
         # Collect all matches; return the one with the highest confidence.
         best_pattern: Optional[Pattern] = None
-        best_confidence: float = -1.0
+        best_confidence: float = 0.0
 
         categories = ["verb", "noun", "plural"]
         checked = set()

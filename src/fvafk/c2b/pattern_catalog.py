@@ -6,8 +6,11 @@ Comprehensive collection of verb forms, noun patterns, and broken plurals
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional, TYPE_CHECKING
 from enum import Enum
+
+if TYPE_CHECKING:
+    from .morpheme import PatternType
 
 
 class PatternCategory(Enum):
@@ -24,13 +27,13 @@ class PatternCategory(Enum):
 class PatternInfo:
     """Rich metadata about a single pattern."""
     template: str
-    pattern_type: Any  # fvafk.c2b.morpheme.PatternType (kept as Any to avoid circular import)
+    pattern_type: "PatternType"
     category: PatternCategory
     form: Optional[str] = None
     meaning: Optional[str] = None
     frequency_rank: Optional[int] = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> Dict[str, "object"]:
         return {
             "template": self.template,
             "pattern_type": self.pattern_type.name if hasattr(self.pattern_type, "name") else str(self.pattern_type),
@@ -121,6 +124,8 @@ _FREQUENCY_RANK: Dict[str, int] = {
     "I": 1, "II": 2, "III": 3, "IV": 4, "V": 5,
     "VI": 6, "VII": 7, "VIII": 8, "IX": 9, "X": 10,
 }
+# Non-verb patterns start their ranks after the 10 verb forms
+_NON_VERB_RANK_START = len(_FREQUENCY_RANK) + 1  # 11
 
 
 class PatternCatalog:
@@ -166,7 +171,7 @@ class PatternCatalog:
             else:
                 # Use a global counter for non-verb patterns so they still get a rank
                 key = pt.name
-                rank_counter.setdefault(key, len(rank_counter) + 11)
+                rank_counter.setdefault(key, len(rank_counter) + _NON_VERB_RANK_START)
                 freq = rank_counter[key]
             cache.append(PatternInfo(
                 template=tmpl.template,
