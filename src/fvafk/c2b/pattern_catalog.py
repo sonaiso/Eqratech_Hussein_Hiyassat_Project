@@ -3,13 +3,57 @@ Pattern Catalog - Arabic Morphological Patterns
 Comprehensive collection of verb forms, noun patterns, and broken plurals
 """
 
-from dataclasses import dataclass
-from typing import List, Dict, Optional
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
 from enum import Enum
 
 
-class PatternType(Enum):
-    """Pattern types"""
+class PatternCategory(Enum):
+    """High-level category for a morphological pattern."""
+    VERB = "verb"
+    NOUN = "noun"
+    PARTICIPLE = "participle"
+    PLURAL = "plural"
+    ADJECTIVE = "adjective"
+    OTHER = "other"
+
+
+@dataclass
+class PatternInfo:
+    """Rich metadata about a single pattern."""
+    template: str
+    pattern_type: Any  # fvafk.c2b.morpheme.PatternType (kept as Any to avoid circular import)
+    category: PatternCategory
+    form: Optional[str] = None
+    meaning: Optional[str] = None
+    frequency_rank: Optional[int] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "template": self.template,
+            "pattern_type": self.pattern_type.name if hasattr(self.pattern_type, "name") else str(self.pattern_type),
+            "category": self.category.name,
+            "form": self.form,
+            "meaning": self.meaning,
+            "frequency_rank": self.frequency_rank,
+        }
+
+
+@dataclass
+class PatternMatch:
+    """Result of matching a word against the catalog."""
+    pattern_info: PatternInfo
+    confidence: float
+
+
+# ---------------------------------------------------------------------------
+# Legacy "simple template" type kept for backward-compat with load_full_catalog
+# ---------------------------------------------------------------------------
+
+class _LegacyPatternType(Enum):
+    """Pattern types (legacy – used only by load_full_catalog)."""
     VERB_FORM_I = "verb_form_i"
     VERB_FORM_II = "verb_form_ii"
     VERB_FORM_III = "verb_form_iii"
@@ -20,20 +64,18 @@ class PatternType(Enum):
     VERB_FORM_VIII = "verb_form_viii"
     VERB_FORM_IX = "verb_form_ix"
     VERB_FORM_X = "verb_form_x"
-    
     NOUN_MASDAR = "noun_masdar"
     NOUN_ACTIVE_PARTICIPLE = "noun_active_participle"
     NOUN_PASSIVE_PARTICIPLE = "noun_passive_participle"
     NOUN_INSTRUMENT = "noun_instrument"
     NOUN_PLACE_TIME = "noun_place_time"
-    
     BROKEN_PLURAL = "broken_plural"
     ADJECTIVE = "adjective"
 
 
 @dataclass
 class PatternTemplate:
-    """Simple pattern template"""
+    """Simple pattern template (used by load_full_catalog)."""
     name: str
     template: str
     description: str
@@ -41,9 +83,182 @@ class PatternTemplate:
     examples: Optional[List[str]] = None
 
 
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _morpheme_pattern_type_to_category(pt: Any) -> PatternCategory:
+    """Map fvafk.c2b.morpheme.PatternType → PatternCategory."""
+    name = pt.name if hasattr(pt, "name") else str(pt)
+    if name.startswith("FORM_"):
+        return PatternCategory.VERB
+    if name in ("ACTIVE_PARTICIPLE", "PASSIVE_PARTICIPLE"):
+        return PatternCategory.PARTICIPLE
+    if name.startswith("BROKEN_PLURAL") or name.startswith("SOUND_"):
+        return PatternCategory.PLURAL
+    if name in ("INTENSIVE", "ELATIVE", "COLOUR"):
+        return PatternCategory.ADJECTIVE
+    return PatternCategory.NOUN
+
+
+_FORM_ROMAN: Dict[str, str] = {
+    "FORM_I": "I", "FORM_II": "II", "FORM_III": "III",
+    "FORM_IV": "IV", "FORM_V": "V", "FORM_VI": "VI",
+    "FORM_VII": "VII", "FORM_VIII": "VIII", "FORM_IX": "IX",
+    "FORM_X": "X",
+}
+
+_CATEGORY_STR_MAP: Dict[str, PatternCategory] = {
+    "verb": PatternCategory.VERB,
+    "noun": PatternCategory.NOUN,
+    "broken_plural": PatternCategory.PLURAL,
+    "adjective": PatternCategory.ADJECTIVE,
+    "participle": PatternCategory.PARTICIPLE,
+}
+
+# Frequency rank: most common forms first (lower = more frequent)
+_FREQUENCY_RANK: Dict[str, int] = {
+    "I": 1, "II": 2, "III": 3, "IV": 4, "V": 5,
+    "VI": 6, "VII": 7, "VIII": 8, "IX": 9, "X": 10,
+}
+
+
 class PatternCatalog:
-    """Catalog of Arabic morphological patterns"""
-    
+    """Catalog of Arabic morphological patterns.
+
+    Supports both:
+    - Legacy class-method API: ``PatternCatalog.load_full_catalog()``
+    - New instance API: ``catalog = PatternCatalog()``
+    """
+
+    def __init__(self) -> None:
+        self._pattern_info_cache: List[PatternInfo] = self._build_cache()
+
+    # ------------------------------------------------------------------
+    # New instance API
+    # ------------------------------------------------------------------
+
+    def _build_cache(self) -> List[PatternInfo]:
+        """Build PatternInfo list from PatternDatabase."""
+        from .pattern_matcher import PatternDatabase  # avoid circular at module level
+        db = PatternDatabase()
+        cache: List[PatternInfo] = []
+        rank_counter: Dict[str, int] = {}
+        for tmpl in db.get_all():
+            pt = tmpl.pattern_type
+            cat_str: str = tmpl.category if isinstance(tmpl.category, str) else ""
+            # Determine category
+            if cat_str in _CATEGORY_STR_MAP:
+                category = _CATEGORY_STR_MAP[cat_str]
+            else:
+                category = _morpheme_pattern_type_to_category(pt)
+            # Override noun → participle for participle pattern types
+            if pt.name in ("ACTIVE_PARTICIPLE", "PASSIVE_PARTICIPLE"):
+                category = PatternCategory.PARTICIPLE
+            # Determine form
+            form: Optional[str] = tmpl.form if hasattr(tmpl, "form") else None
+            if form is None:
+                form = _FORM_ROMAN.get(pt.name)
+            # Frequency rank
+            freq: Optional[int] = None
+            if form is not None and form in _FREQUENCY_RANK:
+                freq = _FREQUENCY_RANK[form]
+            else:
+                # Use a global counter for non-verb patterns so they still get a rank
+                key = pt.name
+                rank_counter.setdefault(key, len(rank_counter) + 11)
+                freq = rank_counter[key]
+            cache.append(PatternInfo(
+                template=tmpl.template,
+                pattern_type=pt,
+                category=category,
+                form=form,
+                meaning=tmpl.meaning if hasattr(tmpl, "meaning") else None,
+                frequency_rank=freq,
+            ))
+        return cache
+
+    def get_by_category(self, category: PatternCategory) -> List[PatternInfo]:
+        """Return all patterns in a given category."""
+        return [p for p in self._pattern_info_cache if p.category == category]
+
+    def get_participle_patterns(self) -> List[PatternInfo]:
+        """Return active and passive participle patterns."""
+        return self.get_by_category(PatternCategory.PARTICIPLE)
+
+    def get_verb_forms(self) -> List[PatternInfo]:
+        """Return all verb-form patterns."""
+        return self.get_by_category(PatternCategory.VERB)
+
+    def search_patterns(
+        self,
+        category: Optional[PatternCategory] = None,
+        form: Optional[str] = None,
+        min_frequency_rank: Optional[int] = None,
+    ) -> List[PatternInfo]:
+        """Search patterns with optional filters."""
+        results = self._pattern_info_cache
+        if category is not None:
+            results = [p for p in results if p.category == category]
+        if form is not None:
+            results = [p for p in results if p.form == form]
+        if min_frequency_rank is not None:
+            results = [
+                p for p in results
+                if p.frequency_rank is not None and p.frequency_rank <= min_frequency_rank
+            ]
+        return results
+
+    def get_most_common(self, limit: int = 20) -> List[PatternInfo]:
+        """Return patterns sorted by frequency rank (lowest rank = most common)."""
+        ranked = [p for p in self._pattern_info_cache if p.frequency_rank is not None]
+        ranked.sort(key=lambda p: p.frequency_rank)  # type: ignore[arg-type]
+        return ranked[:limit]
+
+    def match_pattern(self, word: str, root: Any) -> Optional[PatternMatch]:
+        """Match *word* against the catalog, returning the best PatternMatch or None."""
+        if not word:
+            return None
+        from .pattern_matcher import PatternMatcher  # avoid circular at module level
+        matcher = PatternMatcher()
+        pattern = matcher.match(word, root)
+        if pattern is None:
+            return None
+        pt = pattern.pattern_type
+        confidence = float(pattern.features.get("confidence", "0.5"))
+        category = _morpheme_pattern_type_to_category(pt)
+        if pt.name in ("ACTIVE_PARTICIPLE", "PASSIVE_PARTICIPLE"):
+            category = PatternCategory.PARTICIPLE
+        form_str = pattern.features.get("form") or _FORM_ROMAN.get(pt.name)
+        info = PatternInfo(
+            template=pattern.template,
+            pattern_type=pt,
+            category=category,
+            form=form_str,
+            meaning=pattern.features.get("meaning"),
+            frequency_rank=_FREQUENCY_RANK.get(form_str) if form_str else None,
+        )
+        return PatternMatch(pattern_info=info, confidence=confidence)
+
+    def get_pattern_by_template(self, template: str) -> Optional[PatternInfo]:
+        """Return the first PatternInfo whose template matches."""
+        for p in self._pattern_info_cache:
+            if p.template == template:
+                return p
+        return None
+
+    def get_statistics(self) -> Dict[str, int]:
+        """Return summary statistics."""
+        stats: Dict[str, int] = {"total_patterns": len(self._pattern_info_cache)}
+        for cat in PatternCategory:
+            key = f"category_{cat.name.lower()}"
+            stats[key] = sum(1 for p in self._pattern_info_cache if p.category == cat)
+        return stats
+
+    # ------------------------------------------------------------------
+    # Legacy class-method API (backward compatibility)
+    # ------------------------------------------------------------------
+
     @classmethod
     def load_full_catalog(cls) -> Dict[str, List[PatternTemplate]]:
         """Load complete pattern catalog"""
@@ -287,3 +502,9 @@ class PatternCatalog:
                 examples=["أَكْبَر", "أَصْغَر", "أَحْسَن"]
             ),
         ]
+
+
+def create_default_catalog() -> PatternCatalog:
+    """Factory function – create a default PatternCatalog instance."""
+    return PatternCatalog()
+

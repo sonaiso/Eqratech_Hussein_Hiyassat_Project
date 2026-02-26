@@ -5,6 +5,7 @@ PatternMatcher: Recognize Arabic morphological patterns.
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -87,12 +88,13 @@ class PatternDatabase:
             PatternTemplate(template="فُعَلَاءُ", pattern_type=PatternType.BROKEN_PLURAL_FU3ALAA, category="plural"),
         ]
         extra_patterns = AwzanPatternLoader.load()
-        seen_templates = {p.template for p in base}
+        seen_templates = {unicodedata.normalize("NFC", p.template) for p in base}
         for data in extra_patterns:
             tpl = data["template"]
-            if tpl in seen_templates:
+            tpl_nfc = unicodedata.normalize("NFC", tpl)
+            if tpl_nfc in seen_templates:
                 continue
-            seen_templates.add(tpl)
+            seen_templates.add(tpl_nfc)
             base.append(
                 PatternTemplate(
                     template=tpl,
@@ -134,6 +136,11 @@ class PatternMatcher:
         advanced_cv_word = self._sanitize_cv(advanced_cv_pattern(word))
         simple_cv_word = cv_pattern(word)
         normalized = self._normalize(word)
+
+        # Collect all matches; return the one with the highest confidence.
+        best_pattern: Optional[Pattern] = None
+        best_confidence: float = -1.0
+
         categories = ["verb", "noun", "plural"]
         checked = set()
         for category in categories:
@@ -151,8 +158,9 @@ class PatternMatcher:
                     advanced_cv_word,
                     template,
                 )
-                if matched:
-                    return Pattern(
+                if matched and confidence > best_confidence:
+                    best_confidence = confidence
+                    best_pattern = Pattern(
                         name=template.pattern_type.value,
                         template=template.template,
                         pattern_type=template.pattern_type,
@@ -172,8 +180,9 @@ class PatternMatcher:
                 advanced_cv_word,
                 template,
             )
-            if matched:
-                return Pattern(
+            if matched and confidence > best_confidence:
+                best_confidence = confidence
+                best_pattern = Pattern(
                     name=template.pattern_type.value,
                     template=template.template,
                     pattern_type=template.pattern_type,
@@ -181,7 +190,8 @@ class PatternMatcher:
                     features={**template.feature_map(), "confidence": f"{confidence:.2f}"},
                 )
 
-        # ------------------------------------------------------------------
+        if best_pattern is not None:
+            return best_pattern
         # CV-based fallback (golden rule from docs/awzan_test_report.md)
         # ------------------------------------------------------------------
         # If exact template instantiation didn't match (often due to missing diacritics
@@ -213,7 +223,8 @@ class PatternMatcher:
         return None
 
     def _normalize(self, word: str) -> str:
-        text = word.replace('ً', '').replace('ٌ', '').replace('ٍ', '')
+        text = unicodedata.normalize("NFC", word)
+        text = text.replace('ً', '').replace('ٌ', '').replace('ٍ', '')
         # If the surface had fathatan, Arabic orthography often adds a final alif (…ًا).
         # After stripping marks, drop this support-alif to match templates (e.g., عظيمًا -> عظيم).
         if "\u064b" in word and text.endswith("ا") and len(text) > 3:
@@ -262,17 +273,18 @@ class PatternMatcher:
         
         stripped_word = self._strip_diacritics(word)
         stripped_candidate = self._strip_diacritics(candidate)
-        
-        # If consonants don't match, fail immediately
-        if stripped_word != stripped_candidate:
-            return False, 0.0
-            
-        # If broken plural fu'ul, special check (unchanged)
+
+        # If broken plural fu'ul, the long-vowel waw may be absent in the surface form
+        # (e.g., كُتُب for كُتُوب). Check before the consonant-mismatch guard.
         if pattern_type == PatternType.BROKEN_PLURAL_FUUL:
             candidate_no_waw = candidate.replace("و", "")
             stripped_candidate_no_waw = self._strip_diacritics(candidate_no_waw)
             if stripped_word == stripped_candidate_no_waw:
                 return True, 0.85
+
+        # If consonants don't match, fail immediately
+        if stripped_word != stripped_candidate:
+            return False, 0.0
         
         # Check CV pattern if available
         if template.cv_advanced:

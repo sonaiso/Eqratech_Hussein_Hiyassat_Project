@@ -192,7 +192,7 @@ def test_5_patterns():
     print(f"\n  Sample verb forms:")
     if 'verb_forms' in catalog:
         for pattern in catalog['verb_forms'][:3]:
-            print(f"    {pattern.pattern_type:15} {pattern.pattern:10} - {pattern.description}")
+            print(f"    {pattern.pattern_type:15} {pattern.template:10} - {pattern.description}")
     
     assert total > 0
 
