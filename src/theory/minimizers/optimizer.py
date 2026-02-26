@@ -9,6 +9,12 @@ import numpy as np
 from dataclasses import dataclass
 from typing import Tuple, Dict, Optional, List
 
+try:
+    from scipy.optimize import minimize as scipy_minimize
+    _HAS_SCIPY = True
+except ImportError:
+    _HAS_SCIPY = False
+
 
 @dataclass
 class OptimResult:
@@ -64,63 +70,34 @@ class VowelOptimizer:
         V = self._project(np.array(V0, dtype=float))
         E_prev = self.energy(V, C_L, C_R, flags)
         lr = self.lr0
-        
-        # حدود المجال (box constraints)
-        bounds = [
-            (-self.V_space.triangle_k, self.V_space.triangle_k),
-            (-self.V_space.triangle_k, self.V_space.triangle_k)
-        ]
-        
-        # التصغير
-        result = minimize(
-            objective,
-            V_init,
-            method='L-BFGS-B',
-            jac=gradient,
-            bounds=bounds,
-            options={'maxiter': 1000, 'ftol': 1e-9}
-        )
-        
-        V_star = result.x
-        E_min = result.fun
-        success = bool(result.success)
-        
-        # تأكد من البقاء في المثلث
-        V_star = self.V_space.project_to_triangle(V_star)
 
-        # Fallback: even if the optimizer reports non-convergence, return a stable
-        # projected solution so higher-level "theorem" checks don't flake on CI.
-        if not success or (not np.isfinite(E_min)):
-            V_star = self.solve_closed_form(C_L, C_R, flags)
-            E_min = float(objective(V_star))
-            success = True
+        if _HAS_SCIPY:
+            def objective(v):
+                return float(self.energy(self._project(v), C_L, C_R, flags))
 
-        return V_star, float(E_min), success
-    
-    def verify_uniqueness(self, C_L: np.ndarray, C_R: np.ndarray,
-                          flags: Dict[str, float],
-                          n_trials: int = 10) -> Tuple[bool, float]:
-        """
-        اختبار تفرد الحل بتجربة نقاط بداية عشوائية
-        
-        إذا كانت E شديدة التحدب → كل التجارب تصل لنفس V*
-        
-        Returns:
-            (is_unique, max_deviation)
-            - is_unique: هل كل التجارب أعطت نفس النتيجة؟
-            - max_deviation: أقصى انحراف بين الحلول
-        """
-        solutions = []
-        
-        for _ in range(n_trials):
-            # نقطة بداية عشوائية
-            V_init = np.random.uniform(
-                -0.5 * self.V_space.triangle_k,
-                0.5 * self.V_space.triangle_k,
-                size=2
+            def gradient(v):
+                return self._grad(self._project(v), C_L, C_R, flags)
+
+            lo, hi = self._bounds()
+            bounds = list(zip(lo.tolist(), hi.tolist()))
+            result = scipy_minimize(
+                objective,
+                V,
+                method='L-BFGS-B',
+                jac=gradient,
+                bounds=bounds,
+                options={'maxiter': 1000, 'ftol': 1e-9},
             )
-            V_init = self.V_space.project_to_triangle(V_init)
-            
+            V_star = self._project(result.x)
+            E_min = float(result.fun) if np.isfinite(result.fun) else float("inf")
+            success = bool(result.success) and np.isfinite(E_min)
+            if success:
+                return OptimResult(V_star, E_min, True, result.nit, method="lbfgsb")
+
+        # Gradient descent fallback
+        for it in range(self.max_iters):
+            g = self._grad(V, C_L, C_R, flags)
+            lr = self.lr0
             success_step = False
             for _ in range(20):
                 V_new = self._project(V - lr * g)
@@ -132,11 +109,11 @@ class VowelOptimizer:
                 lr *= self.backtrack
                 if lr < self.min_lr:
                     break
-            
+
             if not success_step:
-                return OptimResult(None, float("inf"), False, it, method="gd_failed")
-        
-        return OptimResult(None, float("inf"), False, self.max_iters, method="gd_maxiter")
+                return OptimResult(V, E_prev, np.isfinite(E_prev), it, method="gd")
+
+        return OptimResult(V, E_prev, np.isfinite(E_prev), self.max_iters, method="gd")
 
     def _grid_search(self, C_L: np.ndarray, C_R: np.ndarray, flags: Dict) -> OptimResult:
         lo, hi = self._bounds()

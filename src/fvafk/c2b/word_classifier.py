@@ -47,6 +47,12 @@ class Classification:
     special: Optional[Dict[str, Any]] = None
     pronoun: Optional[Dict[str, Any]] = None
 
+    def __str__(self) -> str:
+        return self.kind.value
+
+    def __format__(self, format_spec: str) -> str:
+        return format(str(self), format_spec)
+
 
 _DETACHED_PRONOUNS: Dict[str, Dict[str, Any]] = {
     # 1st person

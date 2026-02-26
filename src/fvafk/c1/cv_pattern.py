@@ -474,7 +474,7 @@ def _cv_from_segments(segments) -> Dict[str, str]:
     }
 
 
-def analyze_text_for_cv_after_phonology(text: str) -> Dict[str, object]:
+def analyze_text_for_cv_after_phonology(text: str, engine: str = "c2a") -> Dict[str, object]:
     """
     CV analysis AFTER phonological normalization (C2a gates).
 
@@ -483,7 +483,14 @@ def analyze_text_for_cv_after_phonology(text: str) -> Dict[str, object]:
     - For the rest: run C1Encoder + C2a gates per-token, then compute CV from final segments.
 
     Output keeps `words` entries minimal: only `cv` and `cv_advanced`.
+
+    Args:
+        text: Arabic text to analyze
+        engine: "c2a" (default) or "phonology_v2"
     """
+    if engine == "phonology_v2":
+        return _analyze_text_cv_phonology_v2(text)
+
     from fvafk.c1.encoder import C1Encoder
     from fvafk.c2a import (
         GateAssimilation,
@@ -541,4 +548,38 @@ def analyze_text_for_cv_after_phonology(text: str) -> Dict[str, object]:
         "total_words_computed": len(computed),
         "excluded_names": excluded_names,
         "words": computed,
+    }
+
+
+def _analyze_text_cv_phonology_v2(text: str) -> Dict[str, object]:
+    """CV analysis using the Phonology V2 engine."""
+    from fvafk.phonology_v2.phonology_adapter import PhonologyV2Adapter
+    from fvafk.c2b.special_words_catalog import get_special_words_catalog
+    from fvafk.c2b.word_boundary import WordBoundaryDetector
+
+    spans = WordBoundaryDetector().detect(text)
+    adapter = PhonologyV2Adapter()
+    catalog = get_special_words_catalog()
+    excluded_names = 0
+    computed = []
+
+    for sp in spans:
+        tok = sp.token
+        if should_exclude(tok):
+            continue
+        special = catalog.classify(tok)
+        if special and special.get("kind") == "excluded_name":
+            excluded_names += 1
+            continue
+        result = adapter.analyze_word(tok)
+        cv = result.get("cv_pattern", "")
+        cv_advanced = advanced_cv_pattern(tok)
+        computed.append({"cv": cv, "cv_advanced": cv_advanced})
+
+    return {
+        "total_words_input": len(spans),
+        "total_words_computed": len(computed),
+        "excluded_names": excluded_names,
+        "words": computed,
+        "engine": "phonology_v2",
     }
