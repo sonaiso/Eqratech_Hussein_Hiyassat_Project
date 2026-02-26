@@ -3,287 +3,204 @@ Pattern Catalog - Arabic Morphological Patterns
 Comprehensive collection of verb forms, noun patterns, and broken plurals
 """
 
-from dataclasses import dataclass
-from typing import List, Dict, Optional
+from dataclasses import dataclass, field
+from typing import List, Dict, Optional, Any
 from enum import Enum
 
+from .morpheme import PatternType, Root
+from .pattern_matcher import PatternDatabase, PatternMatcher
 
-class PatternType(Enum):
-    """Pattern types"""
-    VERB_FORM_I = "verb_form_i"
-    VERB_FORM_II = "verb_form_ii"
-    VERB_FORM_III = "verb_form_iii"
-    VERB_FORM_IV = "verb_form_iv"
-    VERB_FORM_V = "verb_form_v"
-    VERB_FORM_VI = "verb_form_vi"
-    VERB_FORM_VII = "verb_form_vii"
-    VERB_FORM_VIII = "verb_form_viii"
-    VERB_FORM_IX = "verb_form_ix"
-    VERB_FORM_X = "verb_form_x"
-    
-    NOUN_MASDAR = "noun_masdar"
-    NOUN_ACTIVE_PARTICIPLE = "noun_active_participle"
-    NOUN_PASSIVE_PARTICIPLE = "noun_passive_participle"
-    NOUN_INSTRUMENT = "noun_instrument"
-    NOUN_PLACE_TIME = "noun_place_time"
-    
-    BROKEN_PLURAL = "broken_plural"
-    ADJECTIVE = "adjective"
+
+class PatternCategory(Enum):
+    """High-level pattern categories."""
+    VERB = "verb"
+    NOUN = "noun"
+    PLURAL = "plural"
+    PARTICIPLE = "participle"
+
+
+_PARTICIPLE_TYPES = {PatternType.ACTIVE_PARTICIPLE, PatternType.PASSIVE_PARTICIPLE}
+
+
+def _category_from_template(template) -> PatternCategory:
+    """Map a PatternTemplate (from pattern_matcher) to PatternCategory."""
+    if template.pattern_type in _PARTICIPLE_TYPES:
+        return PatternCategory.PARTICIPLE
+    cat = template.category
+    if cat == "verb":
+        return PatternCategory.VERB
+    if cat == "plural":
+        return PatternCategory.PLURAL
+    return PatternCategory.NOUN
 
 
 @dataclass
-class PatternTemplate:
-    """Simple pattern template"""
-    name: str
+class PatternInfo:
+    """Rich information about a single Arabic morphological pattern."""
     template: str
-    description: str
-    pattern_type: str = "unknown"
+    pattern_type: PatternType
+    category: PatternCategory
+    form: Optional[str] = None
+    meaning: Optional[str] = None
+    frequency_rank: Optional[int] = None
+    # Legacy fields kept for backward compatibility with load_full_catalog() callers
+    name: Optional[str] = None
+    description: Optional[str] = None
     examples: Optional[List[str]] = None
+
+    @property
+    def pattern(self) -> str:
+        """Alias for template (legacy compatibility)."""
+        return self.template
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "template": self.template,
+            "pattern_type": self.pattern_type.name,
+            "category": self.category.name,
+            "form": self.form,
+            "meaning": self.meaning,
+            "frequency_rank": self.frequency_rank,
+        }
+
+
+@dataclass
+class PatternMatch:
+    """Result of matching a word against the pattern catalog."""
+    confidence: float
+    pattern_info: PatternInfo
+
+
+def _build_pattern_info_cache() -> List[PatternInfo]:
+    """Build PatternInfo list from PatternDatabase."""
+    db = PatternDatabase()
+    seen_templates: set = set()
+    result: List[PatternInfo] = []
+    # Assign frequency ranks to the first occurrence of each unique template
+    rank = 1
+    for tmpl in db.get_all():
+        if tmpl.template in seen_templates:
+            continue
+        seen_templates.add(tmpl.template)
+        result.append(PatternInfo(
+            template=tmpl.template,
+            pattern_type=tmpl.pattern_type,
+            category=_category_from_template(tmpl),
+            form=tmpl.form,
+            meaning=tmpl.meaning,
+            frequency_rank=rank,
+            name=tmpl.pattern_type.name,
+            description=tmpl.meaning or tmpl.pattern_type.value.replace("_", " ").title(),
+        ))
+        rank += 1
+    return result
 
 
 class PatternCatalog:
-    """Catalog of Arabic morphological patterns"""
-    
-    @classmethod
-    def load_full_catalog(cls) -> Dict[str, List[PatternTemplate]]:
-        """Load complete pattern catalog"""
+    """Catalog of Arabic morphological patterns."""
+
+    def __init__(self) -> None:
+        self._pattern_info_cache: List[PatternInfo] = _build_pattern_info_cache()
+        self._matcher = PatternMatcher()
+
+    # ------------------------------------------------------------------
+    # Query methods
+    # ------------------------------------------------------------------
+
+    def get_by_category(self, category: PatternCategory) -> List[PatternInfo]:
+        """Return all PatternInfo entries for the given category."""
+        return [p for p in self._pattern_info_cache if p.category == category]
+
+    def get_participle_patterns(self) -> List[PatternInfo]:
+        """Return participle patterns (active and passive)."""
+        return self.get_by_category(PatternCategory.PARTICIPLE)
+
+    def get_verb_forms(self) -> List[PatternInfo]:
+        """Return all verb patterns."""
+        return self.get_by_category(PatternCategory.VERB)
+
+    def search_patterns(
+        self,
+        category: Optional[PatternCategory] = None,
+        form: Optional[str] = None,
+        min_frequency_rank: Optional[int] = None,
+    ) -> List[PatternInfo]:
+        """Filter patterns by optional criteria."""
+        results = self._pattern_info_cache
+        if category is not None:
+            results = [p for p in results if p.category == category]
+        if form is not None:
+            results = [p for p in results if p.form == form]
+        if min_frequency_rank is not None:
+            results = [
+                p for p in results
+                if p.frequency_rank is None or p.frequency_rank <= min_frequency_rank
+            ]
+        return results
+
+    def get_most_common(self, limit: int = 20) -> List[PatternInfo]:
+        """Return the most common patterns sorted by frequency_rank."""
+        ranked = [p for p in self._pattern_info_cache if p.frequency_rank is not None]
+        ranked.sort(key=lambda p: p.frequency_rank or 0)
+        return ranked[:limit]
+
+    def get_pattern_by_template(self, template: str) -> Optional[PatternInfo]:
+        """Return the PatternInfo matching the given template string."""
+        for p in self._pattern_info_cache:
+            if p.template == template:
+                return p
+        return None
+
+    def match_pattern(self, word: str, root: Root) -> Optional[PatternMatch]:
+        """Match a word+root against the catalog and return the best PatternMatch."""
+        if not word:
+            return None
+        pattern = self._matcher.match_best(word, root)
+        if pattern is None:
+            return None
+        confidence = float(pattern.features.get("confidence", "0.8"))
+        info = self.get_pattern_by_template(pattern.template)
+        if info is None:
+            info = PatternInfo(
+                template=pattern.template,
+                pattern_type=pattern.pattern_type,
+                category=_category_from_template(
+                    type("_T", (), {
+                        "pattern_type": pattern.pattern_type,
+                        "category": pattern.features.get("category", "noun"),
+                    })()
+                ),
+                form=pattern.features.get("form"),
+                meaning=pattern.features.get("meaning"),
+            )
+        return PatternMatch(confidence=confidence, pattern_info=info)
+
+    def get_statistics(self) -> Dict[str, int]:
+        """Return basic statistics about the catalog."""
         return {
-            "verb_forms": cls._load_verb_patterns(),
-            "noun_patterns": cls._load_noun_patterns(),
-            "broken_plurals": cls._load_broken_plural_patterns(),
-            "adjectives": cls._load_adjective_patterns(),
+            "total_patterns": len(self._pattern_info_cache),
+            "category_verb": len(self.get_by_category(PatternCategory.VERB)),
+            "category_noun": len(self.get_by_category(PatternCategory.NOUN)),
+            "category_plural": len(self.get_by_category(PatternCategory.PLURAL)),
+            "category_participle": len(self.get_by_category(PatternCategory.PARTICIPLE)),
         }
-    
+
+    # ------------------------------------------------------------------
+    # Legacy class-method API (kept for backward compatibility)
+    # ------------------------------------------------------------------
+
     @classmethod
-    def _load_verb_patterns(cls) -> List[PatternTemplate]:
-        """Load verb form patterns (Forms I-X)"""
-        return [
-            # Form I (فَعَلَ)
-            PatternTemplate(
-                name="FORM_I_FATHA",
-                template="فَعَلَ",
-                description="Form I - فَتَحَ pattern",
-                pattern_type="verb_form_i",
-                examples=["كَتَبَ", "ذَهَبَ", "فَعَلَ"]
-            ),
-            PatternTemplate(
-                name="FORM_I_KASRA",
-                template="فَعِلَ",
-                description="Form I - فَهِمَ pattern",
-                pattern_type="verb_form_i",
-                examples=["شَرِبَ", "عَلِمَ", "فَهِمَ"]
-            ),
-            PatternTemplate(
-                name="FORM_I_DAMMA",
-                template="فَعُلَ",
-                description="Form I - حَسُنَ pattern",
-                pattern_type="verb_form_i",
-                examples=["حَسُنَ", "كَرُمَ", "عَظُمَ"]
-            ),
-            
-            # Form II (فَعَّلَ)
-            PatternTemplate(
-                name="FORM_II",
-                template="فَعَّلَ",
-                description="Form II - causative/intensive",
-                pattern_type="verb_form_ii",
-                examples=["عَلَّمَ", "كَسَّرَ", "فَهَّمَ"]
-            ),
-            
-            # Form III (فَاعَلَ)
-            PatternTemplate(
-                name="FORM_III",
-                template="فَاعَلَ",
-                description="Form III - mutual action",
-                pattern_type="verb_form_iii",
-                examples=["قَاتَلَ", "جَاهَدَ", "سَافَرَ"]
-            ),
-            
-            # Form IV (أَفْعَلَ)
-            PatternTemplate(
-                name="FORM_IV",
-                template="أَفْعَلَ",
-                description="Form IV - causative",
-                pattern_type="verb_form_iv",
-                examples=["أَكْرَمَ", "أَخْرَجَ", "أَسْلَمَ"]
-            ),
-            
-            # Form V (تَفَعَّلَ)
-            PatternTemplate(
-                name="FORM_V",
-                template="تَفَعَّلَ",
-                description="Form V - reflexive of Form II",
-                pattern_type="verb_form_v",
-                examples=["تَعَلَّمَ", "تَكَلَّمَ", "تَقَدَّمَ"]
-            ),
-            
-            # Form VI (تَفَاعَلَ)
-            PatternTemplate(
-                name="FORM_VI",
-                template="تَفَاعَلَ",
-                description="Form VI - reflexive of Form III",
-                pattern_type="verb_form_vi",
-                examples=["تَقَاتَلَ", "تَعَاوَنَ", "تَبَادَلَ"]
-            ),
-            
-            # Form VII (اِنْفَعَلَ)
-            PatternTemplate(
-                name="FORM_VII",
-                template="اِنْفَعَلَ",
-                description="Form VII - passive/reflexive",
-                pattern_type="verb_form_vii",
-                examples=["اِنْكَسَرَ", "اِنْفَتَحَ", "اِنْقَطَعَ"]
-            ),
-            
-            # Form VIII (اِفْتَعَلَ)
-            PatternTemplate(
-                name="FORM_VIII",
-                template="اِفْتَعَلَ",
-                description="Form VIII - reflexive",
-                pattern_type="verb_form_viii",
-                examples=["اِجْتَمَعَ", "اِخْتَارَ", "اِشْتَغَلَ"]
-            ),
-            
-            # Form IX (اِفْعَلَّ)
-            PatternTemplate(
-                name="FORM_IX",
-                template="اِفْعَلَّ",
-                description="Form IX - colors/defects",
-                pattern_type="verb_form_ix",
-                examples=["اِحْمَرَّ", "اِخْضَرَّ", "اِصْفَرَّ"]
-            ),
-            
-            # Form X (اِسْتَفْعَلَ)
-            PatternTemplate(
-                name="FORM_X",
-                template="اِسْتَفْعَلَ",
-                description="Form X - seeking/requesting",
-                pattern_type="verb_form_x",
-                examples=["اِسْتَخْرَجَ", "اِسْتَقْبَلَ", "اِسْتَغْفَرَ"]
-            ),
-        ]
-    
-    @classmethod
-    def _load_noun_patterns(cls) -> List[PatternTemplate]:
-        """Load noun patterns"""
-        return [
-            # Masdar patterns
-            PatternTemplate(
-                name="MASDAR_FACL",
-                template="فَعْل",
-                description="Masdar Form I pattern",
-                pattern_type="noun_masdar",
-                examples=["ضَرْب", "أَكْل", "فَتْح"]
-            ),
-            PatternTemplate(
-                name="MASDAR_FICAAL",
-                template="فِعَال",
-                description="Masdar Form I pattern",
-                pattern_type="noun_masdar",
-                examples=["جِهَاد", "قِتَال", "نِزَال"]
-            ),
-            PatternTemplate(
-                name="MASDAR_TAFCEEL",
-                template="تَفْعِيل",
-                description="Masdar Form II",
-                pattern_type="noun_masdar",
-                examples=["تَعْلِيم", "تَكْسِير", "تَفْهِيم"]
-            ),
-            
-            # Active participle
-            PatternTemplate(
-                name="ACTIVE_PARTICIPLE_FAACIL",
-                template="فَاعِل",
-                description="Active participle Form I",
-                pattern_type="noun_active_participle",
-                examples=["كَاتِب", "ذَاهِب", "قَارِئ"]
-            ),
-            PatternTemplate(
-                name="ACTIVE_PARTICIPLE_MUFACCIL",
-                template="مُفَعِّل",
-                description="Active participle Form II",
-                pattern_type="noun_active_participle",
-                examples=["مُعَلِّم", "مُكَسِّر", "مُفَهِّم"]
-            ),
-            
-            # Passive participle
-            PatternTemplate(
-                name="PASSIVE_PARTICIPLE_MAFCOOL",
-                template="مَفْعُول",
-                description="Passive participle Form I",
-                pattern_type="noun_passive_participle",
-                examples=["مَكْتُوب", "مَقْرُوء", "مَفْهُوم"]
-            ),
-            
-            # Instrument nouns
-            PatternTemplate(
-                name="INSTRUMENT_MIFCAAL",
-                template="مِفْعَال",
-                description="Instrument noun",
-                pattern_type="noun_instrument",
-                examples=["مِفْتَاح", "مِقْيَاس", "مِنْشَار"]
-            ),
-            
-            # Place/Time nouns
-            PatternTemplate(
-                name="PLACE_MAFCAL",
-                template="مَفْعَل",
-                description="Place/time noun",
-                pattern_type="noun_place_time",
-                examples=["مَكْتَب", "مَدْرَسَة", "مَطْبَخ"]
-            ),
-        ]
-    
-    @classmethod
-    def _load_broken_plural_patterns(cls) -> List[PatternTemplate]:
-        """Load broken plural patterns"""
-        return [
-            PatternTemplate(
-                name="PLURAL_AFCAAL",
-                template="أَفْعَال",
-                description="Broken plural pattern",
-                pattern_type="broken_plural",
-                examples=["أَقْلَام", "أَبْوَاب", "أَيَّام"]
-            ),
-            PatternTemplate(
-                name="PLURAL_FUCOOL",
-                template="فُعُول",
-                description="Broken plural pattern",
-                pattern_type="broken_plural",
-                examples=["بُيُوت", "عُيُون", "قُلُوب"]
-            ),
-            PatternTemplate(
-                name="PLURAL_FACAALIL",
-                template="فَعَائِل",
-                description="Broken plural pattern",
-                pattern_type="broken_plural",
-                examples=["رَسَائِل", "مَسَائِل", "وَسَائِل"]
-            ),
-            PatternTemplate(
-                name="PLURAL_FUCALAA",
-                template="فُعَلَاء",
-                description="Broken plural pattern",
-                pattern_type="broken_plural",
-                examples=["عُلَمَاء", "شُعَرَاء", "فُقَهَاء"]
-            ),
-        ]
-    
-    @classmethod
-    def _load_adjective_patterns(cls) -> List[PatternTemplate]:
-        """Load adjective patterns"""
-        return [
-            PatternTemplate(
-                name="ADJECTIVE_FACEEL",
-                template="فَعِيل",
-                description="Intensive adjective",
-                pattern_type="adjective",
-                examples=["كَرِيم", "رَحِيم", "عَظِيم"]
-            ),
-            PatternTemplate(
-                name="ADJECTIVE_AFCAL",
-                template="أَفْعَل",
-                description="Comparative/superlative",
-                pattern_type="adjective",
-                examples=["أَكْبَر", "أَصْغَر", "أَحْسَن"]
-            ),
-        ]
+    def load_full_catalog(cls) -> Dict[str, List]:
+        """Load complete pattern catalog (legacy API)."""
+        instance = cls()
+        return {
+            "verb_forms": instance.get_by_category(PatternCategory.VERB),
+            "noun_patterns": instance.get_by_category(PatternCategory.NOUN),
+            "broken_plurals": instance.get_by_category(PatternCategory.PLURAL),
+            "participles": instance.get_by_category(PatternCategory.PARTICIPLE),
+        }
+
+
+def create_default_catalog() -> PatternCatalog:
+    """Factory function returning a default PatternCatalog instance."""
+    return PatternCatalog()
