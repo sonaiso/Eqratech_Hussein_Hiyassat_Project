@@ -5,6 +5,7 @@ PatternMatcher: Recognize Arabic morphological patterns.
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -136,6 +137,9 @@ class PatternMatcher:
         normalized = self._normalize(word)
         categories = ["verb", "noun", "plural"]
         checked = set()
+        best_pattern = None
+        best_confidence = 0.0
+
         for category in categories:
             for template in self.database.get_by_category(category):
                 if id(template) in checked:
@@ -151,14 +155,21 @@ class PatternMatcher:
                     advanced_cv_word,
                     template,
                 )
-                if matched:
-                    return Pattern(
+                if matched and confidence > best_confidence:
+                    best_confidence = confidence
+                    best_pattern = Pattern(
                         name=template.pattern_type.value,
                         template=template.template,
                         pattern_type=template.pattern_type,
                         stem=word,
                         features={**template.feature_map(), "confidence": f"{confidence:.2f}"},
                     )
+                    if confidence >= 1.0:
+                        return best_pattern
+
+        if best_pattern is not None:
+            return best_pattern
+
         for template in self.database.get_all():
             if id(template) in checked:
                 continue
@@ -172,14 +183,20 @@ class PatternMatcher:
                 advanced_cv_word,
                 template,
             )
-            if matched:
-                return Pattern(
+            if matched and confidence > best_confidence:
+                best_confidence = confidence
+                best_pattern = Pattern(
                     name=template.pattern_type.value,
                     template=template.template,
                     pattern_type=template.pattern_type,
                     stem=word,
                     features={**template.feature_map(), "confidence": f"{confidence:.2f}"},
                 )
+                if confidence >= 1.0:
+                    return best_pattern
+
+        if best_pattern is not None:
+            return best_pattern
 
         # ------------------------------------------------------------------
         # CV-based fallback (golden rule from docs/awzan_test_report.md)
@@ -213,7 +230,13 @@ class PatternMatcher:
         return None
 
     def _normalize(self, word: str) -> str:
-        text = word.replace('ً', '').replace('ٌ', '').replace('ٍ', '')
+        # Apply Unicode NFC normalization first to ensure consistent diacritic ordering.
+        # Arabic text from different sources may encode combined marks (e.g. shadda + vowel)
+        # in different orders (U+064E U+0651 vs U+0651 U+064E), causing string equality
+        # checks to fail even when the glyphs are visually identical. NFC brings all
+        # sequences to the canonical composed form so template comparisons work reliably.
+        text = unicodedata.normalize('NFC', word)
+        text = text.replace('ً', '').replace('ٌ', '').replace('ٍ', '')
         # If the surface had fathatan, Arabic orthography often adds a final alif (…ًا).
         # After stripping marks, drop this support-alif to match templates (e.g., عظيمًا -> عظيم).
         if "\u064b" in word and text.endswith("ا") and len(text) > 3:
@@ -223,6 +246,8 @@ class PatternMatcher:
         return text.strip()
 
     def _instantiate_template(self, template_str: str, root: Root) -> str:
+        # Apply NFC normalization to template for consistent diacritic ordering
+        template_str = unicodedata.normalize('NFC', template_str)
         chars = []
         l_count = 0
         for ch in template_str:
@@ -278,7 +303,7 @@ class PatternMatcher:
         if template.cv_advanced:
             template_cv = self._sanitize_cv(template.cv_advanced)
             if template_cv and (not advanced_cv_word or advanced_cv_word != template_cv):
-                pass
+                return False, 0.0
         
         # Check shadda match (Crucial from gate matcher)
         # If candidate has shadda, word MUST have shadda

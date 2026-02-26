@@ -474,7 +474,7 @@ def _cv_from_segments(segments) -> Dict[str, str]:
     }
 
 
-def analyze_text_for_cv_after_phonology(text: str) -> Dict[str, object]:
+def analyze_text_for_cv_after_phonology(text: str, engine: str = "c2a") -> Dict[str, object]:
     """
     CV analysis AFTER phonological normalization (C2a gates).
 
@@ -482,8 +482,14 @@ def analyze_text_for_cv_after_phonology(text: str) -> Dict[str, object]:
     - Exclude golden names (EXCLUDED_NAME / jawamed) from CV analysis
     - For the rest: run C1Encoder + C2a gates per-token, then compute CV from final segments.
 
+    When engine="phonology_v2", uses cv_pattern/advanced_cv_pattern directly (expand_shadda
+    treats shadda as geminate CC) rather than the C2a gate pipeline.
+
     Output keeps `words` entries minimal: only `cv` and `cv_advanced`.
     """
+    if engine == "phonology_v2":
+        return _analyze_text_for_cv_phonology_v2(text)
+
     from fvafk.c1.encoder import C1Encoder
     from fvafk.c2a import (
         GateAssimilation,
@@ -537,6 +543,45 @@ def analyze_text_for_cv_after_phonology(text: str) -> Dict[str, object]:
         computed.append(_cv_from_segments(final_segs))
 
     return {
+        "engine": "c2a",
+        "total_words_input": len(spans),
+        "total_words_computed": len(computed),
+        "excluded_names": excluded_names,
+        "words": computed,
+    }
+
+
+def _analyze_text_for_cv_phonology_v2(text: str) -> Dict[str, object]:
+    """
+    CV analysis using the phonology_v2 path (cv_pattern/advanced_cv_pattern directly).
+
+    This treats shadda as a geminate (CC) rather than processing it through C2a gates.
+    """
+    from fvafk.c2b.word_boundary import WordBoundaryDetector
+    from fvafk.c2b.special_words_catalog import get_special_words_catalog
+
+    spans = WordBoundaryDetector().detect(text)
+    catalog = get_special_words_catalog()
+    excluded_names = 0
+    computed = []
+
+    for sp in spans:
+        tok = sp.token
+        if should_exclude(tok):
+            continue
+        special = catalog.classify(tok)
+        if special and special.get("kind") == "excluded_name":
+            excluded_names += 1
+            continue
+        normalized = normalize_initial_hamza(tok)
+        normalized = normalize_missing_harakat(normalized)
+        computed.append({
+            "cv": cv_pattern(normalized),
+            "cv_advanced": advanced_cv_pattern(normalized),
+        })
+
+    return {
+        "engine": "phonology_v2",
         "total_words_input": len(spans),
         "total_words_computed": len(computed),
         "excluded_names": excluded_names,

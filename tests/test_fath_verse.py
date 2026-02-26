@@ -12,6 +12,8 @@ import os
 from collections import defaultdict
 import argparse
 
+import pytest
+
 from fvafk.c2b.word_boundary_detector import WordBoundaryDetectorPlanB
 from fvafk.c2b.root_extractor import RootExtractor
 from fvafk.c2b.pattern_catalog import PatternCatalog
@@ -21,6 +23,17 @@ from fvafk.c2b.word_classifier import WordClassifier
 
 # Default verse if no file provided
 DEFAULT_VERSE = """مُّحَمَّدٌ رَّسُولُ اللَّهِ وَالَّذِينَ مَعَهُ أَشِدَّاءُ عَلَى الْكُفَّارِ رُحَمَاءُ بَيْنَهُمْ تَرَاهُمْ رُكَّعًا سُجَّدًا يَبْتَغُونَ فَضْلًا مِّنَ اللَّهِ وَرِضْوَانًا سِيمَاهُمْ فِي وُجُوهِهِم مِّنْ أَثَرِ السُّجُودِ ذَٰلِكَ مَثَلُهُمْ فِي التَّوْرَاةِ وَمَثَلُهُمْ فِي الْإِنجِيلِ كَزَرْعٍ أَخْرَجَ شَطْأَهُ فَآزَرَهُ فَاسْتَغْلَظَ فَاسْتَوَىٰ عَلَىٰ سُوقِهِ يُعْجِبُ الزُّرَّاعَ لِيَغِيظَ بِهِمُ الْكُفَّارَ وَعَدَ اللَّهُ الَّذِينَ آمَنُوا وَعَمِلُوا الصَّالِحَاتِ مِنْهُم مَّغْفِرَةً وَأَجْرًا عَظِيمًا"""
+
+
+@pytest.fixture
+def text():
+    return DEFAULT_VERSE
+
+
+@pytest.fixture
+def boundaries(text):
+    detector = WordBoundaryDetectorPlanB()
+    return detector.detect_boundaries(text)
 
 
 def load_text_from_file(file_path):
