@@ -281,13 +281,6 @@ class PatternMatcher:
         if stripped_word != stripped_candidate:
             return False, 0.0
 
-        # If broken plural fu'ul, special check (unchanged)
-        if pattern_type == PatternType.BROKEN_PLURAL_FUUL:
-            candidate_no_waw = candidate.replace("و", "")
-            stripped_candidate_no_waw = self._strip_diacritics(candidate_no_waw)
-            if stripped_word == stripped_candidate_no_waw:
-                return True, 0.85
-        
         # Check CV pattern if available
         if template.cv_advanced:
             template_cv = self._sanitize_cv(template.cv_advanced)

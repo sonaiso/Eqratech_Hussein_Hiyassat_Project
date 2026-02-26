@@ -183,8 +183,12 @@ class PatternCatalog:
                 return PatternMatch(pattern_info=info, confidence=confidence, matched_word=word)
 
         # Fallback: create PatternInfo on-the-fly
-        from fvafk.c2b.pattern_catalog import _CATEGORY_MAP_SIMPLE
-        cat = _CATEGORY_MAP_SIMPLE.get(result.features.get("category", ""), PatternCategory.OTHER)
+        _fallback_map: Dict[str, PatternCategory] = {
+            "verb": PatternCategory.VERB,
+            "noun": PatternCategory.NOUN,
+            "plural": PatternCategory.PLURAL,
+        }
+        cat = _fallback_map.get(result.features.get("category", ""), PatternCategory.OTHER)
         info = PatternInfo(
             template=result.template or "",
             pattern_type=result.pattern_type,
