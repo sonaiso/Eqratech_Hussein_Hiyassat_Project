@@ -474,69 +474,89 @@ def _cv_from_segments(segments) -> Dict[str, str]:
     }
 
 
-def analyze_text_for_cv_after_phonology(text: str) -> Dict[str, object]:
+def analyze_text_for_cv_after_phonology(text: str, engine: str = "c2a") -> Dict[str, object]:
     """
-    CV analysis AFTER phonological normalization (C2a gates).
+    CV analysis AFTER phonological normalization.
 
-    - Tokenize text into Arabic tokens (using WordBoundaryDetector)
-    - Exclude golden names (EXCLUDED_NAME / jawamed) from CV analysis
-    - For the rest: run C1Encoder + C2a gates per-token, then compute CV from final segments.
+    Args:
+        text: Input Arabic text.
+        engine: ``"c2a"`` (default) uses C2a gate pipeline; ``"phonology_v2"`` uses the
+                PhonologyV2 adapter and derives CV from raw diacritics (shadda treated as CC).
 
     Output keeps `words` entries minimal: only `cv` and `cv_advanced`.
+    The returned dict always includes an ``"engine"`` key with the value of *engine*.
     """
-    from fvafk.c1.encoder import C1Encoder
-    from fvafk.c2a import (
-        GateAssimilation,
-        GateDeletion,
-        GateEpenthesis,
-        GateHamza,
-        GateIdgham,
-        GateMadd,
-        GateShadda,
-        GateSukun,
-        GateWasl,
-        GateTanwin,
-        GateWaqf,
-    )
-    from fvafk.c2a.gate_framework import GateOrchestrator
     from fvafk.c2b.special_words_catalog import get_special_words_catalog
     from fvafk.c2b.word_boundary import WordBoundaryDetector
 
     spans = WordBoundaryDetector().detect(text)
-    encoder = C1Encoder()
-    orchestrator = GateOrchestrator(
-        gates=[
-            GateSukun(),
-            GateIdgham(),
-            GateShadda(),
-            GateWasl(),
-            GateHamza(),
-            GateWaqf(),
-            GateMadd(),
-            GateAssimilation(),
-            GateTanwin(),
-            GateDeletion(),
-            GateEpenthesis(),
-        ]
-    )
-
     catalog = get_special_words_catalog()
     excluded_names = 0
     computed = []
 
-    for sp in spans:
-        tok = sp.token
-        if should_exclude(tok):
-            continue
-        special = catalog.classify(tok)
-        if special and special.get("kind") == "excluded_name":
-            excluded_names += 1
-            continue
-        segs = encoder.encode(tok)
-        final_segs, _gate_results = orchestrator.run(segs)
-        computed.append(_cv_from_segments(final_segs))
+    if engine == "phonology_v2":
+        from fvafk.phonology_v2.phonology_adapter import analyze_word as _v2_analyze_word
+
+        for sp in spans:
+            tok = sp.token
+            if should_exclude(tok):
+                continue
+            special = catalog.classify(tok)
+            if special and special.get("kind") == "excluded_name":
+                excluded_names += 1
+                continue
+            r = _v2_analyze_word(tok)
+            cv_simple = r.get("cv_pattern") or cv_pattern(tok)
+            cv_adv = advanced_cv_pattern(tok)
+            computed.append({"cv": cv_simple, "cv_advanced": cv_adv})
+    else:
+        from fvafk.c1.encoder import C1Encoder
+        from fvafk.c2a import (
+            GateAssimilation,
+            GateDeletion,
+            GateEpenthesis,
+            GateHamza,
+            GateIdgham,
+            GateMadd,
+            GateShadda,
+            GateSukun,
+            GateWasl,
+            GateTanwin,
+            GateWaqf,
+        )
+        from fvafk.c2a.gate_framework import GateOrchestrator
+
+        encoder = C1Encoder()
+        orchestrator = GateOrchestrator(
+            gates=[
+                GateSukun(),
+                GateIdgham(),
+                GateShadda(),
+                GateWasl(),
+                GateHamza(),
+                GateWaqf(),
+                GateMadd(),
+                GateAssimilation(),
+                GateTanwin(),
+                GateDeletion(),
+                GateEpenthesis(),
+            ]
+        )
+
+        for sp in spans:
+            tok = sp.token
+            if should_exclude(tok):
+                continue
+            special = catalog.classify(tok)
+            if special and special.get("kind") == "excluded_name":
+                excluded_names += 1
+                continue
+            segs = encoder.encode(tok)
+            final_segs, _gate_results = orchestrator.run(segs)
+            computed.append(_cv_from_segments(final_segs))
 
     return {
+        "engine": engine,
         "total_words_input": len(spans),
         "total_words_computed": len(computed),
         "excluded_names": excluded_names,

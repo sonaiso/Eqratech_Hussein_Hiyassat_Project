@@ -5,6 +5,7 @@ PatternMatcher: Recognize Arabic morphological patterns.
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -87,9 +88,9 @@ class PatternDatabase:
             PatternTemplate(template="فُعَلَاءُ", pattern_type=PatternType.BROKEN_PLURAL_FU3ALAA, category="plural"),
         ]
         extra_patterns = AwzanPatternLoader.load()
-        seen_templates = {p.template for p in base}
+        seen_templates = {unicodedata.normalize('NFC', p.template) for p in base}
         for data in extra_patterns:
-            tpl = data["template"]
+            tpl = unicodedata.normalize('NFC', data["template"])
             if tpl in seen_templates:
                 continue
             seen_templates.add(tpl)
@@ -136,6 +137,21 @@ class PatternMatcher:
         normalized = self._normalize(word)
         categories = ["verb", "noun", "plural"]
         checked = set()
+        best_match: Optional[Pattern] = None
+        best_confidence: float = 0.0
+
+        def _record(template: PatternTemplate, confidence: float) -> None:
+            nonlocal best_match, best_confidence
+            if confidence > best_confidence:
+                best_confidence = confidence
+                best_match = Pattern(
+                    name=template.pattern_type.value,
+                    template=template.template,
+                    pattern_type=template.pattern_type,
+                    stem=word,
+                    features={**template.feature_map(), "confidence": f"{confidence:.2f}"},
+                )
+
         for category in categories:
             for template in self.database.get_by_category(category):
                 if id(template) in checked:
@@ -152,13 +168,9 @@ class PatternMatcher:
                     template,
                 )
                 if matched:
-                    return Pattern(
-                        name=template.pattern_type.value,
-                        template=template.template,
-                        pattern_type=template.pattern_type,
-                        stem=word,
-                        features={**template.feature_map(), "confidence": f"{confidence:.2f}"},
-                    )
+                    _record(template, confidence)
+                    if best_confidence >= 1.0:
+                        return best_match
         for template in self.database.get_all():
             if id(template) in checked:
                 continue
@@ -173,13 +185,12 @@ class PatternMatcher:
                 template,
             )
             if matched:
-                return Pattern(
-                    name=template.pattern_type.value,
-                    template=template.template,
-                    pattern_type=template.pattern_type,
-                    stem=word,
-                    features={**template.feature_map(), "confidence": f"{confidence:.2f}"},
-                )
+                _record(template, confidence)
+                if best_confidence >= 1.0:
+                    return best_match
+
+        if best_match is not None:
+            return best_match
 
         # ------------------------------------------------------------------
         # CV-based fallback (golden rule from docs/awzan_test_report.md)
