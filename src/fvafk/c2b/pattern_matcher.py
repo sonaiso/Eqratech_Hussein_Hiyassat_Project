@@ -90,8 +90,8 @@ class PatternDatabase:
         extra_patterns = AwzanPatternLoader.load()
         seen_templates = {unicodedata.normalize('NFC', p.template) for p in base}
         for data in extra_patterns:
-            tpl = data["template"]
-            if unicodedata.normalize('NFC', tpl) in seen_templates:
+            tpl = unicodedata.normalize('NFC', data["template"])
+            if tpl in seen_templates:
                 continue
             seen_templates.add(unicodedata.normalize('NFC', tpl))
             base.append(
@@ -154,7 +154,22 @@ class PatternMatcher:
                 )
 
         categories = ["verb", "noun", "plural"]
-        checked: Set[int] = set()
+        checked = set()
+        best: Optional[Pattern] = None
+        best_confidence = -1.0
+
+        def _consider(template: PatternTemplate, confidence: float) -> None:
+            nonlocal best, best_confidence
+            if confidence > best_confidence:
+                best_confidence = confidence
+                best = Pattern(
+                    name=template.pattern_type.value,
+                    template=template.template,
+                    pattern_type=template.pattern_type,
+                    stem=word,
+                    features={**template.feature_map(), "confidence": f"{confidence:.2f}"},
+                )
+
         for category in categories:
             for template in self.database.get_by_category(category):
                 if id(template) in checked:
@@ -171,8 +186,9 @@ class PatternMatcher:
                     template,
                 )
                 if matched:
-                    _update_best(template, confidence)
-
+                    _consider(template, confidence)
+                    if best_confidence >= 1.0:
+                        return best
         for template in self.database.get_all():
             if id(template) in checked:
                 continue
@@ -187,13 +203,12 @@ class PatternMatcher:
                 template,
             )
             if matched:
-                _update_best(template, confidence)
+                _consider(template, confidence)
+                if best_confidence >= 1.0:
+                    return best
 
-        if best_pattern is not None:
-            return best_pattern
-
-        if best_pattern is not None:
-            return best_pattern
+        if best is not None:
+            return best
 
         # ------------------------------------------------------------------
         # CV-based fallback (golden rule from docs/awzan_test_report.md)
@@ -283,11 +298,6 @@ class PatternMatcher:
         return best_pattern
 
     def _normalize(self, word: str) -> str:
-        # Apply Unicode NFC normalization first to ensure consistent diacritic ordering.
-        # Arabic text from different sources may encode combined marks (e.g. shadda + vowel)
-        # in different orders (U+064E U+0651 vs U+0651 U+064E), causing string equality
-        # checks to fail even when the glyphs are visually identical. NFC brings all
-        # sequences to the canonical composed form so template comparisons work reliably.
         text = unicodedata.normalize('NFC', word)
         text = text.replace('ً', '').replace('ٌ', '').replace('ٍ', '')
         # If the surface had fathatan, Arabic orthography often adds a final alif (…ًا).
@@ -334,17 +344,20 @@ class PatternMatcher:
         
         stripped_word = self._strip_diacritics(word)
         stripped_candidate = self._strip_diacritics(candidate)
-
-        # Special check for BROKEN_PLURAL_FUUL: كُتُب matches فُعُول by removing
-        # the medial waw from the instantiated form (كُتُول -> كتل stripped, but
-        # كُتُب stripped is كتب).  This must run BEFORE the consonant equality
-        # check below, because stripped_candidate ("كتول") != stripped_word ("كتب").
+        
+        # Check broken plural fu'ul BEFORE the consonant guard, because the
+        # و in فُعُول is a pattern vowel (not a root letter) and makes
+        # stripped_candidate longer than stripped_word.
         if pattern_type == PatternType.BROKEN_PLURAL_FUUL:
             candidate_no_waw = candidate.replace("و", "")
             stripped_candidate_no_waw = self._strip_diacritics(candidate_no_waw)
             if stripped_word == stripped_candidate_no_waw:
                 return True, 0.85
 
+        # If consonants don't match, fail immediately
+        if stripped_word != stripped_candidate:
+            return False, 0.0
+        
         # If consonants don't match, fail immediately
         if stripped_word != stripped_candidate:
             return False, 0.0
