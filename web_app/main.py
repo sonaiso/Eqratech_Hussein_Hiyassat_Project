@@ -1,143 +1,146 @@
 """
-FVAFK/Bayan FastAPI web application.
+Web application for the Arabic Diana Project.
 
-Exposes the FVAFK Arabic NLP pipeline via a REST API.
-
-Usage:
-    python run_server.py [--host 127.0.0.1] [--port 8000] [--reload]
-    # or directly:
-    uvicorn web_app.main:app --host 127.0.0.1 --port 8000
+This FastAPI application provides endpoints to interact with the Arabic grammar
+reconstruction engines and provides linguistic analysis capabilities.
 """
-from __future__ import annotations
-
-import sys
-import os
-import time
-from typing import Any, Dict, Optional
-
-# Allow imports from src/ when running outside the installed package
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from typing import List, Dict, Any
+import sys
+import os
+
+# Add parent directory to path to import engines
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+
+from Main_engine import collect_engines
 
 app = FastAPI(
-    title="Bayan-FVAFK Arabic NLP API",
-    description=(
-        "Arabic NLP pipeline: phonology (C1/C2a), morphology (C2b), "
-        "and syntax analysis via the FVAFK pipeline."
-    ),
-    version="0.1.0",
+    title="Eqratech Arabic Diana Project",
+    description="Arabic NLP Project with all Arabic tools, verbs and names",
+    version="1.0.0"
 )
 
 
-# ---------------------------------------------------------------------------
-# Request / Response models
-# ---------------------------------------------------------------------------
-
-class AnalyzeRequest(BaseModel):
-    text: str = Field(..., description="Arabic text to analyze", min_length=1)
-    morphology: bool = Field(False, description="Enable morphological analysis (C2b)")
-
-
-class HealthResponse(BaseModel):
-    status: str
-    version: str
-
-
-# ---------------------------------------------------------------------------
-# Routes
-# ---------------------------------------------------------------------------
-
-@app.get("/health", response_model=HealthResponse, summary="Health check")
-def health() -> HealthResponse:
-    """Return service health status."""
-    return HealthResponse(status="ok", version="0.1.0")
-
-
-@app.post("/analyze", summary="Analyze Arabic text")
-def analyze(request: AnalyzeRequest) -> Dict[str, Any]:
-    """
-    Run the FVAFK pipeline on the supplied Arabic text.
-
-    - **text**: The Arabic text to process (with or without diacritics).
-    - **morphology**: When ``true``, the C2b morphological layer is included.
-
-    Returns a JSON object with ``c1``, ``c2a``, optional ``c2b``, and ``stats``
-    keys — identical to the CLI ``--json`` output.
-    """
-    try:
-        from fvafk.c1 import C1Encoder
-        from fvafk.c2a import (
-            GateDeletion,
-            GateEpenthesis,
-            GateFramework,
-            GateHamza,
-            GateIdgham,
-            GateMadd,
-            GateShadda,
-            GateSukun,
-            GateWasl,
-        )
-    except ImportError as exc:  # pragma: no cover
-        raise HTTPException(
-            status_code=503,
-            detail=f"FVAFK library not available: {exc}",
-        ) from exc
-
-    start = time.perf_counter()
-
-    # C1 encoding
-    t0 = time.perf_counter()
-    encoder = C1Encoder()
-    units = encoder.encode(request.text)
-    c1_ms = (time.perf_counter() - t0) * 1000
-
-    # C2a phonological gates
-    t0 = time.perf_counter()
-    gates = [
-        GateSukun(), GateShadda(), GateHamza(),
-        GateIdgham(), GateMadd(), GateDeletion(),
-        GateEpenthesis(), GateWasl(),
-    ]
-    framework = GateFramework(gates)
-    gate_results = framework.apply(units)
-    c2a_ms = (time.perf_counter() - t0) * 1000
-
-    result: Dict[str, Any] = {
-        "input": request.text,
-        "c1": {"num_units": len(units)},
-        "c2a": {
-            "gates": [
-                {"gate": r.gate_name, "status": r.status.value}
-                for r in gate_results
-            ],
-        },
-        "stats": {
-            "c1_time_ms": round(c1_ms, 3),
-            "c2a_time_ms": round(c2a_ms, 3),
-            "total_time_ms": round((time.perf_counter() - start) * 1000, 3),
-            "gates_count": len(gates),
-        },
+@app.get("/")
+async def root():
+    """Root endpoint with API information."""
+    return {
+        "message": "Welcome to Eqratech Arabic Diana Project API",
+        "version": "1.0.0",
+        "endpoints": {
+            "engines": "/engines - List all available grammar engines",
+            "engine_data": "/engines/{sheet_name} - Get data for a specific engine",
+            "health": "/health - Health check endpoint"
+        }
     }
 
-    # Optional C2b morphological analysis
-    if request.morphology:
-        from fvafk.c2b import PatternMatcher, RootExtractor
-        t0 = time.perf_counter()
-        extractor = RootExtractor()
-        matcher = PatternMatcher()
-        root = extractor.extract(request.text)
-        pattern = matcher.match(request.text)
-        c2b_ms = (time.perf_counter() - t0) * 1000
-        result["c2b"] = {
-            "root": root.formatted if root else None,
-            "pattern": pattern.template if pattern else None,
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint."""
+    return {"status": "healthy", "service": "arabic-diana-api"}
+
+
+@app.get("/engines")
+async def list_engines() -> List[Dict[str, str]]:
+    """List all available grammar reconstruction engines.
+    
+    Returns:
+        List of dictionaries containing engine information.
+    """
+    try:
+        engines = collect_engines()
+        engine_list = [
+            {
+                "name": engine.__name__,
+                "sheet_name": engine.SHEET_NAME,
+                "class": engine.__name__
+            }
+            for engine in engines
+        ]
+        return engine_list
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error collecting engines: {str(e)}")
+
+
+@app.get("/engines/{sheet_name}")
+async def get_engine_data(sheet_name: str, limit: int = 100):
+    """Get data from a specific engine by sheet name.
+    
+    Args:
+        sheet_name: The name of the engine's sheet
+        limit: Maximum number of rows to return (default: 100, max: 1000)
+        
+    Returns:
+        Dictionary containing the engine data.
+    """
+    try:
+        # Limit the maximum rows returned
+        limit = min(limit, 1000)
+        
+        engines = collect_engines()
+        
+        # Find the engine with matching sheet name
+        target_engine = None
+        for engine in engines:
+            if engine.SHEET_NAME == sheet_name:
+                target_engine = engine
+                break
+        
+        if target_engine is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Engine with sheet name '{sheet_name}' not found"
+            )
+        
+        # Generate the dataframe
+        df = target_engine.make_df()
+        
+        # Convert to dictionary format and limit rows
+        data = df.head(limit).to_dict(orient='records')
+        
+        return {
+            "sheet_name": sheet_name,
+            "engine": target_engine.__name__,
+            "total_rows": len(df),
+            "returned_rows": len(data),
+            "data": data
         }
-        result["stats"]["c2b_time_ms"] = round(c2b_ms, 3)
-        result["stats"]["total_time_ms"] = round(
-            (time.perf_counter() - start) * 1000, 3
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error generating engine data: {str(e)}"
         )
 
-    return result
+
+@app.get("/export/all")
+async def export_all_engines():
+    """Trigger export of all engines to Excel file.
+    
+    Returns:
+        Status message about the export operation.
+    """
+    try:
+        from Main_engine import export_all
+        
+        output_path = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)),
+            'full_multilayer_grammar.xlsx'
+        )
+        
+        export_all(output_path)
+        
+        return {
+            "status": "success",
+            "message": "All engines exported successfully",
+            "output_file": output_path
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error exporting engines: {str(e)}"
+        )

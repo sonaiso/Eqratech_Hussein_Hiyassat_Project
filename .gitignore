@@ -1,86 +1,46 @@
-# Generated artifacts and OS metadata
+# Python
 __pycache__/
 *.py[cod]
-*.pyo
-*.pyd
+*$py.class
 *.so
-*.dll
-*.log
-*.tmp
-*.zip
-
-# Virtual environments
-.venv/
-.env/
-.env*/
-
-# Jupyter artifacts
-.ipynb_checkpoints/
-.hypothesis/
-
-# OS metadata
-Desktop.ini
-desktop.ini
-Thumbs.db
-
-# Editor artifacts
-.vscode/
-
-# Temporary workbook files
-~$*
-# macOS
-.DS_Store
-
-# Python
-*.pyc
-__pycache__/
-*.pyo
-*.pyd
 .Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 
-# Project specific
-*.tar.gz
-out.txt
-extraction_results*.txt
-benchmark_report.json
-*.log
+# Virtual Environment
+venv/
+ENV/
+env/
+.venv
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
 
-# Virtual environments
-venv/
-env/
-.env
-src/fvafk.egg-info/
+# OS
+.DS_Store
+Thumbs.db
 
-# Coq build artifacts
-coq/**/*.vo
-coq/**/*.vos
-coq/**/*.vok
-coq/**/*.glob
-coq/**/*.aux
+# Project specific
+*.log
+/tmp/
 
-i3rab/
-
-# Python build artifacts
-dist/
-build/
-*.egg-info/
-.eggs/
-
-# Test and coverage artifacts
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
-
-# Temporary Microsoft Office lock files
-~$*
-
-# Excel outputs (generated artifacts)
-full_multilayer_grammar.xlsx
-full_multilayer_grammar*.xlsx
+# Excel temp files
+~$*.xlsx
+~$*.xls
