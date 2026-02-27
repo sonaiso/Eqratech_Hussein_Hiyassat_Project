@@ -245,6 +245,43 @@ class PatternMatcher:
 
         return None
 
+    def match_best(self, word: str, root: Root) -> Optional[Pattern]:
+        """Return the highest-confidence match across all templates.
+
+        Unlike :meth:`match`, which returns the *first* match found, this
+        method evaluates every template and returns the one with the highest
+        confidence score.  This avoids situations where an earlier-checked
+        category (e.g. verb) wins over a later one (e.g. noun/participle) even
+        though the noun template is a better fit for the surface form.
+        """
+        if not word or not root:
+            return None
+        advanced_cv_word = self._sanitize_cv(advanced_cv_pattern(word))
+        normalized = self._normalize(word)
+
+        best_pattern: Optional[Pattern] = None
+        best_confidence: float = -1.0
+
+        for template in self.database.get_all():
+            if not template.matches_root_type(root):
+                continue
+            candidate = self._instantiate_template(template.template, root)
+            matched, confidence = self._matches(
+                normalized, candidate, template.pattern_type,
+                advanced_cv_word, template,
+            )
+            if matched and confidence > best_confidence:
+                best_confidence = confidence
+                best_pattern = Pattern(
+                    name=template.pattern_type.value,
+                    template=template.template,
+                    pattern_type=template.pattern_type,
+                    stem=word,
+                    features={**template.feature_map(), "confidence": f"{confidence:.2f}"},
+                )
+
+        return best_pattern
+
     def _normalize(self, word: str) -> str:
         text = unicodedata.normalize("NFC", word)
         text = text.replace('ً', '').replace('ٌ', '').replace('ٍ', '')
