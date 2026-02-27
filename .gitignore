@@ -1,8 +1,12 @@
-# Python
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
+
+# C extensions
 *.so
+
+# Distribution / packaging
 .Python
 build/
 develop-eggs/
@@ -20,14 +24,61 @@ wheels/
 .installed.cfg
 *.egg
 
-# Virtual Environment
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Translations
+*.mo
+*.pot
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# Environments
+.env
+.venv
+env/
 venv/
 ENV/
-env/
+env.bak/
+venv.bak/
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
 
 # IDE
-.vscode/
 .idea/
+.vscode/
 *.swp
 *.swo
 *~
@@ -35,13 +86,23 @@ env/
 # OS
 .DS_Store
 Thumbs.db
+*.tmp
 
-# Project specific
-*.xlsx
-*.xls
+# Excel temporary files
 ~$*.xlsx
 ~$*.xls
+
+# COQ compiled files
+*.vo
+*.vok
+*.vos
+*.glob
+.*.aux
+.depend
+
+# Logs
 *.log
-surah_fatiha_syllables.xlsx
-syllable_analysis.xlsx
-fractal_patterns_analysis.xlsx
+
+# Local configuration
+.env.local
+.env.*.local

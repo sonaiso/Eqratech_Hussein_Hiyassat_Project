@@ -1,103 +1,104 @@
-# Eqratech_Arabic_Diana_Project
-Python_NLP Project with all Arabic tools verbs and names
+# Eqratech Arabic Diana Project
+# مشروع إقرأتك للعربية - ديانا
 
-## Features
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 
-### View Today's Activities
-You can now view all available Arabic grammar engines through a web interface!
+مشروع Python لمعالجة اللغة العربية الطبيعية مع جميع أدوات الأفعال والأسماء العربية.
 
-**To start the web server:**
-```bash
-python run_server.py
+Python NLP Project with all Arabic tools, verbs and names.
+
+---
+
+## 📁 Project Structure | هيكل المشروع
+
+```
+Eqratech_Arabic_Diana_Project/
+├── *_engine.py              # Grammar processing engines (محركات المعالجة)
+├── *.csv                    # Data files (ملفات البيانات)
+├── run_server.py            # Server runner
+├── requirements.txt         # Python dependencies
+├── LICENSE                  # MIT License
+└── README.md                # This file
 ```
 
-Then open your browser and navigate to: `http://127.0.0.1:8000/`
+---
 
-**API Endpoint:**
-- GET `/api/activities` - Returns JSON data with today's date and all available engines
+## 🚀 Quick Start | البدء السريع
 
-**What you'll see:**
-- Today's date
-- Total count of available grammar activities (63 engines)
-- List of all Arabic grammar engines with their Arabic names
-- Beautiful, responsive interface in both Arabic and English
+### Installation | التثبيت
 
-## Installation
-
-Install dependencies:
 ```bash
+# Clone the repository
+git clone https://github.com/sonaiso/Eqratech_Arabic_Diana_Project.git
+cd Eqratech_Arabic_Diana_Project
+
+# Install Python dependencies
 pip install -r requirements.txt
 ```
 
-# Run tests to verify installation
-PYTHONPATH=src pytest tests/ -v
-```
-
----
-
-## 💻 Usage
-
-### Command Line Interface
-
-#### Basic Usage
+### Run | التشغيل
 
 ```bash
-# Simple text analysis
-python -m fvafk.cli "كَاتِبٌ"
+# Run the server
+python run_server.py
 
-# With morphological analysis
-python -m fvafk.cli "كَاتِبٌ" --morphology
-
-# JSON output
-python -m fvafk.cli "كَاتِبٌ" --morphology --json
-
-# Verbose output with timing
-python -m fvafk.cli "كَاتِبٌ" --morphology --verbose
-```
-
-### Python API
-
-```python
-import sys
-sys.path.insert(0, 'src')
-
-from fvafk.orthography_adapter import OrthographyAdapter
-from fvafk.c2b.root_extractor import RootExtractor
-from fvafk.c2b.pattern_matcher import PatternMatcher
-
-# Initialize components
-adapter = OrthographyAdapter()
-extractor = RootExtractor()
-matcher = PatternMatcher()
-
-# Analyze word
-text = "كَاتِبٌ"
-normalized = adapter.normalize(text)
-root = extractor.extract(normalized)
-pattern = matcher.match(normalized, root)
-
-print(f"Root: {'-'.join(root.letters)}")      # ك-ت-ب
-print(f"Pattern: {pattern.name}")              # فَاعِل
-print(f"Type: {pattern.pattern_type.name}")   # ACTIVE_PARTICIPLE
+# Or using uvicorn directly
+uvicorn web_app.main:app --reload
 ```
 
 ---
 
-## 📚 Documentation
+## 📚 Main Components | المكونات الرئيسية
 
-Comprehensive documentation is available in the `docs/` directory:
+### Grammar Engines | محركات القواعد النحوية
 
-- **[Architecture Overview](docs/ARCHITECTURE.md)** - System design and three-phase pipeline (C1→C2a→C2b)
-- **[Phonological Gates Reference](docs/PHONOLOGICAL_GATES.md)** - Detailed specifications of all 10 Tajweed-based gates
-- **[Morphology Guide](docs/MORPHOLOGY_GUIDE.md)** - Root extraction, pattern matching, and Arabic morphological patterns
-- **[API Reference](docs/API_REFERENCE.md)** - Complete API documentation with examples
-- **[Tutorial](docs/TUTORIAL.md)** - Step-by-step tutorials and common recipes
-- **[Implementation Status](docs/implementation_status.md)** - Current implementation status and roadmap
+| Engine | Description | الوصف |
+|--------|-------------|-------|
+| `verbs_engine.py` | Verb processing | محرك الأفعال |
+| `phonemes_engine.py` | Phonemes processing | محرك الفونيمات |
+| `gender_engine.py` | Grammatical gender | محرك الجنس النحوي |
+| `demonstratives_engine.py` | Demonstrative pronouns | محرك أسماء الإشارة |
+| `particles_engine.py` | Particles processing | محرك الحروف |
 
-### Quick Links
+### Morphology Engines | محركات الصرف
 
-- **New to FVAFK?** Start with the [Tutorial](docs/TUTORIAL.md)
-- **Want to understand the system?** Read the [Architecture Overview](docs/ARCHITECTURE.md)
-- **Looking for specific APIs?** Check the [API Reference](docs/API_REFERENCE.md)
-- **Need gate details?** See [Phonological Gates Reference](docs/PHONOLOGICAL_GATES.md)
-- **Working with morphology?** Read the [Morphology Guide](docs/MORPHOLOGY_GUIDE.md)
+| Engine | Description | الوصف |
+|--------|-------------|-------|
+| `active_participle_engine.py` | Active participle | اسم الفاعل |
+| `passive_participle_engine.py` | Passive participle | اسم المفعول |
+| `superlative_engine.py` | Superlative forms | أفعل التفضيل |
+| `tasgheer_engine.py` | Diminutive forms | التصغير |
+
+### Rhetoric Engines | محركات البلاغة
+
+| Engine | Description | الوصف |
+|--------|-------------|-------|
+| `tashbih_engine.py` | Simile | التشبيه |
+| `istiara_engine.py` | Metaphor | الاستعارة |
+| `kinaya_engine.py` | Metonymy | الكناية |
+| `tibaq_engine.py` | Antithesis | الطباق |
+
+---
+
+## 🤝 Contributing | المساهمة
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+نرحب بالمساهمات! لا تتردد في تقديم طلب سحب (Pull Request).
+
+---
+
+## 📄 License | الرخصة
+
+This project is licensed under the [MIT License](LICENSE).
+
+هذا المشروع مرخص تحت [رخصة MIT](LICENSE).
+
+---
+
+## 📞 Contact | التواصل
+
+For questions and inquiries, please open an Issue in the repository.
+
+للأسئلة والاستفسارات، يرجى فتح Issue في المستودع.
