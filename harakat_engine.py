@@ -1,81 +1,56 @@
 """
-Harakat (Diacritical Marks) Engine
-
-This module loads and processes Arabic diacritical marks (harakat) data from CSV files.
-It provides the data in a standardized format for use in reconstruction and linguistic analysis.
+محرك الحركات
+يوفر هذا الملف وظيفة لتحميل بيانات الحركات العربية من ملف CSV.
 """
 
 import os
 import pandas as pd
-from base_reconstruction_engine import BaseReconstructionEngine
 
 
-class حركات(BaseReconstructionEngine):
-    """Engine for loading and processing Arabic harakat (diacritical marks)."""
+class حركات:
+    """محرك لتحميل ومعالجة بيانات الحركات العربية."""
     
-    SHEET_NAME = 'الحركات'
-    
-    @classmethod
-    def make_df(cls) -> pd.DataFrame:
-        """Load harakat data from CSV file.
+    @staticmethod
+    def make_df(csv_path: str = None) -> pd.DataFrame:
+        """تحميل جدول الحركات من ملف CSV.
         
-        Tries to load from multiple possible file locations:
-        1. Harakat.csv (root directory)
-        2. الحركات.csv (root directory)
-        3. الحركات_كامل.csv (root directory)
-        
+        Args:
+            csv_path: مسار ملف CSV. إذا لم يحدد، يستخدم الملف الافتراضي.
+            
         Returns:
-            pd.DataFrame: DataFrame containing harakat data with standardized columns.
+            pd.DataFrame: إطار بيانات يحتوي على معلومات الحركات
         """
-        base_dir = os.path.dirname(__file__)
-        
-        # Try different possible CSV filenames
-        possible_files = [
-            os.path.join(base_dir, 'Harakat.csv'),
-            os.path.join(base_dir, 'الحركات.csv'),
-            os.path.join(base_dir, 'الحركات_كامل.csv'),
-        ]
-        
-        csv_path = None
-        for path in possible_files:
-            if os.path.exists(path):
-                csv_path = path
-                break
-        
         if csv_path is None:
-            raise FileNotFoundError(
-                f"Could not find harakat CSV file. Tried: {possible_files}"
-            )
+            # البحث عن ملف الحركات في المجلد الحالي
+            base_dir = os.path.dirname(__file__)
+            
+            # محاولة الملفات المحتملة بالترتيب
+            possible_files = [
+                os.path.join(base_dir, 'Harakat.csv'),
+                os.path.join(base_dir, 'الحركات.csv'),
+                os.path.join(base_dir, 'الحركات_كامل.csv'),
+            ]
+            
+            for f in possible_files:
+                if os.path.exists(f):
+                    csv_path = f
+                    break
+            
+            if csv_path is None:
+                # إنشاء DataFrame فارغ بالأعمدة المطلوبة
+                return pd.DataFrame(columns=[
+                    'الحركات', 'شكل الحركة', 'نوع الوظيفة', 'الوظيفة',
+                    'نوع العلامة', 'Unicode', 'UTF-8', 'الوصف'
+                ])
         
-        # Load the CSV file
+        if not os.path.exists(csv_path):
+            raise FileNotFoundError(f"ملف الحركات غير موجود: {csv_path}")
+        
+        # تحميل CSV
         try:
             df = pd.read_csv(csv_path, dtype=str).fillna('')
         except Exception:
-            # Try with UTF-8-BOM encoding if default fails
+            # محاولة مع ترميز مختلف
             df = pd.read_csv(csv_path, dtype=str, encoding='utf-8-sig').fillna('')
         
-        # Ensure standard columns exist
-        # The harakat CSV may have different column names, so we'll work with what we have
-        # but ensure UTF-8 column exists
-        if 'UTF-8' not in df.columns:
-            # If there's a column with the harakat symbol, generate UTF-8 from it
-            symbol_col = None
-            for col in ['شكل الحركة', 'الحركة', 'الحركات', 'haraka_symbol']:
-                if col in df.columns:
-                    symbol_col = col
-                    break
-            
-            if symbol_col:
-                def make_utf8(symbol):
-                    if not symbol or str(symbol).strip() == '':
-                        return ''
-                    return str(symbol[:1].encode('utf-8'))
-                
-                df['UTF-8'] = df[symbol_col].apply(make_utf8)
-        
         return df
-
-
-class HarakatEngine(حركات):
-    """Alias for حركات engine using English name."""
-    pass

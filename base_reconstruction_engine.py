@@ -1,15 +1,26 @@
-"""Base class for reconstruction engines."""
+"""
+Base class for all reconstruction engines.
+
+All engine classes should inherit from this base class and implement:
+- SHEET_NAME: class attribute defining the Excel sheet name
+- make_df(): class method that returns a pandas DataFrame
+"""
+
+import pandas as pd
+from abc import ABC, abstractmethod
 
 
-class BaseReconstructionEngine:
-    """Base class for all reconstruction engines."""
+class BaseReconstructionEngine(ABC):
+    """Base class for reconstruction engines that generate grammar data."""
     
-    SHEET_NAME = 'Base'
+    SHEET_NAME = 'Base'  # Override in subclasses
     
     @classmethod
-    def make_df(cls):
+    @abstractmethod
+    def make_df(cls) -> pd.DataFrame:
         """Generate and return a DataFrame for this engine.
         
-        Subclasses must implement this method.
+        Returns:
+            pd.DataFrame: DataFrame containing the grammar data for this engine
         """
-        raise NotImplementedError(f"{cls.__name__} must implement make_df()")
+        pass

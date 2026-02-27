@@ -1,1 +1,1 @@
-"""Web application package for Eqratech Arabic Diana Project."""
+"""Web app package for Arabic Grammar Classifier."""
