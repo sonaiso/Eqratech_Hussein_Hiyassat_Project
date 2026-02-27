@@ -124,10 +124,39 @@ from fvafk.c1.cv_pattern import cv_pattern
 
 
 class PatternMatcher:
+    """
+    Matches Arabic words against morphological patterns.
+    
+    Recognizes verb forms (I-X), active/passive participles, noun patterns,
+    and broken plurals by comparing normalized words against pattern templates.
+    
+    Example:
+        >>> matcher = PatternMatcher()
+        >>> root = Root(letters=('ك', 'ت', 'ب'), root_type=RootType.TRILATERAL)
+        >>> pattern = matcher.match("كَاتِب", root)
+        >>> print(pattern.name)
+        ACTIVE_PARTICIPLE
+    """
     def __init__(self, database: Optional[PatternDatabase] = None) -> None:
+        """
+        Initialize pattern matcher.
+        
+        Args:
+            database: Optional PatternDatabase with pattern templates
+        """
         self.database = database or PatternDatabase()
 
     def match(self, word: str, root: Root) -> Optional[Pattern]:
+        """
+        Match word to morphological pattern.
+        
+        Args:
+            word: Arabic word (normalized)
+            root: Extracted root
+        
+        Returns:
+            Pattern object if match found, None otherwise
+        """
         if not word or not root:
             return None
         # NFC-normalize so combining diacritics are in canonical order.
