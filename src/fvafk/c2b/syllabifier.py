@@ -42,6 +42,24 @@ from typing import List, Tuple, Optional, NamedTuple
 from dataclasses import dataclass
 from enum import Enum
 
+__all__ = [
+    "segment_cv_strict",
+    "segment_cv_to_syllables",
+    "validate_cv_law",
+    "ArabicSyllabifier",
+    "SyllabificationResult",
+    "SyllableType",
+    "Syllable",
+    "Haraka",
+    "MaddLetter",
+    "normalize_word",
+    "normalize_initial_hamza",
+    "split_letters_and_marks",
+    "expand_shadda",
+    "syllabify",
+    "syllabify_to_pattern",
+]
+
 
 # =============================================================================
 # Unicode Constants - Harakat (Diacritics)
@@ -434,6 +452,72 @@ def segment_cv_to_syllables(cv: str) -> List[str]:
     return syllables
 
 
+def segment_cv_strict(cv: str) -> Tuple[Optional[List[str]], Optional[str]]:
+    """
+    Strict CV segmentation.  Returns ``(syllable_patterns, error)``.
+
+    Unlike :func:`segment_cv_to_syllables`, this routine fails immediately
+    whenever it encounters a position that cannot start a valid syllable
+    (i.e. ``cv[i:i+2] != "CV"``) and also fails if the CV string is not
+    **fully consumed** by the produced syllable list.
+
+    Error codes returned in the ``error`` slot:
+    - ``illegal_cv_sequence_at:<index>`` – position *i* is not the start of CV
+    - ``cv_not_fully_consumed:<leftover>`` – trailing characters remain after
+      last syllable
+
+    Returns ``([], None)`` for an empty string (consistent with
+    :func:`segment_cv_to_syllables`).
+    """
+    if not cv:
+        return [], None
+
+    syllables: List[str] = []
+    i = 0
+
+    while i < len(cv):
+        if i + 1 >= len(cv) or cv[i] != "C" or cv[i + 1] != "V":
+            return None, f"illegal_cv_sequence_at:{i}"
+
+        syll = "CV"
+        i += 2
+
+        if i < len(cv) and cv[i] == "V":
+            syll = "CVV"
+            i += 1
+
+        c_start = i
+        while i < len(cv) and cv[i] == "C":
+            i += 1
+        c_count = i - c_start
+
+        if i >= len(cv):
+            coda = min(2, c_count)
+            if coda == 1:
+                syll += "C"
+            elif coda == 2:
+                syll += "CC"
+            syllables.append(syll)
+            break
+
+        coda = min(2, max(0, c_count - 1))
+        if coda == 1:
+            syll += "C"
+        elif coda == 2:
+            syll += "CC"
+
+        i = c_start + coda
+        syllables.append(syll)
+
+    # Full-consumption check
+    consumed = "".join(syllables)
+    if consumed != cv:
+        leftover = cv[len(consumed):]
+        return None, f"cv_not_fully_consumed:{leftover}"
+
+    return syllables, None
+
+
 def extract_syllable_text(word: str, cv_pattern: str, syll_pattern: str, start_pos: int) -> Tuple[str, str, str]:
     """
     Extract actual text for a syllable from the word.
@@ -493,14 +577,32 @@ class ArabicSyllabifier:
                 error=error
             )
         
-        # Step 4: Segment into syllables
-        syll_patterns = segment_cv_to_syllables(cv_pattern)
-        
+        # Step 4: Strict segmentation into syllables
+        syll_patterns, seg_error = segment_cv_strict(cv_pattern)
+        if seg_error is not None:
+            return SyllabificationResult(
+                original=original,
+                normalized=normalized,
+                syllables=[],
+                cv_pattern=cv_pattern,
+                valid=False,
+                error=seg_error,
+            )
+
         # Step 5: Create Syllable objects
         syllables = []
         pos = 0
         for i, pattern in enumerate(syll_patterns):
             syll_type = self._pattern_to_type(pattern)
+            if syll_type is None:
+                return SyllabificationResult(
+                    original=original,
+                    normalized=normalized,
+                    syllables=[],
+                    cv_pattern=cv_pattern,
+                    valid=False,
+                    error=f"unrecognized_syllable_pattern:{pattern}",
+                )
             text, onset, nucleus, coda = extract_syllable_text(normalized, cv_pattern, pattern, pos)
             
             syll = Syllable(
@@ -524,12 +626,12 @@ class ArabicSyllabifier:
             error=None
         )
     
-    def _pattern_to_type(self, pattern: str) -> SyllableType:
-        """Map pattern string to SyllableType enum."""
+    def _pattern_to_type(self, pattern: str) -> Optional[SyllableType]:
+        """Map pattern string to SyllableType enum. Returns None for unrecognized patterns."""
         try:
             return SyllableType(pattern)
         except ValueError:
-            return SyllableType.CV  # Default fallback
+            return None
     
     def syllabify_batch(self, words: List[str]) -> List[SyllabificationResult]:
         """Syllabify multiple words."""
