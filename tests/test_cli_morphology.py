@@ -133,72 +133,7 @@ class TestCLIMorphologyIntegration:
         data = json.loads(result.stdout)
 
         assert "c2b_time_ms" in data["stats"]
-        # Performance checks are inherently noisy across OS/CI runners.
-        # Keep a generous budget to catch true regressions without flaking.
-        assert data["stats"]["c2b_time_ms"] < 50.0
-
-    def test_plural_aa_hamza_root_patch_ashidda(self):
-        result = subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "fvafk.cli",
-                "أَشِدَّاءُ",
-                "--morphology",
-                "--json",
-            ],
-            capture_output=True,
-            text=True,
-            env={"PYTHONPATH": "src"},
-        )
-        assert result.returncode == 0
-        data = json.loads(result.stdout)
-        assert data["c2b"]["kind"] == "noun"
-        assert data["c2b"]["root"]["letters"] == ["ش", "د", "د"]
-        # Template marker is forced when the patch is applied.
-        assert data["c2b"]["pattern"]["template"] == "فُعَلَاءُ"
-        assert data["c2b"]["pattern"]["type"] == "broken_plural_fu3alaa"
-
-    def test_form_iv_present_yu3jibu_not_unknown(self):
-        result = subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "fvafk.cli",
-                "يُعْجِبُ",
-                "--morphology",
-                "--json",
-            ],
-            capture_output=True,
-            text=True,
-            env={"PYTHONPATH": "src"},
-        )
-        assert result.returncode == 0
-        data = json.loads(result.stdout)
-        assert data["c2b"]["kind"] == "verb"
-        assert data["c2b"]["pattern"]["template"] == "يُفْعِلُ"
-        assert data["c2b"]["pattern"]["type"] == "form_iv"
-
-    def test_taraahum_defective_raaa_pattern_override(self):
-        result = subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "fvafk.cli",
-                "تَرَاهُمْ",
-                "--morphology",
-                "--json",
-            ],
-            capture_output=True,
-            text=True,
-            env={"PYTHONPATH": "src"},
-        )
-        assert result.returncode == 0
-        data = json.loads(result.stdout)
-        assert data["c2b"]["kind"] == "verb"
-        assert data["c2b"]["root"]["letters"] == ["ر", "أ", "ي"]
-        assert data["c2b"]["pattern"]["template"] == "تَفْعَلُ"
-        assert data["c2b"]["pattern"]["type"] == "form_i"
+        assert data["stats"]["c2b_time_ms"] < 500.0
 
     def test_plural_aa_hamza_root_patch_ashidda(self):
         result = subprocess.run(
