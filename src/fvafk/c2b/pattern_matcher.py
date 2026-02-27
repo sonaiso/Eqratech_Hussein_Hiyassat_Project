@@ -90,8 +90,8 @@ class PatternDatabase:
         extra_patterns = AwzanPatternLoader.load()
         seen_templates = {unicodedata.normalize('NFC', p.template) for p in base}
         for data in extra_patterns:
-            tpl = unicodedata.normalize('NFC', data["template"])
-            if tpl in seen_templates:
+            tpl = data["template"]
+            if unicodedata.normalize('NFC', tpl) in seen_templates:
                 continue
             seen_templates.add(unicodedata.normalize('NFC', tpl))
             base.append(
@@ -154,6 +154,8 @@ class PatternMatcher:
                 )
 
         categories = ["verb", "noun", "plural"]
+        best_pattern: Optional[Pattern] = None
+        best_confidence: float = -1.0
         checked = set()
         best: Optional[Pattern] = None
         best_confidence = -1.0
@@ -185,10 +187,17 @@ class PatternMatcher:
                     advanced_cv_word,
                     template,
                 )
-                if matched:
-                    _consider(template, confidence)
-                    if best_confidence >= 1.0:
-                        return best
+                if matched and confidence > best_confidence:
+                    best_confidence = confidence
+                    best_pattern = Pattern(
+                        name=template.pattern_type.value,
+                        template=template.template,
+                        pattern_type=template.pattern_type,
+                        stem=word,
+                        features={**template.feature_map(), "confidence": f"{confidence:.2f}"},
+                    )
+                    if confidence == 1.0:
+                        return best_pattern
         for template in self.database.get_all():
             if id(template) in checked:
                 continue
@@ -202,13 +211,19 @@ class PatternMatcher:
                 advanced_cv_word,
                 template,
             )
-            if matched:
-                _consider(template, confidence)
-                if best_confidence >= 1.0:
-                    return best
-
-        if best is not None:
-            return best
+            if matched and confidence > best_confidence:
+                best_confidence = confidence
+                best_pattern = Pattern(
+                    name=template.pattern_type.value,
+                    template=template.template,
+                    pattern_type=template.pattern_type,
+                    stem=word,
+                    features={**template.feature_map(), "confidence": f"{confidence:.2f}"},
+                )
+                if confidence == 1.0:
+                    return best_pattern
+        if best_pattern is not None:
+            return best_pattern
 
         # ------------------------------------------------------------------
         # CV-based fallback (golden rule from docs/awzan_test_report.md)
@@ -348,9 +363,8 @@ class PatternMatcher:
         stripped_word = self._strip_diacritics(word)
         stripped_candidate = self._strip_diacritics(candidate)
 
-        # If broken plural fu'ul, special check - must come before the consonant
-        # mismatch guard because the waw in فُعُول (e.g. كُتُوب) is structural and
-        # not present in the surface form (كُتُب).
+        # If broken plural fu'ul, check BEFORE consonant comparison because the
+        # waw in فُعُول is part of the pattern (not the root), so consonants won't match directly.
         if pattern_type == PatternType.BROKEN_PLURAL_FUUL:
             candidate_no_waw = candidate.replace("و", "")
             stripped_candidate_no_waw = self._strip_diacritics(candidate_no_waw)
