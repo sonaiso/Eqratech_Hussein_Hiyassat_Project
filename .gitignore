@@ -4,43 +4,33 @@ __pycache__/
 *$py.class
 *.so
 .Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
 *.egg-info/
-.installed.cfg
-*.egg
+dist/
+build/
 
-# Virtual Environment
-venv/
-ENV/
-env/
-.venv
+# Graph engine outputs
+*_audit.json
+graph.json
+proposition.json
+*_graph.json
+
+# Pytest cache
+.pytest_cache/
+*.pyc
+
+# Coq compiled files
+*.vo
+*.vok
+*.vos
+*.glob
+.coq-native/
+
+# OS
+.DS_Store
+Thumbs.db
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-*~
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Project specific
-*.log
-/tmp/
-
-# Excel temp files
-~$*.xlsx
-~$*.xls
