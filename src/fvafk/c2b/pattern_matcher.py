@@ -143,28 +143,8 @@ class PatternMatcher:
 
         categories = ["verb", "noun", "plural"]
         checked = set()
-        best_pattern: Optional[Pattern] = None
-        best_confidence: float = -1.0
-
-        def _consider(tmpl: PatternTemplate) -> None:
-            nonlocal best_pattern, best_confidence
-            candidate = self._instantiate_template(tmpl.template, root)
-            matched, confidence = self._matches(
-                normalized,
-                candidate,
-                tmpl.pattern_type,
-                advanced_cv_word,
-                tmpl,
-            )
-            if matched and confidence > best_confidence:
-                best_confidence = confidence
-                best_pattern = Pattern(
-                    name=tmpl.pattern_type.value,
-                    template=tmpl.template,
-                    pattern_type=tmpl.pattern_type,
-                    stem=word,
-                    features={**tmpl.feature_map(), "confidence": f"{confidence:.2f}"},
-                )
+        best_pattern = None
+        best_confidence = 0.0
 
         for category in categories:
             for template in self.database.get_by_category(category):
@@ -190,6 +170,12 @@ class PatternMatcher:
                         stem=word,
                         features={**template.feature_map(), "confidence": f"{confidence:.2f}"},
                     )
+                    if confidence >= 1.0:
+                        return best_pattern
+
+        if best_pattern is not None:
+            return best_pattern
+
         for template in self.database.get_all():
             if id(template) in checked:
                 continue
@@ -212,6 +198,11 @@ class PatternMatcher:
                     stem=word,
                     features={**template.feature_map(), "confidence": f"{confidence:.2f}"},
                 )
+                if confidence >= 1.0:
+                    return best_pattern
+
+        if best_pattern is not None:
+            return best_pattern
 
         if best_pattern is not None:
             return best_pattern
@@ -283,7 +274,12 @@ class PatternMatcher:
         return best_pattern
 
     def _normalize(self, word: str) -> str:
-        text = unicodedata.normalize("NFC", word)
+        # Apply Unicode NFC normalization first to ensure consistent diacritic ordering.
+        # Arabic text from different sources may encode combined marks (e.g. shadda + vowel)
+        # in different orders (U+064E U+0651 vs U+0651 U+064E), causing string equality
+        # checks to fail even when the glyphs are visually identical. NFC brings all
+        # sequences to the canonical composed form so template comparisons work reliably.
+        text = unicodedata.normalize('NFC', word)
         text = text.replace('ً', '').replace('ٌ', '').replace('ٍ', '')
         # If the surface had fathatan, Arabic orthography often adds a final alif (…ًا).
         # After stripping marks, drop this support-alif to match templates (e.g., عظيمًا -> عظيم).
@@ -294,6 +290,8 @@ class PatternMatcher:
         return text.strip()
 
     def _instantiate_template(self, template_str: str, root: Root) -> str:
+        # Apply NFC normalization to template for consistent diacritic ordering
+        template_str = unicodedata.normalize('NFC', template_str)
         chars = []
         l_count = 0
         for ch in template_str:
@@ -350,7 +348,7 @@ class PatternMatcher:
         if template.cv_advanced:
             template_cv = self._sanitize_cv(template.cv_advanced)
             if template_cv and (not advanced_cv_word or advanced_cv_word != template_cv):
-                pass
+                return False, 0.0
         
         # Check shadda match (Crucial from gate matcher)
         # If candidate has shadda, word MUST have shadda
