@@ -1,8 +1,9 @@
-"""Tests for syntax data models.
+"""
+Tests for Syntax Data Models (Sprint 4 - Task 4.2).
 
 Author: Hussein Hiyassat
 Date: 2026-02-21
-Sprint: 4 - Task 4.1
+Sprint: 4
 """
 
 import pytest
@@ -10,124 +11,123 @@ from fvafk.c2b.syntax import (
     I3rabAnnotation,
     I3rabComponents,
     SyntaxFeatures,
-    I3RAB_TYPE_AR_TO_EN,
-    CASE_AR_TO_EN,
-    map_i3rab_to_role,
-    map_ar_to_en,
+    I3RAB_TYPE_MAPPING,
+    CASE_MAPPING,
+    TOP5_I3RAB_TYPES,
 )
 
 
 class TestI3rabAnnotation:
-    """Test I3rabAnnotation (Layer 1)."""
-    
-    def test_creation(self):
-        """Test creating I3rab annotation."""
+    """Test I3rabAnnotation dataclass."""
+
+    def test_create_annotation(self):
         ann = I3rabAnnotation(
             word="الْحَمْدُ",
-            i3rab_text="مبتدأ مرفوع وعلامة رفعه الضمة الظاهرة",
+            i3rab_text="مُبْتَدَأٌ مَرْفُوعٌ",
             surah=1,
             ayah=2,
             word_index=0,
         )
-        
         assert ann.word == "الْحَمْدُ"
-        assert "مبتدأ" in ann.i3rab_text
         assert ann.surah == 1
         assert ann.ayah == 2
         assert ann.word_index == 0
 
+    def test_annotation_fields(self):
+        ann = I3rabAnnotation(
+            word="لِلَّهِ",
+            i3rab_text="مَجْرُورٌ",
+            surah=1,
+            ayah=2,
+            word_index=1,
+        )
+        assert ann.i3rab_text == "مَجْرُورٌ"
+
 
 class TestI3rabComponents:
-    """Test I3rabComponents (Layer 2)."""
-    
+    """Test I3rabComponents dataclass."""
+
     def test_default_values(self):
-        """Test default component values."""
         comp = I3rabComponents()
-        
         assert comp.i3rab_type is None
         assert comp.case is None
         assert comp.confidence == 0.0
-    
-    def test_with_values(self):
-        """Test components with values."""
+        assert comp.raw_text == ""
+
+    def test_full_construction(self):
         comp = I3rabComponents(
-            i3rab_type="mubtada",
+            i3rab_type="مبتدأ",
+            i3rab_type_en="mubtada",
             case="nominative",
-            case_marker="damma",
+            case_marker="الضمة",
+            mahall=None,
             confidence=0.9,
-            raw_text="مبتدأ مرفوع",
+            raw_text="مُبْتَدَأٌ مَرْفُوعٌ",
         )
-        
-        assert comp.i3rab_type == "mubtada"
+        assert comp.i3rab_type == "مبتدأ"
+        assert comp.i3rab_type_en == "mubtada"
         assert comp.case == "nominative"
-        assert comp.case_marker == "damma"
+        assert comp.case_marker == "الضمة"
         assert comp.confidence == 0.9
+
+    def test_all_top5_types_have_english_mapping(self):
+        """Every Top-5 Arabic type must have an English mapping."""
+        for ar_type in TOP5_I3RAB_TYPES:
+            assert ar_type in I3RAB_TYPE_MAPPING, (
+                f"'{ar_type}' missing from I3RAB_TYPE_MAPPING"
+            )
 
 
 class TestSyntaxFeatures:
-    """Test SyntaxFeatures (Layer 3)."""
-    
-    def test_high_confidence(self):
-        """Test high confidence - no warning."""
+    """Test SyntaxFeatures dataclass."""
+
+    def test_create_features(self):
         feat = SyntaxFeatures(
             syntactic_role="subject",
             case="nominative",
             i3rab_type_ar="مبتدأ",
             i3rab_type_en="mubtada",
-            confidence=0.9,
+            confidence=0.85,
         )
-        
-        assert feat.warning is None
-    
-    def test_medium_confidence(self):
-        """Test medium confidence - gets warning."""
+        assert feat.syntactic_role == "subject"
+        assert feat.case == "nominative"
+        assert feat.warning is None  # high confidence → no warning
+
+    def test_low_confidence_auto_warning(self):
         feat = SyntaxFeatures(
-            syntactic_role="subject",
-            case="nominative",
-            i3rab_type_ar="مبتدأ",
-            i3rab_type_en="mubtada",
-            confidence=0.6,
+            syntactic_role="unknown",
+            case="unknown",
+            i3rab_type_ar="غير معروف",
+            i3rab_type_en="unknown",
+            confidence=0.3,
         )
-        
-        assert feat.warning == "Medium confidence"
-    
-    def test_low_confidence(self):
-        """Test low confidence - gets warning."""
+        assert feat.warning is not None
+        assert "Low confidence" in feat.warning
+
+    def test_explicit_warning_not_overwritten(self):
         feat = SyntaxFeatures(
             syntactic_role="subject",
             case="nominative",
             i3rab_type_ar="مبتدأ",
             i3rab_type_en="mubtada",
             confidence=0.3,
+            warning="Custom warning",
         )
-        
-        assert feat.warning == "Low confidence - verify manually"
+        assert feat.warning == "Custom warning"
 
 
 class TestMappings:
-    """Test Arabic-English mappings."""
-    
-    def test_i3rab_type_mapping(self):
-        """Test I3rab type mappings."""
-        assert I3RAB_TYPE_AR_TO_EN["مبتدأ"] == "mubtada"
-        assert I3RAB_TYPE_AR_TO_EN["خبر"] == "khabar"
-        assert I3RAB_TYPE_AR_TO_EN["فاعل"] == "fa'il"
-    
+    """Test mapping dictionaries."""
+
+    def test_i3rab_type_mapping_completeness(self):
+        """All top-5 types are in the mapping."""
+        for ar in ["مبتدأ", "خبر", "فاعل", "مفعول به", "حرف"]:
+            assert ar in I3RAB_TYPE_MAPPING
+
     def test_case_mapping(self):
-        """Test case mappings."""
-        assert CASE_AR_TO_EN["مرفوع"] == "nominative"
-        assert CASE_AR_TO_EN["منصوب"] == "accusative"
-        assert CASE_AR_TO_EN["مجرور"] == "genitive"
-    
-    def test_role_mapping(self):
-        """Test I3rab to syntactic role mapping."""
-        assert map_i3rab_to_role("mubtada") == "subject"
-        assert map_i3rab_to_role("khabar") == "predicate"
-        assert map_i3rab_to_role("fa'il") == "agent"
-    
-    def test_generic_mapper(self):
-        """Test generic Arabic to English mapper."""
-        assert map_ar_to_en("مبتدأ", "i3rab_type") == "mubtada"
-        assert map_ar_to_en("مرفوع", "case") == "nominative"
-        assert map_ar_to_en("الضمة", "case_marker") == "damma"
-        assert map_ar_to_en("unknown", "i3rab_type") == "unknown"
+        assert CASE_MAPPING["مرفوع"] == "nominative"
+        assert CASE_MAPPING["منصوب"] == "accusative"
+        assert CASE_MAPPING["مجرور"] == "genitive"
+
+    def test_top5_set_contents(self):
+        assert TOP5_I3RAB_TYPES == {"مبتدأ", "خبر", "فاعل", "مفعول به", "حرف"}

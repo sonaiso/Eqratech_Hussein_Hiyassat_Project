@@ -108,7 +108,17 @@ The **full task checklist** (Parts 1–6) is in **`docs/MASTER_PLAN_CHECKLIST.md
 
 **Alternative Next Steps:**
 - Part 2.5: Semantic gates (can run alongside Sprint 3)
-- Sprint 4: TADMINI/TAQYIDI syntax linkers
+- Sprint 4: TADMINI/TAQYIDI syntax linkers ✅ **Complete**
+
+---
+
+**Sprint 4 – Syntax Layer with I3rab Integration** ✅ (2026-02-21)
+- I3rab Parser (regex, Top-5 types: مبتدأ، خبر، فاعل، مفعول به، حرف)
+- Syntax Data Model: `I3rabAnnotation` → `I3rabComponents` → `SyntaxFeatures`
+- Morph-Syntax Bridge (rule-based inference from morphology flags)
+- Syntax Evaluator (I3rab type accuracy, case accuracy, coverage, F1)
+- 68 new tests (all passing); 4 documentation pages added
+- See `docs/SPRINT4_RESULTS.md` for full details.
 
 ---
 

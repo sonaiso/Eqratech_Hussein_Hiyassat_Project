@@ -1,58 +1,48 @@
-"""Syntax package - I3rab and syntax analysis."""
-
-from .models import (
-    I3rabAnnotation,
-    I3rabComponents,
-    SyntaxFeatures,
-)
+"""Syntax package - I3rab parsing, data models, and evaluation."""
 
 from .mappings import (
-    I3RAB_TYPE_AR_TO_EN,
-    CASE_AR_TO_EN,
-    CASE_MARKER_AR_TO_EN,
-    map_i3rab_to_role,
-    map_ar_to_en,
+    I3RAB_TYPE_MAPPING,
+    I3RAB_TYPE_MAPPING_REVERSE,
+    SYNTACTIC_ROLE_MAPPING,
+    CASE_MAPPING,
+    CASE_MAPPING_REVERSE,
+    CASE_MARKER_MAPPING,
+    MAHALL_MAPPING,
+    TOP5_I3RAB_TYPES,
 )
 
-from .i3rab_parser import (
-    I3rabParser,
-    parse_i3rab,
+from .i3rab_components import (
+    I3rabAnnotation,
+    I3rabComponents,
 )
 
-from .syntax_evaluator import (
-    SyntaxMetrics,
-    SyntaxEvaluationResult,
-    SyntaxEvaluator,
-    evaluate_syntax,
-)
+from .syntax_features import SyntaxFeatures
 
-from .morph_syntax_bridge import (
-    MorphSyntaxBridge,
-    SimpleContextAnalyzer,
-    predict_syntax_from_morphology,
-)
+from .i3rab_parser import I3rabParser
+
+from .morph_syntax_bridge import MorphSyntaxBridge
+
+from .syntax_evaluator import SyntaxMetrics, SyntaxEvaluator
 
 __all__ = [
-    # Models
+    # Mappings
+    "I3RAB_TYPE_MAPPING",
+    "I3RAB_TYPE_MAPPING_REVERSE",
+    "SYNTACTIC_ROLE_MAPPING",
+    "CASE_MAPPING",
+    "CASE_MAPPING_REVERSE",
+    "CASE_MARKER_MAPPING",
+    "MAHALL_MAPPING",
+    "TOP5_I3RAB_TYPES",
+    # Data models
     "I3rabAnnotation",
     "I3rabComponents",
     "SyntaxFeatures",
-    # Mappings
-    "I3RAB_TYPE_AR_TO_EN",
-    "CASE_AR_TO_EN",
-    "CASE_MARKER_AR_TO_EN",
-    "map_i3rab_to_role",
-    "map_ar_to_en",
     # Parser
     "I3rabParser",
-    "parse_i3rab",
-    # Evaluator
-    "SyntaxMetrics",
-    "SyntaxEvaluationResult",
-    "SyntaxEvaluator",
-    "evaluate_syntax",
     # Bridge
     "MorphSyntaxBridge",
-    "SimpleContextAnalyzer",
-    "predict_syntax_from_morphology",
+    # Evaluator
+    "SyntaxMetrics",
+    "SyntaxEvaluator",
 ]
