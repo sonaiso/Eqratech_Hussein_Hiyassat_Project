@@ -88,13 +88,12 @@ class PatternDatabase:
             PatternTemplate(template="فُعَلَاءُ", pattern_type=PatternType.BROKEN_PLURAL_FU3ALAA, category="plural"),
         ]
         extra_patterns = AwzanPatternLoader.load()
-        seen_templates = {unicodedata.normalize("NFC", p.template) for p in base}
+        seen_templates = {unicodedata.normalize('NFC', p.template) for p in base}
         for data in extra_patterns:
             tpl = data["template"]
-            tpl_nfc = unicodedata.normalize("NFC", tpl)
-            if tpl_nfc in seen_templates:
+            if unicodedata.normalize('NFC', tpl) in seen_templates:
                 continue
-            seen_templates.add(tpl_nfc)
+            seen_templates.add(unicodedata.normalize('NFC', tpl))
             base.append(
                 PatternTemplate(
                     template=tpl,
@@ -143,10 +142,18 @@ class PatternMatcher:
 
         categories = ["verb", "noun", "plural"]
         checked = set()
-        # Track best match found so far across all categories so that a high-confidence
-        # match (e.g. exact فَاعِل for active participle) can supersede a low-confidence
-        # verb match found earlier (e.g. فَاعَلَ stripped match).
-        best_match: Optional[Tuple[PatternTemplate, float]] = None
+        best_pattern: Optional[Pattern] = None
+        best_confidence: float = 0.0
+
+        def _make_pattern(template: PatternTemplate, confidence: float) -> Pattern:
+            return Pattern(
+                name=template.pattern_type.value,
+                template=template.template,
+                pattern_type=template.pattern_type,
+                stem=word,
+                features={**template.feature_map(), "confidence": f"{confidence:.2f}"},
+            )
+
         for category in categories:
             for template in self.database.get_by_category(category):
                 if id(template) in checked:
@@ -162,27 +169,11 @@ class PatternMatcher:
                     advanced_cv_word,
                     template,
                 )
-                if matched:
-                    if confidence >= 1.0 - 1e-9:
-                        # Exact match – return immediately.
-                        return Pattern(
-                            name=template.pattern_type.value,
-                            template=template.template,
-                            pattern_type=template.pattern_type,
-                            stem=word,
-                            features={**template.feature_map(), "confidence": f"{confidence:.2f}"},
-                        )
-                    if best_match is None or confidence > best_match[1]:
-                        best_match = (template, confidence)
-        if best_match is not None:
-            template, confidence = best_match
-            return Pattern(
-                name=template.pattern_type.value,
-                template=template.template,
-                pattern_type=template.pattern_type,
-                stem=word,
-                features={**template.feature_map(), "confidence": f"{confidence:.2f}"},
-            )
+                if matched and confidence > best_confidence:
+                    best_confidence = confidence
+                    best_pattern = _make_pattern(template, confidence)
+                    if confidence >= 1.0:
+                        return best_pattern
         for template in self.database.get_all():
             if id(template) in checked:
                 continue
@@ -198,15 +189,12 @@ class PatternMatcher:
             )
             if matched and confidence > best_confidence:
                 best_confidence = confidence
-                best_pattern = Pattern(
-                    name=template.pattern_type.value,
-                    template=template.template,
-                    pattern_type=template.pattern_type,
-                    stem=word,
-                    features={**template.feature_map(), "confidence": f"{confidence:.2f}"},
-                )
+                best_pattern = _make_pattern(template, confidence)
                 if confidence >= 1.0:
                     return best_pattern
+
+        if best_pattern:
+            return best_pattern
 
         if best_pattern is not None:
             return best_pattern
@@ -243,8 +231,38 @@ class PatternMatcher:
 
         return None
 
-    def match_best(self, word: str, root: Root) -> Optional[Pattern]:
-        """Return the highest-confidence match across all templates.
+    def _normalize(self, word: str) -> str:
+        # Canonicalize Unicode combining character order (e.g. shadda+vowel vs vowel+shadda)
+        text = unicodedata.normalize('NFC', word)
+        # Convert Tanwin to standard short vowels
+        # This is critical for matching catalog patterns (e.g., matching "كاتبٌ" with "فاعل")
+        text = text.replace('ً', 'َ').replace('ٌ', 'ُ').replace('ٍ', 'ِ')
+        
+        # Remove definiteness (Al-)
+        # Strip simple "ال" prefix
+        if text.startswith("ال") and len(text) > 3:
+             # Find end of "ال" (skip non-letters)
+             idx = 2
+             while idx < len(text) and text[idx] in "ْ":
+                 idx += 1
+             
+             # Handle Sun letters (Shadda after Al)
+             # e.g., "الشَّمْس" -> "شَّمْس" -> we want to match pattern "فَعْل"
+             # If next char has shadda, keep it but remove the Al
+             # Actually, templates usually don't have the shadda from sun letters
+             # So we should probably strip that shadda too if it's a sun letter effect
+             
+             stem_start = idx
+             stem = text[stem_start:]
+             
+             # If the first letter of the stem has a shadda, it might be a sun letter assimilation
+             # We should remove the shadda to recover the underlying form for pattern matching
+             # e.g. "الشَّمْس" -> "شَمْس" (to match fa3l)
+             if len(stem) > 1 and stem[1] == 'ّ':
+                 # Remove shadda
+                 stem = stem[0] + stem[2:]
+                 
+             text = stem
 
         Unlike :meth:`match`, which returns the *first* match found, this
         method evaluates every template and returns the one with the highest
@@ -325,9 +343,9 @@ class PatternMatcher:
         advanced_cv_word: str,
         template: PatternTemplate,
     ) -> Tuple[bool, float]:
-        # Use NFC normalization to canonicalize combining-character order
-        # (e.g. shadda+fatha vs fatha+shadda render identically but differ in bytes).
-        if unicodedata.normalize("NFC", word) == unicodedata.normalize("NFC", candidate):
+        word = unicodedata.normalize('NFC', word)
+        candidate = unicodedata.normalize('NFC', candidate)
+        if word == candidate:
             return True, 1.0
         
         # Apply the SAME normalization used in arabic_wazn_matcher_gate.py:
