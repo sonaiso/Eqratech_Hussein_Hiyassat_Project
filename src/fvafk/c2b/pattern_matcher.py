@@ -143,9 +143,10 @@ class PatternMatcher:
 
         categories = ["verb", "noun", "plural"]
         checked = set()
-        best_pattern = None
-        best_confidence = 0.0
-
+        # Track best match found so far across all categories so that a high-confidence
+        # match (e.g. exact فَاعِل for active participle) can supersede a low-confidence
+        # verb match found earlier (e.g. فَاعَلَ stripped match).
+        best_match: Optional[Tuple[PatternTemplate, float]] = None
         for category in categories:
             for template in self.database.get_by_category(category):
                 if id(template) in checked:
@@ -161,21 +162,27 @@ class PatternMatcher:
                     advanced_cv_word,
                     template,
                 )
-                if matched and confidence > best_confidence:
-                    best_confidence = confidence
-                    best_pattern = Pattern(
-                        name=template.pattern_type.value,
-                        template=template.template,
-                        pattern_type=template.pattern_type,
-                        stem=word,
-                        features={**template.feature_map(), "confidence": f"{confidence:.2f}"},
-                    )
-                    if confidence >= 1.0:
-                        return best_pattern
-
-        if best_pattern is not None:
-            return best_pattern
-
+                if matched:
+                    if confidence >= 1.0 - 1e-9:
+                        # Exact match – return immediately.
+                        return Pattern(
+                            name=template.pattern_type.value,
+                            template=template.template,
+                            pattern_type=template.pattern_type,
+                            stem=word,
+                            features={**template.feature_map(), "confidence": f"{confidence:.2f}"},
+                        )
+                    if best_match is None or confidence > best_match[1]:
+                        best_match = (template, confidence)
+        if best_match is not None:
+            template, confidence = best_match
+            return Pattern(
+                name=template.pattern_type.value,
+                template=template.template,
+                pattern_type=template.pattern_type,
+                stem=word,
+                features={**template.feature_map(), "confidence": f"{confidence:.2f}"},
+            )
         for template in self.database.get_all():
             if id(template) in checked:
                 continue
@@ -318,7 +325,9 @@ class PatternMatcher:
         advanced_cv_word: str,
         template: PatternTemplate,
     ) -> Tuple[bool, float]:
-        if word == candidate:
+        # Use NFC normalization to canonicalize combining-character order
+        # (e.g. shadda+fatha vs fatha+shadda render identically but differ in bytes).
+        if unicodedata.normalize("NFC", word) == unicodedata.normalize("NFC", candidate):
             return True, 1.0
         
         # Apply the SAME normalization used in arabic_wazn_matcher_gate.py:

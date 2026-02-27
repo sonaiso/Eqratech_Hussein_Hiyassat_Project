@@ -20,6 +20,6 @@ __all__ = [
     "GateShadda",
     "GateSukun",
     "GateTanwin",
-    "GateWasl",
     "GateWaqf",
+    "GateWasl",
 ]
