@@ -353,18 +353,20 @@ class PatternMatcher:
         advanced_cv_word: str,
         template: PatternTemplate,
     ) -> Tuple[bool, float]:
-        # Normalise the candidate the same way the word was normalised so that
-        # differences like أ vs ا (hamza carriers) or shadda/vowel ordering don't
-        # cause false mismatches.
-        candidate = self._normalize(candidate)
+        import unicodedata
+        # Normalise to NFC so that shadda+vowel ordering variants are treated
+        # as equivalent (e.g. ل+ّ+َ  vs  ل+َ+ّ).
+        word = unicodedata.normalize("NFC", word)
+        candidate = unicodedata.normalize("NFC", candidate)
         if word == candidate:
             return True, 1.0
         
         stripped_word = self._strip_diacritics(word)
         stripped_candidate = self._strip_diacritics(candidate)
 
-        # If broken plural fu'ul, check BEFORE consonant comparison because the
-        # waw in فُعُول is part of the pattern (not the root), so consonants won't match directly.
+        # If broken plural fu'ul, special check (unchanged)
+        # Must come BEFORE the consonant-mismatch check because the template
+        # "فُعُول" carries an extra waw not present in the surface form "كُتُب".
         if pattern_type == PatternType.BROKEN_PLURAL_FUUL:
             candidate_no_waw = candidate.replace("و", "")
             stripped_candidate_no_waw = self._strip_diacritics(candidate_no_waw)
@@ -402,14 +404,50 @@ class PatternMatcher:
             
         if strip_final_vowel(word) == strip_final_vowel(candidate):
             return True, 0.95
-
+            
+        # If lengths match (and stripped text matches), allow a near-match
+        # but only if the characters agree up to hamza normalization.
+        # A pure length-equality check is too lenient for fully-diacritised words.
+        if len(word) == len(candidate) and self._lenient_diacritics_match(word, candidate):
+            return True, 0.90
+            
         if pattern_type == PatternType.FORM_X:
             return True, 0.9
+            
+        # If we got here, stripped text matches but full text doesn't
+        # Likely a vowel mismatch.
+        # For diacritized words the mismatch is real – don't accept the match.
+        if self._has_diacritics(word):
+            return False, 0.0
+        return True, 0.60
 
-        # If we got here, stripped consonants match but lengths differ,
-        # meaning the candidate has extra characters (e.g. a verb form with
-        # a final vowel the word doesn't have).  This is not a genuine match.
-        return False, 0.0
+    @staticmethod
+    def _has_diacritics(word: str) -> bool:
+        """Return True if *word* contains any Arabic diacritic marks."""
+        return any(c in "ًٌٍَُِّْ" for c in word)
+
+    @staticmethod
+    def _lenient_diacritics_match(word: str, candidate: str) -> bool:
+        """Return True if every character pair matches or is a hamza variant.
+
+        Normalises both strings to NFC first so that different shadda+vowel
+        orderings (e.g. ل+ّ+َ  vs  ل+َ+ّ) are treated as equivalent.
+        Allows differences in hamza carrier (أ/إ/آ/ا/ء/ؤ/ئ) while
+        rejecting true vowel mismatches (e.g. kasra vs fatha).
+        """
+        import unicodedata
+        w = unicodedata.normalize("NFC", word)
+        c = unicodedata.normalize("NFC", candidate)
+        if len(w) != len(c):
+            return False
+        hamza_variants = frozenset("أإآاءؤئ")
+        for w_ch, c_ch in zip(w, c):
+            if w_ch == c_ch:
+                continue
+            if w_ch in hamza_variants and c_ch in hamza_variants:
+                continue
+            return False
+        return True
 
     @staticmethod
     def _sanitize_cv(value: str) -> str:
