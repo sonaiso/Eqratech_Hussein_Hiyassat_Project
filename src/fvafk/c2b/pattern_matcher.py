@@ -230,8 +230,9 @@ class PatternMatcher:
         return best_pattern
 
     def _normalize(self, word: str) -> str:
-        # Canonical Unicode form first so that diacritic ordering is consistent
-        # (e.g. shadda+fatha vs fatha+shadda are canonically equivalent).
+        import unicodedata
+        # Canonicalise combining-character order (e.g. shadda/vowel pairs may
+        # arrive in either order depending on the source file encoding).
         text = unicodedata.normalize('NFC', word)
         # Convert Tanwin to standard short vowels
         # This is critical for matching catalog patterns (e.g., matching "كاتبٌ" with "فاعل")
@@ -337,31 +338,25 @@ class PatternMatcher:
         advanced_cv_word: str,
         template: PatternTemplate,
     ) -> Tuple[bool, float]:
-        word = unicodedata.normalize('NFC', word)
-        candidate = unicodedata.normalize('NFC', candidate)
+        # Normalise the candidate the same way the word was normalised so that
+        # differences like أ vs ا (hamza carriers) or shadda/vowel ordering don't
+        # cause false mismatches.
+        candidate = self._normalize(candidate)
         if word == candidate:
             return True, 1.0
         
         stripped_word = self._strip_diacritics(word)
         stripped_candidate = self._strip_diacritics(candidate)
-        
-        # Check broken plural fu'ul BEFORE the consonant guard, because the
-        # و in فُعُول is a pattern vowel (not a root letter) and makes
-        # stripped_candidate longer than stripped_word.
+
+        # If broken plural fu'ul, special check - must come before the consonant
+        # mismatch guard because the waw in فُعُول (e.g. كُتُوب) is structural and
+        # not present in the surface form (كُتُب).
         if pattern_type == PatternType.BROKEN_PLURAL_FUUL:
             candidate_no_waw = candidate.replace("و", "")
             stripped_candidate_no_waw = self._strip_diacritics(candidate_no_waw)
             if stripped_word == stripped_candidate_no_waw:
                 return True, 0.85
 
-        # If consonants don't match, fail immediately
-        if stripped_word != stripped_candidate:
-            return False, 0.0
-        
-        # If consonants don't match, fail immediately
-        if stripped_word != stripped_candidate:
-            return False, 0.0
-        
         # If consonants don't match, fail immediately
         if stripped_word != stripped_candidate:
             return False, 0.0
@@ -393,17 +388,14 @@ class PatternMatcher:
             
         if strip_final_vowel(word) == strip_final_vowel(candidate):
             return True, 0.95
-            
-        # If lengths match (and stripped text matches), good enough
-        if len(word) == len(candidate):
-            return True, 0.90
-            
+
         if pattern_type == PatternType.FORM_X:
             return True, 0.9
-            
-        # If we got here, stripped text matches but full text doesn't
-        # Likely a vowel mismatch. Return a lower confidence match
-        return True, 0.60
+
+        # If we got here, stripped consonants match but lengths differ,
+        # meaning the candidate has extra characters (e.g. a verb form with
+        # a final vowel the word doesn't have).  This is not a genuine match.
+        return False, 0.0
 
     @staticmethod
     def _sanitize_cv(value: str) -> str:
