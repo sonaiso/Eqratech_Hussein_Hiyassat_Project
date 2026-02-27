@@ -8,14 +8,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 
 class GateStatus(Enum):
-    """
-    Status returned by a phonological gate after processing.
-    
-    Attributes:
-        ACCEPT: Segments pass through unchanged (no violation detected)
-        REPAIR: Segments were modified to fix a violation
-        REJECT: Unrecoverable error, processing must stop
-    """
     ACCEPT = auto()
     REPAIR = auto()
     REJECT = auto()
@@ -38,24 +30,17 @@ class GateDelta:
 @dataclass
 class GateResult:
     """
-    Result of applying a phonological gate to segment sequence.
-    
-    Attributes:
-        status: GateStatus indicating ACCEPT, REPAIR, or REJECT
-        output: Modified list of segments after gate processing
-        reason: Human-readable explanation of what the gate did
-        deltas: List of changes made (e.g., ['sukun→fatha at position 1'])
-        latency_ms: Processing time in milliseconds
-    
-    Example:
-        >>> result = GateResult(
-        ...     status=GateStatus.REPAIR,
-        ...     output=['ك', 'َ', 'ت', 'ْ', 'ب'],
-        ...     reason='Double sukun repaired',
-        ...     deltas=['sukun→fatha at position 1'],
-        ...     latency_ms=0.05
-        ... )
+    Canonical GateResult shape (Sprint 2).
+
+    Backward compatible:
+      - output == output_units
+      - reason == primary note
+      - deltas == delta.notes
+      - latency_ms == time_ms
     """
+
+    # Canonical fields
+    gate_id: str
     status: GateStatus
     input_units: List[str]
     output_units: List[str]
@@ -139,119 +124,57 @@ class GateResult:
         return self.time_ms
 
 
-class PhonologicalGate(ABC):
+class BaseGate(ABC):
     """
-    Abstract base class for all phonological gates.
-    
-    Each gate implements Tajweed-based rules for Arabic phonological processing.
-    Gates examine segments and return ACCEPT (pass through), REPAIR (modify),
-    or REJECT (fail).
-    
-    Attributes:
-        gate_id: Unique identifier for this gate
-    
-    Example:
-        >>> class MyGate(PhonologicalGate):
-        ...     def __init__(self):
-        ...         super().__init__("my_gate")
-        ...     
-        ...     def apply(self, segments: List[str]) -> GateResult:
-        ...         # Implement gate logic
-        ...         return GateResult(
-        ...             status=GateStatus.ACCEPT,
-        ...             output=segments,
-        ...             reason="No violation detected"
-        ...         )
+    All gates should inherit this. We keep it generic:
+    gates can focus on transformation only.
     """
+    gate_id: str
+
     def __init__(self, gate_id: str):
-        """
-        Initialize phonological gate.
-        
-        Args:
-            gate_id: Unique identifier for this gate (e.g., 'sukun', 'shadda')
-        """
         self.gate_id = gate_id
 
     @abstractmethod
     def apply(self, segments: List[str]) -> GateResult:
         """
-        Apply gate logic to segment sequence.
-        
-        Args:
-            segments: List of Arabic segments (consonants, vowels, diacritics)
-        
-        Returns:
-            GateResult with status, modified output, and explanation
-        
-        Raises:
-            NotImplementedError: If subclass doesn't implement this method
+        Must return GateResult (canonical).
         """
-        pass
+        raise NotImplementedError
+
+    def _result(
+        self,
+        status: GateStatus,
+        input_units: List[str],
+        output_units: List[str],
+        *,
+        delta: Optional[GateDelta] = None,
+        notes: Optional[List[str]] = None,
+        warnings: Optional[List[str]] = None,
+        errors: Optional[List[str]] = None,
+        time_ms: float = 0.0,
+    ) -> GateResult:
+        return GateResult(
+            gate_id=self.gate_id,
+            status=status,
+            input_units=input_units,
+            output_units=output_units,
+            delta=delta or GateDelta(changed=(input_units != output_units)),
+            time_ms=time_ms,
+            notes=notes or [],
+            warnings=warnings or [],
+            errors=errors or [],
+        )
 
 
 class GateOrchestrator:
     """
-    Orchestrates sequential application of phonological gates.
-    
-    Gates are applied in order, with each gate receiving the output of the
-    previous gate. If any gate returns REJECT status, processing stops
-    immediately and the current state is returned.
-    
-    Attributes:
-        gates: Ordered list of PhonologicalGate instances
-    
-    Example:
-        >>> from fvafk.c2a.gates import GateSukun, GateShadda, GateTanwin
-        >>> 
-        >>> orchestrator = GateOrchestrator([
-        ...     GateSukun(),
-        ...     GateShadda(),
-        ...     GateTanwin()
-        ... ])
-        >>> 
-        >>> segments = ['ك', 'َ', 'ا', 'ت', 'ِ', 'ب', 'ٌ']
-        >>> output, results = orchestrator.run(segments)
-        >>> 
-        >>> # GateTanwin will expand ٌ → ُ + ن
-        >>> print(output)
-        ['ك', 'َ', 'ا', 'ت', 'ِ', 'ب', 'ُ', 'ن']
+    Runs gates in order.
+    Conservative: does not assume gates share state.
     """
-    def __init__(self, gates: List[PhonologicalGate]):
-        """
-        Initialize gate orchestrator.
-        
-        Args:
-            gates: List of gates in processing order
-        """
+    def __init__(self, gates: List[BaseGate]):
         self.gates = gates
 
     def run(self, segments: List[str]) -> Tuple[List[str], List[GateResult]]:
-        """
-        Run all gates sequentially on segment sequence.
-        
-        Gates are applied in order. If any gate returns REJECT status,
-        processing stops immediately and returns the current state.
-        
-        Args:
-            segments: Input segment list
-        
-        Returns:
-            Tuple of (final_segments, gate_results) where:
-                - final_segments: Final segment list after all gates
-                - gate_results: List of GateResult for each gate applied
-        
-        Example:
-            >>> orchestrator = GateOrchestrator([GateSukun(), GateTanwin()])
-            >>> input_segs = ['ك', 'ْ', 'ت', 'ْ', 'ب', 'ٌ']
-            >>> output_segs, results = orchestrator.run(input_segs)
-            >>> 
-            >>> # Check results
-            >>> for i, result in enumerate(results):
-            ...     gate_name = orchestrator.gates[i].gate_id
-            ...     print(f"{gate_name}: {result.status.name}")
-            sukun: REPAIR
-            tanwin: REPAIR
-        """
         current = segments
         results: List[GateResult] = []
 

@@ -57,19 +57,6 @@ class RootExtractionResult:
 
 
 class RootExtractor:
-    """
-    Extracts consonantal roots from Arabic words.
-    
-    Handles trilateral (3-letter) and quadrilateral (4-letter) roots. Strips
-    known affixes, normalizes hamza carriers, and filters pattern vowels to
-    identify the underlying root consonants.
-    
-    Example:
-        >>> extractor = RootExtractor()
-        >>> root = extractor.extract("كَاتِب")
-        >>> print('-'.join(root.letters))
-        ك-ت-ب
-    """
     DIACRITICS = "َُِْٰٓٔٱًٌٍّ"
     WEAK_LETTERS = {'و', 'ي', 'ا', 'ء'}
     PATTERN_LETTERS = {'ا', 'و', 'ي'}
@@ -100,24 +87,16 @@ class RootExtractor:
     _NO_SPLIT_STEMS = {"سيما"}
 
     def __init__(self, known_roots: Optional[Set[str]] = None):
-        """
-        Initialize root extractor.
-        
-        Args:
-            known_roots: Optional set of valid roots for validation
-        """
         self.known_roots = known_roots or set()
 
     def extract(self, word: str) -> Optional[Root]:
-        """
-        Extract root from Arabic word.
-        
-        Args:
-            word: Arabic word (with or without diacritics)
-        
-        Returns:
-            Root object or None if extraction fails
-        """
+        context = self._extract_context(word)
+        return context.root
+
+    def extract_with_affixes(self, word: str) -> RootExtractionResult:
+        return self._extract_context(word)
+
+    def _extract_context(self, word: str) -> RootExtractionResult:
         if not word:
             return RootExtractionResult(None, "", "", "", "")
 

@@ -88,12 +88,13 @@ class PatternDatabase:
             PatternTemplate(template="فُعَلَاءُ", pattern_type=PatternType.BROKEN_PLURAL_FU3ALAA, category="plural"),
         ]
         extra_patterns = AwzanPatternLoader.load()
-        seen_templates = {unicodedata.normalize('NFC', p.template) for p in base}
+        seen_templates = {unicodedata.normalize("NFC", p.template) for p in base}
         for data in extra_patterns:
             tpl = data["template"]
-            if unicodedata.normalize('NFC', tpl) in seen_templates:
+            tpl_nfc = unicodedata.normalize("NFC", tpl)
+            if tpl_nfc in seen_templates:
                 continue
-            seen_templates.add(unicodedata.normalize('NFC', tpl))
+            seen_templates.add(tpl_nfc)
             base.append(
                 PatternTemplate(
                     template=tpl,
@@ -124,83 +125,24 @@ from fvafk.c1.cv_pattern import cv_pattern
 
 
 class PatternMatcher:
-    """
-    Matches Arabic words against morphological patterns.
-    
-    Recognizes verb forms (I-X), active/passive participles, noun patterns,
-    and broken plurals by comparing normalized words against pattern templates.
-    
-    Example:
-        >>> matcher = PatternMatcher()
-        >>> root = Root(letters=('ك', 'ت', 'ب'), root_type=RootType.TRILATERAL)
-        >>> pattern = matcher.match("كَاتِب", root)
-        >>> print(pattern.name)
-        ACTIVE_PARTICIPLE
-    """
     def __init__(self, database: Optional[PatternDatabase] = None) -> None:
-        """
-        Initialize pattern matcher.
-        
-        Args:
-            database: Optional PatternDatabase with pattern templates
-        """
         self.database = database or PatternDatabase()
 
     def match(self, word: str, root: Root) -> Optional[Pattern]:
-        """
-        Match word to morphological pattern.
-        
-        Args:
-            word: Arabic word (normalized)
-            root: Extracted root
-        
-        Returns:
-            Pattern object if match found, None otherwise
-        """
         if not word or not root:
             return None
-        # NFC-normalize so combining diacritics are in canonical order.
-        word = unicodedata.normalize("NFC", word)
         # IMPORTANT (per awzan_test_report): compute CV from the ORIGINAL word (with tashkeel)
         # not from stripped/normalized stems.
         advanced_cv_word = self._sanitize_cv(advanced_cv_pattern(word))
         simple_cv_word = cv_pattern(word)
         normalized = self._normalize(word)
 
+        # Collect all matches; return the one with the highest confidence.
         best_pattern: Optional[Pattern] = None
         best_confidence: float = -1.0
-
-        def _consider(template: PatternTemplate, confidence: float) -> None:
-            nonlocal best_pattern, best_confidence
-            if confidence > best_confidence:
-                best_confidence = confidence
-                best_pattern = Pattern(
-                    name=template.pattern_type.value,
-                    template=template.template,
-                    pattern_type=template.pattern_type,
-                    stem=word,
-                    features={**template.feature_map(), "confidence": f"{confidence:.2f}"},
-                )
 
         categories = ["verb", "noun", "plural"]
-        best_pattern: Optional[Pattern] = None
-        best_confidence: float = -1.0
         checked = set()
-        best: Optional[Pattern] = None
-        best_confidence = -1.0
-
-        def _consider(template: PatternTemplate, confidence: float) -> None:
-            nonlocal best, best_confidence
-            if confidence > best_confidence:
-                best_confidence = confidence
-                best = Pattern(
-                    name=template.pattern_type.value,
-                    template=template.template,
-                    pattern_type=template.pattern_type,
-                    stem=word,
-                    features={**template.feature_map(), "confidence": f"{confidence:.2f}"},
-                )
-
         for category in categories:
             for template in self.database.get_by_category(category):
                 if id(template) in checked:
@@ -216,8 +158,15 @@ class PatternMatcher:
                     advanced_cv_word,
                     template,
                 )
-                if matched:
-                    _consider(template, confidence)
+                if matched and confidence > best_confidence:
+                    best_confidence = confidence
+                    best_pattern = Pattern(
+                        name=template.pattern_type.value,
+                        template=template.template,
+                        pattern_type=template.pattern_type,
+                        stem=word,
+                        features={**template.feature_map(), "confidence": f"{confidence:.2f}"},
+                    )
         for template in self.database.get_all():
             if id(template) in checked:
                 continue
@@ -231,13 +180,18 @@ class PatternMatcher:
                 advanced_cv_word,
                 template,
             )
-            if matched:
-                _consider(template, confidence)
+            if matched and confidence > best_confidence:
+                best_confidence = confidence
+                best_pattern = Pattern(
+                    name=template.pattern_type.value,
+                    template=template.template,
+                    pattern_type=template.pattern_type,
+                    stem=word,
+                    features={**template.feature_map(), "confidence": f"{confidence:.2f}"},
+                )
 
         if best_pattern is not None:
             return best_pattern
-
-        # ------------------------------------------------------------------
         # CV-based fallback (golden rule from docs/awzan_test_report.md)
         # ------------------------------------------------------------------
         # If exact template instantiation didn't match (often due to missing diacritics
@@ -250,83 +204,26 @@ class PatternMatcher:
             if template.cv_advanced:
                 template_cv_adv = self._sanitize_cv(template.cv_advanced)
                 if template_cv_adv and template_cv_adv == advanced_cv_word:
-                    _consider(template, 0.75)
-                    continue
+                    return Pattern(
+                        name=template.pattern_type.value,
+                        template=template.template,
+                        pattern_type=template.pattern_type,
+                        stem=word,
+                        features={**template.feature_map(), "confidence": "0.75"},
+                    )
             if template.cv_simple and template.cv_simple == simple_cv_word:
-                _consider(template, 0.70)
-
-        return best_pattern
-
-    def _normalize(self, word: str) -> str:
-        # Apply NFC normalization to ensure canonical diacritic ordering
-        # (e.g. shadda+fatha and fatha+shadda become identical)
-        text = unicodedata.normalize('NFC', word)
-        # Convert Tanwin to standard short vowels
-        # This is critical for matching catalog patterns (e.g., matching "كاتبٌ" with "فاعل")
-        text = text.replace('ً', 'َ').replace('ٌ', 'ُ').replace('ٍ', 'ِ')
-        
-        # Remove definiteness (Al-)
-        # Strip simple "ال" prefix
-        if text.startswith("ال") and len(text) > 3:
-             # Find end of "ال" (skip non-letters)
-             idx = 2
-             while idx < len(text) and text[idx] in "ْ":
-                 idx += 1
-             
-             # Handle Sun letters (Shadda after Al)
-             # e.g., "الشَّمْس" -> "شَّمْس" -> we want to match pattern "فَعْل"
-             # If next char has shadda, keep it but remove the Al
-             # Actually, templates usually don't have the shadda from sun letters
-             # So we should probably strip that shadda too if it's a sun letter effect
-             
-             stem_start = idx
-             stem = text[stem_start:]
-             
-             # If the first letter of the stem has a shadda, it might be a sun letter assimilation
-             # We should remove the shadda to recover the underlying form for pattern matching
-             # e.g. "الشَّمْس" -> "شَمْس" (to match fa3l)
-             if len(stem) > 1 and stem[1] == 'ّ':
-                 # Remove shadda
-                 stem = stem[0] + stem[2:]
-                 
-             text = stem
-
-        Unlike :meth:`match`, which returns the *first* match found, this
-        method evaluates every template and returns the one with the highest
-        confidence score.  This avoids situations where an earlier-checked
-        category (e.g. verb) wins over a later one (e.g. noun/participle) even
-        though the noun template is a better fit for the surface form.
-        """
-        if not word or not root:
-            return None
-        advanced_cv_word = self._sanitize_cv(advanced_cv_pattern(word))
-        normalized = self._normalize(word)
-
-        best_pattern: Optional[Pattern] = None
-        best_confidence: float = -1.0
-
-        for template in self.database.get_all():
-            if not template.matches_root_type(root):
-                continue
-            candidate = self._instantiate_template(template.template, root)
-            matched, confidence = self._matches(
-                normalized, candidate, template.pattern_type,
-                advanced_cv_word, template,
-            )
-            if matched and confidence > best_confidence:
-                best_confidence = confidence
-                best_pattern = Pattern(
+                return Pattern(
                     name=template.pattern_type.value,
                     template=template.template,
                     pattern_type=template.pattern_type,
                     stem=word,
-                    features={**template.feature_map(), "confidence": f"{confidence:.2f}"},
+                    features={**template.feature_map(), "confidence": "0.70"},
                 )
 
-        return best_pattern
+        return None
 
     def _normalize(self, word: str) -> str:
-        text = unicodedata.normalize('NFC', word)
+        text = unicodedata.normalize("NFC", word)
         text = text.replace('ً', '').replace('ٌ', '').replace('ٍ', '')
         # If the surface had fathatan, Arabic orthography often adds a final alif (…ًا).
         # After stripping marks, drop this support-alif to match templates (e.g., عظيمًا -> عظيم).
@@ -337,11 +234,9 @@ class PatternMatcher:
         return text.strip()
 
     def _instantiate_template(self, template_str: str, root: Root) -> str:
-        # Apply NFC normalization to template for consistent diacritic ordering
-        template_str = unicodedata.normalize('NFC', template_str)
         chars = []
         l_count = 0
-        for ch in unicodedata.normalize('NFC', template_str):
+        for ch in template_str:
             if ch == 'ف':
                 chars.append(root.letters[0])
             elif ch == 'ع':
@@ -355,7 +250,7 @@ class PatternMatcher:
                 l_count += 1
             else:
                 chars.append(ch)
-        return unicodedata.normalize('NFC', ''.join(chars))
+        return ''.join(chars)
 
     def _matches(
         self,
@@ -365,20 +260,22 @@ class PatternMatcher:
         advanced_cv_word: str,
         template: PatternTemplate,
     ) -> Tuple[bool, float]:
-        import unicodedata
-        # Normalise to NFC so that shadda+vowel ordering variants are treated
-        # as equivalent (e.g. ل+ّ+َ  vs  ل+َ+ّ).
-        word = unicodedata.normalize("NFC", word)
-        candidate = unicodedata.normalize("NFC", candidate)
         if word == candidate:
             return True, 1.0
+        
+        # Apply the SAME normalization used in arabic_wazn_matcher_gate.py:
+        # Check if units match (placeholder-aware)
+        
+        # We need to split into units to check shadda/vowel alignment
+        # This requires importing the unit logic or approximating it.
+        # Given we don't have the full Unit class here, let's stick to text matching
+        # but be smarter about shaddas.
         
         stripped_word = self._strip_diacritics(word)
         stripped_candidate = self._strip_diacritics(candidate)
 
-        # If broken plural fu'ul, special check (unchanged)
-        # Must come BEFORE the consonant-mismatch check because the template
-        # "فُعُول" carries an extra waw not present in the surface form "كُتُب".
+        # If broken plural fu'ul, the long-vowel waw may be absent in the surface form
+        # (e.g., كُتُب for كُتُوب). Check before the consonant-mismatch guard.
         if pattern_type == PatternType.BROKEN_PLURAL_FUUL:
             candidate_no_waw = candidate.replace("و", "")
             stripped_candidate_no_waw = self._strip_diacritics(candidate_no_waw)
@@ -393,7 +290,7 @@ class PatternMatcher:
         if template.cv_advanced:
             template_cv = self._sanitize_cv(template.cv_advanced)
             if template_cv and (not advanced_cv_word or advanced_cv_word != template_cv):
-                return False, 0.0
+                pass
         
         # Check shadda match (Crucial from gate matcher)
         # If candidate has shadda, word MUST have shadda
@@ -417,49 +314,16 @@ class PatternMatcher:
         if strip_final_vowel(word) == strip_final_vowel(candidate):
             return True, 0.95
             
-        # If lengths match (and stripped text matches), allow a near-match
-        # but only if the characters agree up to hamza normalization.
-        # A pure length-equality check is too lenient for fully-diacritised words.
-        if len(word) == len(candidate) and self._lenient_diacritics_match(word, candidate):
+        # If lengths match (and stripped text matches), good enough
+        if len(word) == len(candidate):
             return True, 0.90
             
         if pattern_type == PatternType.FORM_X:
             return True, 0.9
             
         # If we got here, stripped text matches but full text doesn't
-        # Likely a vowel mismatch.
-        # For diacritized words the mismatch is real – don't accept the match.
-        if self._has_diacritics(word):
-            return False, 0.0
+        # Likely a vowel mismatch. Return a lower confidence match
         return True, 0.60
-
-    @staticmethod
-    def _has_diacritics(word: str) -> bool:
-        """Return True if *word* contains any Arabic diacritic marks."""
-        return any(c in "ًٌٍَُِّْ" for c in word)
-
-    @staticmethod
-    def _lenient_diacritics_match(word: str, candidate: str) -> bool:
-        """Return True if every character pair matches or is a hamza variant.
-
-        Normalises both strings to NFC first so that different shadda+vowel
-        orderings (e.g. ل+ّ+َ  vs  ل+َ+ّ) are treated as equivalent.
-        Allows differences in hamza carrier (أ/إ/آ/ا/ء/ؤ/ئ) while
-        rejecting true vowel mismatches (e.g. kasra vs fatha).
-        """
-        import unicodedata
-        w = unicodedata.normalize("NFC", word)
-        c = unicodedata.normalize("NFC", candidate)
-        if len(w) != len(c):
-            return False
-        hamza_variants = frozenset("أإآاءؤئ")
-        for w_ch, c_ch in zip(w, c):
-            if w_ch == c_ch:
-                continue
-            if w_ch in hamza_variants and c_ch in hamza_variants:
-                continue
-            return False
-        return True
 
     @staticmethod
     def _sanitize_cv(value: str) -> str:
