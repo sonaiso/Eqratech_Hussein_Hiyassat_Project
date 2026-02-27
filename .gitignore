@@ -92,17 +92,6 @@ Thumbs.db
 ~$*.xlsx
 ~$*.xls
 
-# COQ compiled files
-*.vo
-*.vok
-*.vos
-*.glob
-.*.aux
-.depend
-
-# Logs
-*.log
-
-# Local configuration
-.env.local
-.env.*.local
+i3rab/
+src/bayan_fvafk.egg-info/
+src/*.egg-info/

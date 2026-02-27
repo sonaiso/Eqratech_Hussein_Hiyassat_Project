@@ -1,39 +1,69 @@
 """
-Arabic Grammar Web Classifier - Main FastAPI Application
+FastAPI application for FVAFK / Bayan Arabic NLP pipeline.
 
-This module provides a web API for the Arabic grammar classification system.
+Run with:
+    python run_server.py
+    # or directly:
+    uvicorn web_app.main:app --reload
 """
+from __future__ import annotations
 
-from fastapi import FastAPI
-from fastapi.responses import JSONResponse
+from typing import Any, Optional
+
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+
+from fvafk.cli.main import MinimalCLI
 
 app = FastAPI(
-    title="Arabic Grammar Classifier",
-    description="API for Arabic NLP grammar classification and analysis",
-    version="1.0.0"
+    title="FVAFK / Bayan — Arabic NLP API",
+    description=(
+        "REST API for the FVAFK Arabic NLP pipeline: "
+        "encoding (C1), phonological gates (C2a), morphology (C2b)."
+    ),
+    version="0.1.0",
 )
 
-
-@app.get("/")
-async def root():
-    """Root endpoint - provides basic API information."""
-    return {
-        "message": "مرحبا بك في نظام تصنيف القواعد العربية",
-        "message_en": "Welcome to the Arabic Grammar Classifier",
-        "version": "1.0.0",
-        "endpoints": {
-            "/": "This information page",
-            "/health": "Health check endpoint",
-            "/docs": "API documentation (Swagger UI)",
-            "/redoc": "API documentation (ReDoc)"
-        }
-    }
+# Initialise once so gate setup cost is paid at startup, not per request.
+_cli = MinimalCLI(verbose=False, json_output=True)
 
 
-@app.get("/health")
-async def health_check():
-    """Health check endpoint."""
-    return {
-        "status": "healthy",
-        "service": "Arabic Grammar Classifier"
-    }
+class AnalyseRequest(BaseModel):
+    text: str
+    morphology: bool = False
+
+
+class AnalyseResponse(BaseModel):
+    input: str
+    result: dict[str, Any]
+
+
+@app.get("/", summary="Health check")
+def root() -> dict[str, str]:
+    """Return service status."""
+    return {"status": "ok", "service": "FVAFK Arabic NLP API", "version": "0.1.0"}
+
+
+@app.get("/health", summary="Health check (alias)")
+def health() -> dict[str, str]:
+    return {"status": "ok"}
+
+
+@app.post("/analyse", response_model=AnalyseResponse, summary="Analyse Arabic text")
+def analyse(request: AnalyseRequest) -> AnalyseResponse:
+    """
+    Run the full FVAFK pipeline on the supplied Arabic text.
+
+    - **text**: Arabic text to analyse (with or without diacritics)
+    - **morphology**: also run the C2b morphological analyser
+    """
+    if not request.text or not request.text.strip():
+        raise HTTPException(status_code=422, detail="text must not be empty")
+
+    result: Optional[dict[str, Any]] = _cli.run(
+        request.text,
+        morphology=request.morphology,
+    )
+    if result is None:
+        result = {}
+    return AnalyseResponse(input=request.text, result=result)

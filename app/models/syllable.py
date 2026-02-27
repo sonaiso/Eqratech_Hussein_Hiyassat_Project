@@ -32,14 +32,6 @@ class Syllable(BaseModel):
         >>> syll.pattern
         'CVC'
     """
-    
-    pattern: str = Field(..., description="CV pattern: CV, CVV, or CVC")
-    units: List[int] = Field(..., description="Unit indices in this syllable")
-    start: int = Field(..., ge=0, description="Start position in text")
-    end: int = Field(..., ge=0, description="End position in text")
-    weight: str = Field(default="light", description="Syllable weight: light, heavy, superheavy")
-    stress: bool = Field(default=False, description="Whether syllable is stressed")
-    metadata: Optional[dict] = Field(default=None, description="Phonological features")
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -50,7 +42,15 @@ class Syllable(BaseModel):
                 "end": 3,
                 "weight": "heavy",
                 "stress": False,
-                "metadata": {"open": False}
+                "metadata": {"open": False},
             }
         }
     )
+
+    pattern: str = Field(..., description="CV pattern: CV, CVV, or CVC")
+    units: List[int] = Field(..., description="Unit indices in this syllable")
+    start: int = Field(..., ge=0, description="Start position in text")
+    end: int = Field(..., ge=0, description="End position in text")
+    weight: str = Field(default="light", description="Syllable weight: light, heavy, superheavy")
+    stress: bool = Field(default=False, description="Whether syllable is stressed")
+    metadata: Optional[dict] = Field(default=None, description="Phonological features")
