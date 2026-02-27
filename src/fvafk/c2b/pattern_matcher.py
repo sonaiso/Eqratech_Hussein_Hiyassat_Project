@@ -141,16 +141,16 @@ class PatternMatcher:
         best_pattern: Optional[Pattern] = None
         best_confidence: float = -1.0
 
-        def _update_best(tmpl: PatternTemplate, conf: float) -> None:
+        def _consider(template: PatternTemplate, confidence: float) -> None:
             nonlocal best_pattern, best_confidence
-            if conf > best_confidence:
-                best_confidence = conf
+            if confidence > best_confidence:
+                best_confidence = confidence
                 best_pattern = Pattern(
-                    name=tmpl.pattern_type.value,
-                    template=tmpl.template,
-                    pattern_type=tmpl.pattern_type,
+                    name=template.pattern_type.value,
+                    template=template.template,
+                    pattern_type=template.pattern_type,
                     stem=word,
-                    features={**tmpl.feature_map(), "confidence": f"{conf:.2f}"},
+                    features={**template.feature_map(), "confidence": f"{confidence:.2f}"},
                 )
 
         categories = ["verb", "noun", "plural"]
@@ -187,17 +187,8 @@ class PatternMatcher:
                     advanced_cv_word,
                     template,
                 )
-                if matched and confidence > best_confidence:
-                    best_confidence = confidence
-                    best_pattern = Pattern(
-                        name=template.pattern_type.value,
-                        template=template.template,
-                        pattern_type=template.pattern_type,
-                        stem=word,
-                        features={**template.feature_map(), "confidence": f"{confidence:.2f}"},
-                    )
-                    if confidence == 1.0:
-                        return best_pattern
+                if matched:
+                    _consider(template, confidence)
         for template in self.database.get_all():
             if id(template) in checked:
                 continue
@@ -211,17 +202,9 @@ class PatternMatcher:
                 advanced_cv_word,
                 template,
             )
-            if matched and confidence > best_confidence:
-                best_confidence = confidence
-                best_pattern = Pattern(
-                    name=template.pattern_type.value,
-                    template=template.template,
-                    pattern_type=template.pattern_type,
-                    stem=word,
-                    features={**template.feature_map(), "confidence": f"{confidence:.2f}"},
-                )
-                if confidence == 1.0:
-                    return best_pattern
+            if matched:
+                _consider(template, confidence)
+
         if best_pattern is not None:
             return best_pattern
 
@@ -238,16 +221,16 @@ class PatternMatcher:
             if template.cv_advanced:
                 template_cv_adv = self._sanitize_cv(template.cv_advanced)
                 if template_cv_adv and template_cv_adv == advanced_cv_word:
-                    _update_best(template, 0.75)
-            elif template.cv_simple and template.cv_simple == simple_cv_word:
-                _update_best(template, 0.70)
+                    _consider(template, 0.75)
+                    continue
+            if template.cv_simple and template.cv_simple == simple_cv_word:
+                _consider(template, 0.70)
 
         return best_pattern
 
     def _normalize(self, word: str) -> str:
-        import unicodedata
-        # Canonicalise combining-character order (e.g. shadda/vowel pairs may
-        # arrive in either order depending on the source file encoding).
+        # Apply NFC normalization to ensure canonical diacritic ordering
+        # (e.g. shadda+fatha and fatha+shadda become identical)
         text = unicodedata.normalize('NFC', word)
         # Convert Tanwin to standard short vowels
         # This is critical for matching catalog patterns (e.g., matching "كاتبٌ" with "فاعل")
