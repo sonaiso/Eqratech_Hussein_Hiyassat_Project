@@ -1,100 +1,182 @@
-# Quick Reference: Tokenization with Labels
+# Quick Reference Guide - Google Colab Integration
+# دليل مرجعي سريع - التكامل مع Google Colab
 
-## Fast Setup
+## Quick Start Commands
 
-```python
-from tokenization_with_labels import TokenizationWithLabels
-
-tokenizer = TokenizationWithLabels()
+### 1. Open in Colab
+```
+Click: https://colab.research.google.com/github/salemqundil/Eqratech_Arabic_Diana_Project/blob/main/Eqratech_Arabic_Colab.ipynb
 ```
 
-## Choose Your Method
-
-### 1. Separate Files
+### 2. Setup (Run these in order)
 ```python
-tokenized_data = tokenizer.tokenize_with_labels_from_separate_file(
-    'data.txt', 'labels.txt'
-)
+# Clone repository
+!git clone https://github.com/salemqundil/Eqratech_Arabic_Diana_Project.git
+%cd Eqratech_Arabic_Diana_Project
+
+# Install dependencies
+!pip install -q -r requirements.txt
 ```
 
-### 2. CSV with Columns
+### 3. Common Operations
+
+#### List All Engines
 ```python
-tokenized_data = tokenizer.tokenize_with_embedded_labels(
-    'data.csv',
-    text_column='verse',
-    label_column='category'
-)
+import glob
+engines = sorted(glob.glob('*_engine.py'))
+for i, e in enumerate(engines, 1):
+    print(f"{i}. {e}")
 ```
 
-### 3. JSON Format
+#### Load an Engine
 ```python
-tokenized_data = tokenizer.tokenize_with_embedded_labels(
-    'data.json',
-    text_column='verse',
-    label_column='category',
-    file_format='json'
-)
+# Example: Phonemes
+from phonemes_engine import PhonemesEngine
+df = PhonemesEngine.make_df()
+df.head()
 ```
 
-### 4. Label Dictionary
+#### Export to Excel
 ```python
-labels = {0: 'label1', 1: 'label2', ...}
-tokenized_data = tokenizer.tokenize_with_label_mapping('data.txt', labels)
+from export_full_multilayer_grammar_minimal import main as export_main
+export_main()
+
+# Download the file
+from google.colab import files
+files.download('full_multilayer_grammar.xlsx')
 ```
 
-### 5. Custom Function
+#### View CSV Files
 ```python
-def get_label(text):
-    return 'label' if condition else 'other'
-
-tokenized_data = tokenizer.tokenize_with_pattern_based_labels(
-    'data.txt', get_label
-)
+import pandas as pd
+df = pd.read_csv('Harakat.csv')
+df.head()
 ```
 
-## With Transformers
+## Keyboard Shortcuts in Colab
 
+| Action | Shortcut |
+|--------|----------|
+| Run cell | `Shift + Enter` |
+| Insert cell above | `Ctrl + M A` |
+| Insert cell below | `Ctrl + M B` |
+| Delete cell | `Ctrl + M D` |
+| Convert to markdown | `Ctrl + M M` |
+| Convert to code | `Ctrl + M Y` |
+
+## Common Patterns
+
+### Pattern 1: Explore Data
 ```python
-from transformers import AutoTokenizer
-
-hf_tokenizer = AutoTokenizer.from_pretrained('aubmindlab/bert-base-arabertv2')
-tokenizer = TokenizationWithLabels(tokenizer=hf_tokenizer)
-
-# Use any method above
+import pandas as pd
+df = pd.read_csv('your_file.csv')
+print(f"Shape: {df.shape}")
+print(f"Columns: {df.columns.tolist()}")
+df.head(10)
 ```
 
-## Save Results
-
+### Pattern 2: Generate and Save
 ```python
-# As JSON
-tokenizer.save_tokenized_data(tokenized_data, 'output.json', format='json')
-
-# As CSV
-tokenizer.save_tokenized_data(tokenized_data, 'output.csv', format='csv')
+from some_engine import SomeEngine
+df = SomeEngine.make_df()
+df.to_csv('output.csv', index=False)
+files.download('output.csv')
 ```
 
-## Output Format
-
-Each item in `tokenized_data` contains:
+### Pattern 3: Batch Processing
 ```python
-{
-    'text': 'original text',
-    'tokens': ['token1', 'token2', ...],
-    'label': 'category'
-}
+engines = [
+    ('phonemes', PhonemesEngine),
+    ('verbs', VerbsEngine),
+    # Add more...
+]
+
+for name, engine_class in engines:
+    df = engine_class.make_df()
+    print(f"{name}: {len(df)} rows")
 ```
 
-## Common Issues
+## Troubleshooting Quick Fixes
 
-**Different file lengths?**
-→ Make sure data and labels files have the same number of lines
+### Issue: Module not found
+```python
+# Reinstall requirements
+!pip install -q -r requirements.txt
+```
 
-**Column not found?**
-→ Check CSV/JSON column names match exactly
+### Issue: File not found
+```python
+# Check current directory
+!pwd
+!ls
 
-**Encoding errors?**
-→ Save files with UTF-8 encoding
+# Go to project directory
+%cd /content/Eqratech_Arabic_Diana_Project
+```
 
-## Full Documentation
+### Issue: Memory error
+```python
+# Restart runtime
+# Runtime > Restart runtime (from menu)
+```
 
-See `TOKENIZATION_LABELS_GUIDE.md` for complete details and examples.
+### Issue: Arabic text not displaying
+```python
+import os
+os.environ['PYTHONIOENCODING'] = 'utf-8'
+```
+
+## Tips
+
+1. **Save Your Work**: `File > Save a copy in Drive`
+2. **Share Notebook**: `File > Share` or use the Share button
+3. **Run All Cells**: `Runtime > Run all`
+4. **Clear Output**: `Edit > Clear all outputs`
+5. **Check Runtime Type**: `Runtime > Change runtime type` (CPU/GPU/TPU)
+
+## Available Engines Reference
+
+### Core Engines
+- `phonemes_engine.py` - Phoneme processing
+- `verbs_engine.py` - Verb conjugations
+- `pronouns_engine.py` - Pronoun handling
+- `adjective_engine.py` - Adjective processing
+
+### Grammar Engines
+- `fael_engine.py` - Subject processing
+- `mafoul_bih_engine.py` - Direct object
+- `mafoul_mutlaq_engine.py` - Absolute object
+- `mafoul_ajlih_engine.py` - Object of purpose
+
+### Advanced Features
+- `simple_sentence_generator.py` - Sentence generation
+- `export_full_multilayer_grammar_minimal.py` - Full export
+- `enhanced_sentence_generation_engine.py` - Enhanced generation
+
+## Example Workflows
+
+### Workflow 1: Quick Data Exploration
+1. Clone and install (Steps 1-2)
+2. List all engines
+3. Pick one engine and load it
+4. Explore the DataFrame
+5. Export if needed
+
+### Workflow 2: Full Grammar Export
+1. Clone and install (Steps 1-2)
+2. Run export script
+3. Wait for completion (may take 5-10 minutes)
+4. Download the Excel file
+
+### Workflow 3: Custom Analysis
+1. Clone and install (Steps 1-2)
+2. Load multiple engines
+3. Merge or analyze data
+4. Create visualizations
+5. Export results
+
+## Need More Help?
+
+- Full Guide: See `COLAB_USAGE_GUIDE.md`
+- Repository: https://github.com/salemqundil/Eqratech_Arabic_Diana_Project
+- Issues: https://github.com/salemqundil/Eqratech_Arabic_Diana_Project/issues
