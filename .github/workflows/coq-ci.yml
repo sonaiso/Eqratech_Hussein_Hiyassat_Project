@@ -1,0 +1,33 @@
+name: Coq CI
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+    branches:
+      - '**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Coq
+        uses: coq-community/setup-coq@v2
+        with:
+          coq-version: 'latest'
+
+      - name: Compile Coq sources
+        working-directory: ./coq
+        run: |
+          set -e
+          if [ -f _CoqProject ]; then
+            coq_makefile -f _CoqProject -o Makefile
+            make -j2
+          elif [ -f Makefile ]; then
+            make -j2
+          else
+            find . -name '*.v' -print0 | xargs -0 -n1 coqc
+          fi
