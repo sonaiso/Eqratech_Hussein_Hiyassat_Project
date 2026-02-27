@@ -112,15 +112,21 @@ class MinimalCLI:
             c2b_time = (time.perf_counter() - c2b_start) * 1000
 
         # ========================================================================
-        # SYNTAX LAYER (Sprint 1, Task #1.7 — PR-A: CLI Syntax Wiring)
+        # SYNTAX LAYER (Sprint 5 — Part 5 & 6: Full linkers + constraints)
         # Output only when --morphology; no separate --syntax flag (conservative).
-        # Schema: syntax.word_forms + syntax.links.isnadi
+        # Schema: syntax.word_forms + syntax.links.{isnadi,tadmini,taqyidi} + syntax.violations
         # ========================================================================
         syntax_result = None
         if morphology and morphology_result:
             try:
-                from fvafk.c2b.word_form_builder import WordFormBuilder
-                from fvafk.syntax.linkers import find_isnadi_links
+                from fvafk.c2b.word_form.word_form_builder import WordFormBuilder
+                from fvafk.syntax import (
+                    find_isnadi_links,
+                    TadminiLinker,
+                    TaqyidiLinker,
+                    SyntacticParser,
+                    ConstraintValidator,
+                )
 
                 c2b_words = (
                     morphology_result["words"]
@@ -128,63 +134,54 @@ class MinimalCLI:
                     else [morphology_result]
                 )
                 if not c2b_words:
-                    syntax_result = {"word_forms": [], "links": {"isnadi": []}}
+                    syntax_result = {
+                        "word_forms": [],
+                        "links": {"isnadi": [], "tadmini": [], "taqyidi": []},
+                        "violations": [],
+                    }
                 else:
                     builder = WordFormBuilder()
-                    word_forms = [builder.from_multi_word_item(item) for item in c2b_words]
+                    word_forms = [builder.from_c2b(item, word_id=i) for i, item in enumerate(c2b_words)]
                     word_forms_out = [
                         _word_form_to_syntax_dict(wf, i) for i, wf in enumerate(word_forms)
                     ]
-                    links = find_isnadi_links(word_forms)
 
-                    CASE_ARABIC = {
-                        "nominative": "مرفوع",
-                        "accusative": "منصوب",
-                        "genitive": "مجرور",
-                        "accusative_or_genitive": "منصوب أو مجرور",
-                        "unknown": "غير معروف",
-                    }
+                    # Run full parser
+                    parser = SyntacticParser()
+                    graph = parser.parse(word_forms)
 
-                    isnadi_links = []
-                    for link in links:
-                        head_word = word_forms[link.head_id]
-                        dep_word = word_forms[link.dependent_id]
-                        head_case = (
-                            CASE_ARABIC.get(head_word.case.value, "غير معروف")
-                            if head_word.case else "غير معروف"
-                        )
-                        dep_case = (
-                            CASE_ARABIC.get(dep_word.case.value, "غير معروف")
-                            if dep_word.case else "غير معروف"
-                        )
-                        isnadi_links.append({
-                            "type": getattr(link.link_type, "arabic", str(link.link_type)),
-                            "type_en": link.link_type.name,
-                            "head": {
-                                "id": link.head_id,
-                                "surface": head_word.surface,
-                                "pos": head_word.pos.value,
-                                "case": head_case,
-                            },
-                            "dependent": {
-                                "id": link.dependent_id,
-                                "surface": dep_word.surface,
-                                "pos": dep_word.pos.value,
-                                "case": dep_case,
-                            },
-                            "confidence": round(link.confidence, 3),
-                            "reason": link.reason or "",
-                        })
+                    isnadi_links = [_isnadi_link_to_dict(lk, word_forms) for lk in graph.isnadi_links]
+                    tadmini_links = [_indexed_link_to_dict(tl, word_forms) for tl in graph.tadmini_links]
+                    taqyidi_links = [_indexed_link_to_dict(tq, word_forms) for tq in graph.taqyidi_links]
+
+                    # Run constraint validator
+                    validator = ConstraintValidator()
+                    violations_raw = validator.validate(graph)
+                    violations = [
+                        {
+                            "constraint_name": v.constraint_name,
+                            "token_indices": v.token_indices,
+                            "severity": v.severity,
+                            "message": v.message,
+                        }
+                        for v in violations_raw
+                    ]
 
                     syntax_result = {
                         "word_forms": word_forms_out,
-                        "links": {"isnadi": isnadi_links},
+                        "links": {
+                            "isnadi": isnadi_links,
+                            "tadmini": tadmini_links,
+                            "taqyidi": taqyidi_links,
+                        },
+                        "violations": violations,
                     }
             except Exception as e:
                 syntax_result = {
                     "error": str(e),
                     "word_forms": [],
-                    "links": {"isnadi": []},
+                    "links": {"isnadi": [], "tadmini": [], "taqyidi": []},
+                    "violations": [],
                 }
 
         total_time = (time.perf_counter() - start) * 1000
@@ -942,6 +939,67 @@ class MinimalCLI:
             "deltas": len(gate_result.deltas),
             "reason": gate_result.reason,
         }
+
+
+def _word_form_to_syntax_dict(wf: Any, index: int) -> Dict[str, Any]:
+    """Convert a WordForm object to a JSON-serializable dictionary for syntax output."""
+    return {
+        "index": index,
+        "surface": wf.surface if wf else "",
+        "pos": wf.pos.value if wf and wf.pos else "unknown",
+        "case": wf.case.value if wf and wf.case else "unknown",
+        "number": wf.number.value if wf and wf.number else "unknown",
+        "gender": wf.gender.value if wf and wf.gender else "unknown",
+        "definiteness": wf.definiteness if wf else False,
+    }
+
+
+_CASE_ARABIC: Dict[str, str] = {
+    "nominative": "مرفوع",
+    "accusative": "منصوب",
+    "genitive": "مجرور",
+    "accusative_or_genitive": "منصوب أو مجرور",
+    "unknown": "غير معروف",
+}
+
+
+def _isnadi_link_to_dict(link: Any, wf_list: list) -> Dict[str, Any]:
+    """Convert a generic Link (isnadi) to a JSON-serializable dictionary."""
+    h = wf_list[link.head_id] if link.head_id < len(wf_list) else None
+    d = wf_list[link.dependent_id] if link.dependent_id < len(wf_list) else None
+    return {
+        "type": getattr(link.link_type, "arabic", str(link.link_type)),
+        "type_en": link.link_type.name,
+        "head": {
+            "id": link.head_id,
+            "surface": h.surface if h else "",
+            "pos": h.pos.value if h else "",
+            "case": _CASE_ARABIC.get(h.case.value, "غير معروف") if h and h.case else "غير معروف",
+        },
+        "dependent": {
+            "id": link.dependent_id,
+            "surface": d.surface if d else "",
+            "pos": d.pos.value if d else "",
+            "case": _CASE_ARABIC.get(d.case.value, "غير معروف") if d and d.case else "غير معروف",
+        },
+        "confidence": round(link.confidence, 3),
+        "reason": link.reason or "",
+    }
+
+
+def _indexed_link_to_dict(link: Any, wf_list: list) -> Dict[str, Any]:
+    """Convert a TadminiLink or TaqyidiLink (head_idx/dep_idx) to a JSON-serializable dict."""
+    n = len(wf_list)
+    h = wf_list[link.head_idx] if link.head_idx < n else None
+    d = wf_list[link.dep_idx] if link.dep_idx < n else None
+    return {
+        "link_type": link.link_type,
+        "head_idx": link.head_idx,
+        "dep_idx": link.dep_idx,
+        "head_surface": h.surface if h else "",
+        "dep_surface": d.surface if d else "",
+        "confidence": round(link.confidence, 3),
+    }
 
 
 def _print_human_readable(result: Dict[str, Any]) -> None:

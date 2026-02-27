@@ -1,8 +1,8 @@
 # FVAFK / Bayan - Project Progress Report
 
-**Date**: February 21, 2026
-**Status**: Sprint 4 Complete (Syntax Foundation)
-**Tests**: 564 Passing
+**Date**: February 27, 2026
+**Status**: Sprint 5 & 6 Complete (Advanced Syntax + Integration)
+**Tests**: 665 Passing
 
 ---
 
@@ -14,8 +14,8 @@
 | **Part 2** | Phonology Gates | ✅ DONE | 10 Tajweed Gates, Syllabifier, CV Patterns |
 | **Part 3** | Morphology & Corpus | ✅ DONE | Root Extraction, Pattern Matching, huge JSON corpus |
 | **Part 4** | Syntax Foundation | ✅ DONE | I3rab Parser, Evaluator, Morph-Syntax Bridge |
-| **Part 5** | Advanced Syntax (Isnadi) | 🚧 PENDING | Linkers (Isnadi, Tadmini, Taqyidi), Constraints |
-| **Part 6** | Integration & Polish | 🟡 STARTED | Pipeline integration started, full metrics needed |
+| **Part 5** | Advanced Syntax (Isnadi/Tadmini/Taqyidi) | ✅ DONE | TadminiLinker, TaqyidiLinker, ConstraintValidator, SyntacticParser |
+| **Part 6** | Integration & Polish | ✅ DONE | CLI syntax output (isnadi+tadmini+taqyidi+violations), `scripts/evaluate_syntax.py` |
 
 ---
 
