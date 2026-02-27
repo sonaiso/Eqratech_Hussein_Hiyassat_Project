@@ -16,14 +16,18 @@ parts/
 sdist/
 var/
 wheels/
+pip-wheel-metadata/
+share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+MANIFEST
 
 # Virtual environments
 venv/
 ENV/
 env/
+.venv
 
 # IDEs
 .vscode/
@@ -35,6 +39,3 @@ env/
 # OS
 .DS_Store
 Thumbs.db
-
-# Temporary files
-~$*
