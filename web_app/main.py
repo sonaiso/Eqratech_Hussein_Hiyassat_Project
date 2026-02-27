@@ -11,7 +11,8 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from fastapi.responses import HTMLResponse
+from pydantic import BaseModel, Field
 
 from fvafk.cli.main import MinimalCLI
 
@@ -29,28 +30,50 @@ _cli = MinimalCLI(verbose=False, json_output=True)
 
 
 class AnalyseRequest(BaseModel):
-    text: str
+    text: str = Field(..., min_length=1)
     morphology: bool = False
 
 
-class AnalyseResponse(BaseModel):
-    input: str
-    result: dict[str, Any]
-
-
-@app.get("/", summary="Health check")
-def root() -> dict[str, str]:
-    """Return service status."""
-    return {"status": "ok", "service": "FVAFK Arabic NLP API", "version": "0.1.0"}
+@app.get("/", response_class=HTMLResponse, summary="Web UI")
+def root() -> str:
+    """Serve a minimal HTML page for quick interactive checks."""
+    return """<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>بيان - FVAFK</title>
+</head>
+<body>
+  <h1>بيان / FVAFK</h1>
+  <p>خدمة فحص النص العربي جاهزة.</p>
+</body>
+</html>"""
 
 
 @app.get("/health", summary="Health check (alias)")
 def health() -> dict[str, str]:
-    return {"status": "ok"}
+    return {"status": "ok", "version": app.version}
 
 
-@app.post("/analyse", response_model=AnalyseResponse, summary="Analyse Arabic text")
-def analyse(request: AnalyseRequest) -> AnalyseResponse:
+def _normalize_analyze_response(payload: dict[str, Any]) -> dict[str, Any]:
+    c2a = payload.get("c2a")
+    if isinstance(c2a, dict):
+        gates = c2a.get("gates")
+        if isinstance(gates, list):
+            normalized_gates: list[dict[str, Any]] = []
+            for gate in gates:
+                if isinstance(gate, dict):
+                    item = dict(gate)
+                    item.setdefault("gate", item.get("gate_id", ""))
+                    normalized_gates.append(item)
+                else:
+                    normalized_gates.append({"gate": str(gate), "status": "ACCEPT"})
+            c2a["gates"] = normalized_gates
+    return payload
+
+
+def _run_analysis(request: AnalyseRequest) -> dict[str, Any]:
     """
     Run the full FVAFK pipeline on the supplied Arabic text.
 
@@ -64,6 +87,16 @@ def analyse(request: AnalyseRequest) -> AnalyseResponse:
         request.text,
         morphology=request.morphology,
     )
-    if result is None:
-        result = {}
-    return AnalyseResponse(input=request.text, result=result)
+    if not isinstance(result, dict):
+        raise HTTPException(status_code=500, detail="analysis failed")
+    return _normalize_analyze_response(result)
+
+
+@app.post("/analyse", summary="Analyse Arabic text")
+def analyse(request: AnalyseRequest) -> dict[str, Any]:
+    return _run_analysis(request)
+
+
+@app.post("/analyze", summary="Analyze Arabic text")
+def analyze(request: AnalyseRequest) -> dict[str, Any]:
+    return _run_analysis(request)
