@@ -20,12 +20,12 @@ wheels/
 .installed.cfg
 *.egg
 
-# Virtual environments
+# Virtual Environment
 venv/
-env/
 ENV/
+env/
 
-# IDEs
+# IDE
 .vscode/
 .idea/
 *.swp
@@ -36,7 +36,12 @@ ENV/
 .DS_Store
 Thumbs.db
 
-# Temporary files
-*.tmp
-*.bak
-~$*
+# Project specific
+*.xlsx
+*.xls
+~$*.xlsx
+~$*.xls
+*.log
+surah_fatiha_syllables.xlsx
+syllable_analysis.xlsx
+fractal_patterns_analysis.xlsx
