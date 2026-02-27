@@ -1,36 +1,18 @@
-# Python
 __pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
+*.pyc
+*.pyo
+*.pyd
 *.egg-info/
 dist/
 build/
-
-# Graph engine outputs
-*_audit.json
-graph.json
-proposition.json
-*_graph.json
-
-# Pytest cache
+.eggs/
+.env
+.venv/
+venv/
+pip-wheel-metadata/
 .pytest_cache/
-*.pyc
-
-# Coq compiled files
-*.vo
-*.vok
-*.vos
-*.glob
-.coq-native/
-
-# OS
 .DS_Store
-Thumbs.db
-
-# IDE
-.vscode/
-.idea/
 *.swp
 *.swo
+*$*
+~$*
