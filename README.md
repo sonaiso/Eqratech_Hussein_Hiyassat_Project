@@ -1,49 +1,37 @@
 # Eqratech_Arabic_Diana_Project
 Python_NLP Project with all Arabic tools verbs and names
 
-## New Features: Tokenization with Labels for Supervised Learning
+## Features
 
-This project now includes comprehensive tools for adding labels to tokenized text data, essential for supervised machine learning tasks.
+### View Today's Activities
+You can now view all available Arabic grammar engines through a web interface!
 
-### Quick Start
-
-1. **Using the utility module:**
-```python
-from tokenization_with_labels import TokenizationWithLabels
-
-tokenizer = TokenizationWithLabels()
-tokenized_data = tokenizer.tokenize_with_labels_from_separate_file(
-    'quran_data.txt',
-    'labels.txt'
-)
+**To start the web server:**
+```bash
+python run_server.py
 ```
 
-2. **Using the example notebook:**
-   - Open `tokenization_with_labels_examples.ipynb` in Jupyter or Google Colab
-   - Follow the examples for different label integration methods
+Then open your browser and navigate to: `http://127.0.0.1:8000/`
 
-### Documentation
+**API Endpoint:**
+- GET `/api/activities` - Returns JSON data with today's date and all available engines
 
-- **[TOKENIZATION_LABELS_GUIDE.md](TOKENIZATION_LABELS_GUIDE.md)** - Complete guide on adding labels to tokenized data
-- **[tokenization_with_labels.py](tokenization_with_labels.py)** - Python utility module
-- **[tokenization_with_labels_examples.ipynb](tokenization_with_labels_examples.ipynb)** - Jupyter notebook with examples
-- **[examples/](examples/)** - Sample data files demonstrating different formats
+**What you'll see:**
+- Today's date
+- Total count of available grammar activities (63 engines)
+- List of all Arabic grammar engines with their Arabic names
+- Beautiful, responsive interface in both Arabic and English
 
-### Supported Methods
+## Installation
 
-1. **Separate Files** - Data and labels in different files
-2. **Embedded Labels (CSV)** - Combined data in CSV format
-3. **Embedded Labels (JSON)** - Combined data in JSON format
-4. **Label Mapping** - Dictionary-based label assignment
-5. **Pattern-Based** - Rule-based label derivation
+Install dependencies:
+```bash
+pip install -r requirements.txt
+```
 
-### Integration with Transformers
+## Export Grammar Data
 
-Works seamlessly with Hugging Face transformers library:
-```python
-from transformers import AutoTokenizer
-from tokenization_with_labels import TokenizationWithLabels
-
-hf_tokenizer = AutoTokenizer.from_pretrained('aubmindlab/bert-base-arabertv2')
-tokenizer = TokenizationWithLabels(tokenizer=hf_tokenizer)
+To export all grammar data to Excel:
+```bash
+python Main_engine.py
 ```

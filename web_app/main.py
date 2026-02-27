@@ -1,146 +1,67 @@
-"""
-Web application for the Arabic Diana Project.
-
-This FastAPI application provides endpoints to interact with the Arabic grammar
-reconstruction engines and provides linguistic analysis capabilities.
-"""
-
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse
-from typing import List, Dict, Any
+"""FastAPI web application for displaying Arabic grammar activities."""
+from datetime import datetime
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 import sys
-import os
+from pathlib import Path
 
-# Add parent directory to path to import engines
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+# Ensure the parent directory is in PYTHONPATH to import Main_engine.
+# (Recommended: run with `PYTHONPATH=.. uvicorn web_app.main:app`)
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from Main_engine import collect_engines
 
-app = FastAPI(
-    title="Eqratech Arabic Diana Project",
-    description="Arabic NLP Project with all Arabic tools, verbs and names",
-    version="1.0.0"
-)
+app = FastAPI(title="Eqratech Arabic Diana Project - Activities")
+
+# Setup templates directory
+templates_dir = Path(__file__).parent / "templates"
+if not templates_dir.is_dir():
+    raise FileNotFoundError(f"Templates directory not found: {templates_dir}")
+templates = Jinja2Templates(directory=str(templates_dir))
+
+# Cache engines at startup to avoid repeated expensive module inspection
+_cached_engines = collect_engines()
 
 
-@app.get("/")
-async def root():
-    """Root endpoint with API information."""
+def _build_activities_list(engines):
+    """Build activities list from engine classes."""
+    activities = []
+    for engine_cls in engines:
+        sheet_name = getattr(engine_cls, 'SHEET_NAME', engine_cls.__name__)
+        activities.append({
+            'name': engine_cls.__name__,
+            'sheet_name': sheet_name,
+            'module': engine_cls.__module__
+        })
+    return activities
+
+
+@app.get("/", response_class=HTMLResponse)
+async def home(request: Request):
+    """Display today's activities and available engines."""
+    today = datetime.now().strftime("%Y-%m-%d")
+    activities = _build_activities_list(_cached_engines)
+    
+    return templates.TemplateResponse(
+        "index.html",
+        {
+            "request": request,
+            "today": today,
+            "activities": activities,
+            "total_activities": len(activities)
+        }
+    )
+
+
+@app.get("/api/activities")
+async def get_activities():
+    """Get list of available activities as JSON."""
+    today = datetime.now().strftime("%Y-%m-%d")
+    activities = _build_activities_list(_cached_engines)
+    
     return {
-        "message": "Welcome to Eqratech Arabic Diana Project API",
-        "version": "1.0.0",
-        "endpoints": {
-            "engines": "/engines - List all available grammar engines",
-            "engine_data": "/engines/{sheet_name} - Get data for a specific engine",
-            "health": "/health - Health check endpoint"
-        }
+        "date": today,
+        "total_activities": len(activities),
+        "activities": activities
     }
-
-
-@app.get("/health")
-async def health_check():
-    """Health check endpoint."""
-    return {"status": "healthy", "service": "arabic-diana-api"}
-
-
-@app.get("/engines")
-async def list_engines() -> List[Dict[str, str]]:
-    """List all available grammar reconstruction engines.
-    
-    Returns:
-        List of dictionaries containing engine information.
-    """
-    try:
-        engines = collect_engines()
-        engine_list = [
-            {
-                "name": engine.__name__,
-                "sheet_name": engine.SHEET_NAME,
-                "class": engine.__name__
-            }
-            for engine in engines
-        ]
-        return engine_list
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error collecting engines: {str(e)}")
-
-
-@app.get("/engines/{sheet_name}")
-async def get_engine_data(sheet_name: str, limit: int = 100):
-    """Get data from a specific engine by sheet name.
-    
-    Args:
-        sheet_name: The name of the engine's sheet
-        limit: Maximum number of rows to return (default: 100, max: 1000)
-        
-    Returns:
-        Dictionary containing the engine data.
-    """
-    try:
-        # Limit the maximum rows returned
-        limit = min(limit, 1000)
-        
-        engines = collect_engines()
-        
-        # Find the engine with matching sheet name
-        target_engine = None
-        for engine in engines:
-            if engine.SHEET_NAME == sheet_name:
-                target_engine = engine
-                break
-        
-        if target_engine is None:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Engine with sheet name '{sheet_name}' not found"
-            )
-        
-        # Generate the dataframe
-        df = target_engine.make_df()
-        
-        # Convert to dictionary format and limit rows
-        data = df.head(limit).to_dict(orient='records')
-        
-        return {
-            "sheet_name": sheet_name,
-            "engine": target_engine.__name__,
-            "total_rows": len(df),
-            "returned_rows": len(data),
-            "data": data
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error generating engine data: {str(e)}"
-        )
-
-
-@app.get("/export/all")
-async def export_all_engines():
-    """Trigger export of all engines to Excel file.
-    
-    Returns:
-        Status message about the export operation.
-    """
-    try:
-        from Main_engine import export_all
-        
-        output_path = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)),
-            'full_multilayer_grammar.xlsx'
-        )
-        
-        export_all(output_path)
-        
-        return {
-            "status": "success",
-            "message": "All engines exported successfully",
-            "output_file": output_path
-        }
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error exporting engines: {str(e)}"
-        )

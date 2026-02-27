@@ -24,7 +24,6 @@ wheels/
 venv/
 ENV/
 env/
-.venv
 
 # IDEs
 .vscode/
@@ -33,12 +32,9 @@ env/
 *.swo
 *~
 
-# Jupyter
-.ipynb_checkpoints/
-
 # OS
 .DS_Store
 Thumbs.db
 
-# Project specific
-~$*.xlsx
+# Temporary files
+~$*
