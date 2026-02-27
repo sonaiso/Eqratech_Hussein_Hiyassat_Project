@@ -79,8 +79,8 @@ def print_table_row(col1, col2, col3="", width1=20, width2=40, width3=15):
     print(f"  │ {col1:<{width1}} │ {col2:<{width2}} │ {col3:>{width3}} │")
 
 
-def test_1_word_boundaries(text):
-    """Test 1: Word Boundary Detection"""
+def _run_word_boundaries(text):
+    """Run word boundary detection and return boundaries for integration flow."""
     print_header("TEST 1: WORD BOUNDARY DETECTION", 80)
     
     detector = WordBoundaryDetectorPlanB()
@@ -111,10 +111,14 @@ def test_1_word_boundaries(text):
         print_section("Sample Suffixed Words")
         for word in [b.text for b in suffixed[:5]]:
             print(f"    → {word}")
-    
+
     return boundaries
 
 
+def test_1_word_boundaries(text):
+    """Test 1: Word Boundary Detection"""
+    _run_word_boundaries(text)
+    
 def test_2_root_extraction(boundaries):
     """Test 2: Root Extraction"""
     print_header("TEST 2: ROOT EXTRACTION ANALYSIS", 80)
@@ -384,7 +388,7 @@ def main():
     print(f"🔤 Text preview: {text[:100]}...")
     
     # Run all tests
-    boundaries = test_1_word_boundaries(text)
+    boundaries = _run_word_boundaries(text)
     test_2_root_extraction(boundaries)
     test_3_syllabification(boundaries)
     test_4_classification(boundaries)

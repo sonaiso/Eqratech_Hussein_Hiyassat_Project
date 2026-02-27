@@ -39,8 +39,8 @@ def load_irab_reference(csv_path="data/fath_verse_reference.csv"):
     return reference
 
 
-def test_1_word_boundaries():
-    """Test 1: Word Boundary Detection"""
+def _run_word_boundaries():
+    """Run word boundary detection and return boundaries for integration flow."""
     print("\n" + "="*70)
     print("TEST 1: WORD BOUNDARY DETECTION")
     print("="*70)
@@ -59,10 +59,14 @@ def test_1_word_boundaries():
     
     assert len(boundaries) > 40
     assert len(boundaries) < 80
-    
+
     return boundaries
 
 
+def test_1_word_boundaries():
+    """Test 1: Word Boundary Detection"""
+    _run_word_boundaries()
+    
 def test_2_root_extraction(boundaries):
     """Test 2: Root Extraction"""
     print("\n" + "="*70)
@@ -273,7 +277,7 @@ def test_full_pipeline():
     print("COMPREHENSIVE PIPELINE TEST - Surah Al-Fath 48:29")
     print("="*70)
     
-    boundaries = test_1_word_boundaries()
+    boundaries = _run_word_boundaries()
     test_2_root_extraction(boundaries)
     test_3_syllabification(boundaries)
     test_4_classification(boundaries)
