@@ -8,11 +8,14 @@ This is intentionally conservative: when unsure, we return `None`/`unknown`.
 from __future__ import annotations
 
 import unicodedata
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, TYPE_CHECKING
 
 from .morpheme import Pattern
 from .root_extractor import RootExtractionResult
 from .word_classifier import WordKind
+
+if TYPE_CHECKING:
+    from .mabni_rules import MabniResult
 
 
 def _strip_diacritics(text: str) -> str:
@@ -30,6 +33,20 @@ def _detect_case_from_token(token: str) -> Optional[str]:
         return "accusative"
     if "ٍ" in token:
         return "genitive"
+    # Infer from last short vowel (حركة) when no tanwin: ضمة→مرفوع، فتحة→منصوب، كسرة→مجرور
+    if not token:
+        return None
+    normalized = unicodedata.normalize("NFD", token)
+    for i in range(len(normalized) - 1, -1, -1):
+        c = normalized[i]
+        if unicodedata.category(c) != "Mn":
+            break
+        if c == "\u064F":  # damma ُ
+            return "nominative"
+        if c == "\u064E":  # fatha َ
+            return "accusative"
+        if c == "\u0650":  # kasra ِ
+            return "genitive"
     return None
 
 
@@ -93,7 +110,8 @@ def _infer_case(bare: str, *, token: str, suffix: Optional[str] = None) -> Optio
         return "nominative"
     if suf == "ين" or bare.endswith("ين"):
         return "accusative_or_genitive"
-    return None
+    # Fallback: case from last short vowel in token (for إسنادي etc.)
+    return _detect_case_from_token(token)
 
 
 _DETACHED_PRONOUN_FEATURES: Dict[str, Dict[str, Any]] = {
@@ -136,11 +154,23 @@ def _attached_pronoun_from_suffix(suffix: str) -> Optional[Dict[str, Any]]:
     return {"suffix": tail, **info}
 
 
+def _apply_mabni_rules(features: Dict[str, Any], mabni_result: Optional["MabniResult"]) -> None:
+    """Rule 1 & 4: For mabniyat, no case from vowel; number/gender from DB."""
+    if not mabni_result or not getattr(mabni_result, "is_mabni", False):
+        return
+    features["case"] = None
+    features["number"] = getattr(mabni_result, "number", None) or features.get("number")
+    features["gender"] = getattr(mabni_result, "gender", None) or features.get("gender")
+    features["is_mabni"] = True
+    features["i3rab_status"] = getattr(mabni_result, "i3rab_status", "مبني")
+
+
 def extract_features(
     token: str,
     extraction: RootExtractionResult,
     pattern: Optional[Pattern],
     kind: WordKind,
+    mabni_result: Optional["MabniResult"] = None,
 ) -> Dict[str, Any]:
     bare = _strip_diacritics(token)
     features: Dict[str, Any] = {
@@ -173,6 +203,7 @@ def extract_features(
             features["gender"] = "unknown"
             features["definite"] = None
             features["case"] = None
+        _apply_mabni_rules(features, mabni_result)
         return features
 
     # Closed-class items that are not analyzed morphologically.
@@ -186,6 +217,7 @@ def extract_features(
             ap = _attached_pronoun_from_suffix(extraction.suffix)
             if ap:
                 features["attached_pronoun"] = ap
+        _apply_mabni_rules(features, mabni_result)
         return features
 
     # V1 heuristics
@@ -204,5 +236,6 @@ def extract_features(
         if ap:
             features["attached_pronoun"] = ap
 
+    _apply_mabni_rules(features, mabni_result)
     return features
 

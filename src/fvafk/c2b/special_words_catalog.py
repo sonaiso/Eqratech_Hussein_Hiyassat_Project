@@ -34,15 +34,11 @@ class SpecialWordsCatalog:
     - additional_excludes.csv: categories (DEMONSTRATIVE/PARTICLE/PREP_*) with root hints
     """
 
-    DEFAULT_GOLDEN_NAMES = Path(
-        "/Users/husseinhiyassat/clean_code__morphology_pipeline/data/golden_name_base.csv"
-    )
-    DEFAULT_ADDITIONAL_EXCLUDES = Path(
-        "/Users/husseinhiyassat/clean_code__morphology_pipeline/data/additional_excludes.csv"
-    )
-    DEFAULT_NO_ROOT_JAWAMED = Path(
-        "/Users/husseinhiyassat/clean_code__morphology_pipeline/data/no_root_jawamed-new.csv"
-    )
+    _BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
+    DEFAULT_GOLDEN_NAMES = _BASE_DIR / "data" / "golden_name_base.csv"
+    # Rule-based: use project data only. Fallback paths (optional CSVs) under project data.
+    DEFAULT_ADDITIONAL_EXCLUDES = _BASE_DIR / "data" / "additional_excludes.csv"
+    DEFAULT_NO_ROOT_JAWAMED = _BASE_DIR / "data" / "no_root_jawamed-new.csv"
 
     def __init__(
         self,
@@ -97,10 +93,25 @@ class SpecialWordsCatalog:
         bare = _strip_diacritics(token)
         if not bare:
             return None
-        entry = self._map.get(bare)
         prefixes = ""
-        # Peel conjunction-like prefixes (و/ف) and retry for closed-class words.
-        # This helps cases like: والذين / فذلك / وذلك ...
+        entry = self._map.get(bare)
+        # Prefer و/ف + golden name (e.g. وَاللَّهُ → particle و + name الله, nominative)
+        if len(bare) > 2 and bare[0] in {"و", "ف"}:
+            p, remainder = self._peel_prefixes(bare)
+            if remainder and remainder != bare:
+                remainder_entry = self._map.get(remainder)
+                if remainder_entry and remainder_entry.kind == "excluded_name":
+                    return {
+                        "token_bare": bare,
+                        "kind": remainder_entry.kind,
+                        "category": remainder_entry.category,
+                        "root_hint": remainder_entry.root_hint,
+                        "status": remainder_entry.status,
+                        "prefixes": p or None,
+                        "source_path": remainder_entry.source_path,
+                    }
+                if not entry and remainder_entry:
+                    entry, prefixes = remainder_entry, p
         if not entry and len(bare) > 2 and bare[0] in {"و", "ف"}:
             prefixes, remainder = self._peel_prefixes(bare)
             if remainder and remainder != bare:
@@ -183,21 +194,52 @@ class SpecialWordsCatalog:
         if not path.exists():
             return
         try:
-            # This file is not a clean CSV; parse lines defensively.
+            with open(path, encoding="utf-8-sig", newline="") as f:
+                reader = csv.DictReader(f)
+                fieldnames = (reader.fieldnames or [])
+                # Project format: seed,kind,base,best_vocalized,occurrences,variants_top
+                if "base" in fieldnames or "seed" in fieldnames:
+                    for row in reader:
+                        base = (row.get("base") or row.get("seed") or "").strip()
+                        if not base:
+                            continue
+                        bare = _strip_diacritics(base)
+                        if not bare:
+                            continue
+                        entry = SpecialEntry(
+                            kind="excluded_name",
+                            category="name",
+                            status="EXCLUDED",
+                            source_path=str(path),
+                        )
+                        self._map.setdefault(bare, entry)
+                        # Register bare form of best_vocalized and variants_top (e.g. اللَّهُ → الله)
+                        best = (row.get("best_vocalized") or "").strip()
+                        if best:
+                            self._map.setdefault(_strip_diacritics(best), entry)
+                        variants_top = (row.get("variants_top") or "").strip()
+                        if variants_top:
+                            for part in variants_top.split(";"):
+                                part = part.strip()
+                                if "(" in part:
+                                    form = part[: part.index("(")].strip()
+                                else:
+                                    form = part
+                                if form:
+                                    self._map.setdefault(_strip_diacritics(form), entry)
+                    return
+            # Legacy format: tab or comma WORD, STATUS
             with open(path, encoding="utf-8-sig") as f:
                 for raw in f:
                     line = raw.strip()
                     if not line:
                         continue
-                    # skip obvious header lines
                     if line.lower().startswith("word"):
                         continue
                     if "Word_Clean" in line and "Status" in line:
                         continue
-                    # likely tab-separated: WORD <TAB> STATUS <TAB> COUNT
                     parts = [p.strip() for p in line.split("\t") if p.strip()]
                     if len(parts) < 2:
-                        # fallback: comma-separated
                         parts = [p.strip() for p in line.split(",") if p.strip()]
                     if len(parts) < 2:
                         continue

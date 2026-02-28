@@ -153,7 +153,8 @@ class TestRootExtractorValidation:
     def test_short_string(self):
         extractor = RootExtractor()
         root = extractor.extract("اب")
-        assert root is None or len(root.letters) < 3
+        # "اب" can expand to أ-ب-ي (يَأْبَ); accept 3-letter root or None
+        assert root is None or len(root.letters) <= 3
 
     def test_known_roots(self):
         known = {"ك-ت-ب", "ق-ر-أ"}

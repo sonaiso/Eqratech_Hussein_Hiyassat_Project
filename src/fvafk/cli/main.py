@@ -137,7 +137,7 @@ class MinimalCLI:
         syntax_result = None
         if morphology and morphology_result:
             try:
-                from fvafk.c2b.word_form_builder import WordFormBuilder
+                from fvafk.c2b.word_form import WordFormBuilder
                 from fvafk.syntax.linkers import find_isnadi_links
 
                 c2b_words = (
@@ -310,9 +310,28 @@ class MinimalCLI:
 
     def _analyze_morphology(self, text: str) -> Dict[str, Any]:
         from fvafk.c2b.features import extract_features
+        from fvafk.c2b.mabni_rules import classify_mabni
         from fvafk.c2b.root_extractor import RootExtractionResult
         from fvafk.c2b.pattern_analyzer import PatternAnalyzer
         from fvafk.c2b.word_classifier import WordClassifier, WordKind
+
+        mabni_result = classify_mabni(text)
+        if mabni_result.is_mabni:
+            bare = "".join(c for c in text if not (ord(c) in range(0x064B, 0x0653) or c == "\u0670"))
+            dummy = RootExtractionResult(
+                root=None,
+                normalized_word=bare or text,
+                stripped_word=bare or text,
+                prefix="",
+                suffix="",
+            )
+            return {
+                "kind": "mabni",
+                "mabni": mabni_result.to_dict(),
+                "root": None,
+                "pattern": None,
+                "features": extract_features(text, dummy, None, WordKind.PARTICLE, mabni_result=mabni_result),
+            }
 
         classifier = WordClassifier()
         classification = classifier.classify(text)
@@ -349,7 +368,7 @@ class MinimalCLI:
                 payload_key: classification.special,
                 "root": None,
                 "pattern": None,
-                "features": extract_features(text, dummy, None, classification.kind),
+                "features": extract_features(text, dummy, None, classification.kind, mabni_result=mabni_result),
             }
 
         # Detached pronouns: do not attempt root/pattern.
@@ -368,7 +387,7 @@ class MinimalCLI:
                 "pronoun": classification.pronoun,
                 "root": None,
                 "pattern": None,
-                "features": extract_features(text, dummy, None, WordKind.PRONOUN),
+                "features": extract_features(text, dummy, None, WordKind.PRONOUN, mabni_result=mabni_result),
             }
 
         root_extractor = RootExtractor()
@@ -381,7 +400,7 @@ class MinimalCLI:
                 "root": None,
                 "pattern": None,
                 "error": "Could not extract root from input text",
-                "features": extract_features(text, extraction, None, WordKind.UNKNOWN),
+                "features": extract_features(text, extraction, None, WordKind.UNKNOWN, mabni_result=mabni_result),
             }
 
         # ------------------------------------------------------------------
@@ -580,7 +599,7 @@ class MinimalCLI:
                 "error": "Could not match pattern"
             }
 
-        features = extract_features(text, extraction, pattern, final_kind)
+        features = extract_features(text, extraction, pattern, final_kind, mabni_result=mabni_result)
         result["affixes"] = {
             "prefix": extraction.prefix or None,
             "suffix": extraction.suffix or None,
@@ -593,6 +612,7 @@ class MinimalCLI:
         """تحليل نص متعدد الكلمات - يستخرج الجذر لكل كلمة."""
         from fvafk.c2b.word_boundary import WordBoundaryDetector
         from fvafk.c2b.features import extract_features
+        from fvafk.c2b.mabni_rules import classify_mabni
         from fvafk.c2b.root_extractor import RootExtractionResult
         from fvafk.c2b.pattern_analyzer import PatternAnalyzer
         from fvafk.c2b.word_classifier import WordClassifier, WordKind
@@ -611,6 +631,27 @@ class MinimalCLI:
         for sp in spans:
             word = sp.token
             if not word or len(word) < 2:
+                continue
+
+            mabni_result = classify_mabni(word)
+            if mabni_result.is_mabni:
+                bare = "".join(c for c in word if not (ord(c) in range(0x064B, 0x0653) or c == "\u0670"))
+                dummy = RootExtractionResult(
+                    root=None,
+                    normalized_word=bare or word,
+                    stripped_word=bare or word,
+                    prefix="",
+                    suffix="",
+                )
+                words_analysis.append({
+                    "word": word,
+                    "span": {"start": sp.start, "end": sp.end},
+                    "kind": "mabni",
+                    "mabni": mabni_result.to_dict(),
+                    "root": None,
+                    "pattern": None,
+                    "features": extract_features(word, dummy, None, WordKind.PARTICLE, mabni_result=mabni_result),
+                })
                 continue
 
             classification = classifier.classify(word)
@@ -666,7 +707,7 @@ class MinimalCLI:
                         payload_key: classification.special,
                         "root": None,
                         "pattern": None,
-                        "features": extract_features(word, dummy, None, classification.kind),
+                        "features": extract_features(word, dummy, None, classification.kind, mabni_result=mabni_result),
                     }
                 )
                 continue
@@ -689,7 +730,7 @@ class MinimalCLI:
                         "pronoun": classification.pronoun,
                         "root": None,
                         "pattern": None,
-                        "features": extract_features(word, dummy, None, WordKind.PRONOUN),
+                        "features": extract_features(word, dummy, None, WordKind.PRONOUN, mabni_result=mabni_result),
                     }
                 )
                 continue
@@ -705,7 +746,7 @@ class MinimalCLI:
                     "root": None,
                     "pattern": None,
                     "error": "Could not extract root",
-                    "features": extract_features(word, extraction, None, WordKind.UNKNOWN),
+                    "features": extract_features(word, extraction, None, WordKind.UNKNOWN, mabni_result=mabni_result),
                 })
                 continue
             
@@ -881,7 +922,7 @@ class MinimalCLI:
                 "stripped": extraction.stripped_word,
             }
 
-            features = extract_features(word, extraction, pattern, final_kind)
+            features = extract_features(word, extraction, pattern, final_kind, mabni_result=mabni_result)
             if force_noun_genitive:
                 # best-effort: mark likely genitive after preposition
                 features["case"] = features.get("case") or "genitive"

@@ -6,6 +6,15 @@ from fvafk.c2b.morpheme import PatternType, Root, RootType
 from fvafk.c2b.pattern_matcher import PatternDatabase, PatternMatcher
 
 
+
+
+@pytest.fixture(autouse=True)
+def clear_pattern_cache():
+    """Clear pattern cache before each test."""
+    from fvafk.c2b.awzan_loader import AwzanPatternLoader
+    AwzanPatternLoader._cache = None
+    yield
+
 class TestPatternDatabase:
     def test_database_has_patterns(self):
         db = PatternDatabase()
@@ -37,7 +46,7 @@ class TestPatternMatcherVerbForms:
     def test_form_x(self):
         matcher = PatternMatcher()
         root = Root(letters=("ك", "ت", "ب"), root_type=RootType.TRILATERAL)
-        pattern = matcher.match("استكتب", root)
+        pattern = matcher.match("اسْتَكْتَبَ", root)
         assert pattern
         assert pattern.pattern_type == PatternType.FORM_X
 

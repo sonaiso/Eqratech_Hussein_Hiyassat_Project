@@ -5,6 +5,7 @@ PatternMatcher: Recognize Arabic morphological patterns.
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -42,6 +43,7 @@ class PatternTemplate:
         if self.notes:
             features["notes"] = self.notes
         return features
+
     def matches_root_type(self, root: Root) -> bool:
         count = sum(1 for c in self.template if c in {'ف', 'ع', 'ل'})
         if len(root.letters) >= count:
@@ -49,51 +51,52 @@ class PatternTemplate:
         return False
 
 
+
+
+def _remove_tanwin_alif(word: str) -> str:
+    """
+    Remove tanwin alif and tanwin itself: عَظِيمًا → عَظِيم
+    """
+    FATHATAN = "\u064B"
+    DAMMATAN = "\u064C"
+    KASRATAN = "\u064D"
+    ALIF = "\u0627"
+    
+    # 1. Remove (fathatan + alif)
+    word = word.replace(FATHATAN + ALIF, "")
+    
+    # 2. Remove (alif + fathatan) - reversed order
+    word = word.replace(ALIF + FATHATAN, "")
+    
+    # 3. Remove standalone alif at end after fatha
+    word = re.sub(r'َ' + ALIF + r'$', 'َ', word)
+    
+    # 4. Remove remaining tanwin
+    TANWIN = {FATHATAN, DAMMATAN, KASRATAN}
+    for t in TANWIN:
+        word = word.replace(t, "")
+    
+    return word
+
 class PatternDatabase:
     def __init__(self) -> None:
         self.patterns: List[PatternTemplate] = []
         self._initialize_patterns()
 
     def _initialize_patterns(self) -> None:
-        base = [
-            PatternTemplate(template="فَعَلَ", pattern_type=PatternType.FORM_I, category="verb", form="I"),
-            PatternTemplate(template="فَعَلَ", pattern_type=PatternType.FORM_I, category="verb", form="I"),
-            PatternTemplate(template="فَعِلَ", pattern_type=PatternType.FORM_I, category="verb", form="I"),
-            PatternTemplate(template="فَعُلَ", pattern_type=PatternType.FORM_I, category="verb", form="I"),
-            PatternTemplate(template="فَعَّلَ", pattern_type=PatternType.FORM_II, category="verb", form="II"),
-            PatternTemplate(template="فَاعَلَ", pattern_type=PatternType.FORM_III, category="verb", form="III"),
-            PatternTemplate(template="أَفْعَلَ", pattern_type=PatternType.FORM_IV, category="verb", form="IV"),
-            PatternTemplate(template="تَفَعَّلَ", pattern_type=PatternType.FORM_V, category="verb", form="V"),
-            PatternTemplate(template="تَفَاعَلَ", pattern_type=PatternType.FORM_VI, category="verb", form="VI"),
-            PatternTemplate(template="انْفَعَلَ", pattern_type=PatternType.FORM_VII, category="verb", form="VII"),
-            PatternTemplate(template="افْتَعَلَ", pattern_type=PatternType.FORM_VIII, category="verb", form="VIII"),
-            PatternTemplate(template="اسْتَفْعَلَ", pattern_type=PatternType.FORM_X, category="verb", form="X"),
-            PatternTemplate(template="فَاعِل", pattern_type=PatternType.ACTIVE_PARTICIPLE, category="noun"),
-            PatternTemplate(template="مَفْعُول", pattern_type=PatternType.PASSIVE_PARTICIPLE, category="noun"),
-            PatternTemplate(template="مَفْعَل", pattern_type=PatternType.PLACE_TIME_NOUN, category="noun"),
-            PatternTemplate(template="فِعَال", pattern_type=PatternType.VERBAL_NOUN, category="noun"),
-            PatternTemplate(template="فَعِيل", pattern_type=PatternType.INTENSIVE, category="noun"),
-            PatternTemplate(template="أَفْعَل", pattern_type=PatternType.ELATIVE, category="noun"),
-            PatternTemplate(template="فَاعِلُون", pattern_type=PatternType.SOUND_MASCULINE_PLURAL, category="plural"),
-            PatternTemplate(template="فَاعِلِين", pattern_type=PatternType.SOUND_MASCULINE_PLURAL, category="plural"),
-            PatternTemplate(template="فَاعِلَات", pattern_type=PatternType.SOUND_FEMININE_PLURAL, category="plural"),
-            PatternTemplate(template="فُعُول", pattern_type=PatternType.BROKEN_PLURAL_FUUL, category="plural"),
-            PatternTemplate(template="فِعَال", pattern_type=PatternType.BROKEN_PLURAL_FIAAL, category="plural"),
-            PatternTemplate(template="أَفْعَال", pattern_type=PatternType.BROKEN_PLURAL_AFAAL, category="plural"),
-            PatternTemplate(template="فِعَل", pattern_type=PatternType.BROKEN_PLURAL_FIUL, category="plural"),
-            # High-impact broken plurals (Qur'anic frequent)
-            PatternTemplate(template="فُعَّل", pattern_type=PatternType.BROKEN_PLURAL_FU33AL, category="plural"),
-            PatternTemplate(template="فُعَلَاء", pattern_type=PatternType.BROKEN_PLURAL_FU3ALAA, category="plural"),
-            PatternTemplate(template="فُعَلَاءُ", pattern_type=PatternType.BROKEN_PLURAL_FU3ALAA, category="plural"),
-        ]
+        # Load all patterns from CSV only
         extra_patterns = AwzanPatternLoader.load()
-        seen_templates = {p.template for p in base}
+        
+        patterns_list = []
+        seen: Set[Tuple[str, PatternType]] = set()
+        
         for data in extra_patterns:
             tpl = data["template"]
-            if tpl in seen_templates:
+            pt = data["pattern_type"]
+            if (tpl, pt) in seen:
                 continue
-            seen_templates.add(tpl)
-            base.append(
+            seen.add((tpl, pt))
+            patterns_list.append(
                 PatternTemplate(
                     template=tpl,
                     pattern_type=data["pattern_type"],
@@ -106,9 +109,12 @@ class PatternDatabase:
                     notes=data["notes"],
                 )
             )
-        self.patterns.extend(base)
+        
+        self.patterns.extend(patterns_list)
+        
+        # Build category index
         self._by_category = {}
-        for p in base:
+        for p in patterns_list:
             self._by_category.setdefault(p.category, []).append(p)
 
     def get_all(self) -> List[PatternTemplate]:
@@ -118,10 +124,6 @@ class PatternDatabase:
         return self._by_category.get(category, [])
 
 
-from fvafk.c1.cv_pattern import advanced_cv_pattern
-from fvafk.c1.cv_pattern import cv_pattern
-
-
 class PatternMatcher:
     def __init__(self, database: Optional[PatternDatabase] = None) -> None:
         self.database = database or PatternDatabase()
@@ -129,28 +131,25 @@ class PatternMatcher:
     def match(self, word: str, root: Root) -> Optional[Pattern]:
         if not word or not root:
             return None
-        # IMPORTANT (per awzan_test_report): compute CV from the ORIGINAL word (with tashkeel)
-        # not from stripped/normalized stems.
-        advanced_cv_word = self._sanitize_cv(advanced_cv_pattern(word))
-        simple_cv_word = cv_pattern(word)
+        
         normalized = self._normalize(word)
+        
+        # Try categories in priority order
         categories = ["verb", "noun", "plural"]
         checked = set()
+        
         for category in categories:
             for template in self.database.get_by_category(category):
                 if id(template) in checked:
                     continue
                 checked.add(id(template))
+                
                 if not template.matches_root_type(root):
                     continue
+                
                 candidate = self._instantiate_template(template.template, root)
-                matched, confidence = self._matches(
-                    normalized,
-                    candidate,
-                    template.pattern_type,
-                    advanced_cv_word,
-                    template,
-                )
+                matched, confidence = self._matches(normalized, candidate, template.pattern_type)
+                
                 if matched:
                     return Pattern(
                         name=template.pattern_type.value,
@@ -159,19 +158,18 @@ class PatternMatcher:
                         stem=word,
                         features={**template.feature_map(), "confidence": f"{confidence:.2f}"},
                     )
+        
+        # Try all remaining patterns
         for template in self.database.get_all():
             if id(template) in checked:
                 continue
+            
             if not template.matches_root_type(root):
                 continue
+            
             candidate = self._instantiate_template(template.template, root)
-            matched, confidence = self._matches(
-                normalized,
-                candidate,
-                template.pattern_type,
-                advanced_cv_word,
-                template,
-            )
+            matched, confidence = self._matches(normalized, candidate, template.pattern_type)
+            
             if matched:
                 return Pattern(
                     name=template.pattern_type.value,
@@ -180,85 +178,44 @@ class PatternMatcher:
                     stem=word,
                     features={**template.feature_map(), "confidence": f"{confidence:.2f}"},
                 )
-
-        # ------------------------------------------------------------------
-        # CV-based fallback (golden rule from docs/awzan_test_report.md)
-        # ------------------------------------------------------------------
-        # If exact template instantiation didn't match (often due to missing diacritics
-        # or orthographic variants), fall back to matching by CV / Advanced_CV fields
-        # in the awzan database, computed from the original word.
-        #
-        # This increases coverage; confidence is lower than exact instantiation.
-        for template in self.database.get_all():
-            # Prefer Advanced_CV when available.
-            if template.cv_advanced:
-                template_cv_adv = self._sanitize_cv(template.cv_advanced)
-                if template_cv_adv and template_cv_adv == advanced_cv_word:
-                    return Pattern(
-                        name=template.pattern_type.value,
-                        template=template.template,
-                        pattern_type=template.pattern_type,
-                        stem=word,
-                        features={**template.feature_map(), "confidence": "0.75"},
-                    )
-            if template.cv_simple and template.cv_simple == simple_cv_word:
-                return Pattern(
-                    name=template.pattern_type.value,
-                    template=template.template,
-                    pattern_type=template.pattern_type,
-                    stem=word,
-                    features={**template.feature_map(), "confidence": "0.70"},
-                )
-
+        
         return None
 
     def _normalize(self, word: str) -> str:
-        # Convert Tanwin to standard short vowels
-        # This is critical for matching catalog patterns (e.g., matching "كاتبٌ" with "فاعل")
-        text = word.replace('ً', 'َ').replace('ٌ', 'ُ').replace('ٍ', 'ِ')
+        # Remove tanwin + support alif first (عَظِيمًا → عَظِيم) so matching works
+        text = _remove_tanwin_alif(word)
+        # Convert any remaining Tanwin to standard short vowels
+        text = text.replace('ً', 'َ').replace('ٌ', 'ُ').replace('ٍ', 'ِ')
         
         # Remove definiteness (Al-)
-        # Strip simple "ال" prefix
         if text.startswith("ال") and len(text) > 3:
-             # Find end of "ال" (skip non-letters)
-             idx = 2
-             while idx < len(text) and text[idx] in "ْ":
-                 idx += 1
-             
-             # Handle Sun letters (Shadda after Al)
-             # e.g., "الشَّمْس" -> "شَّمْس" -> we want to match pattern "فَعْل"
-             # If next char has shadda, keep it but remove the Al
-             # Actually, templates usually don't have the shadda from sun letters
-             # So we should probably strip that shadda too if it's a sun letter effect
-             
-             stem_start = idx
-             stem = text[stem_start:]
-             
-             # If the first letter of the stem has a shadda, it might be a sun letter assimilation
-             # We should remove the shadda to recover the underlying form for pattern matching
-             # e.g. "الشَّمْس" -> "شَمْس" (to match fa3l)
-             if len(stem) > 1 and stem[1] == 'ّ':
-                 # Remove shadda
-                 stem = stem[0] + stem[2:]
-                 
-             text = stem
+            idx = 2
+            while idx < len(text) and text[idx] in "ْ":
+                idx += 1
+            
+            stem_start = idx
+            stem = text[stem_start:]
+            
+            # Remove sun letter shadda
+            if len(stem) > 1 and stem[1] == 'ّ':
+                stem = stem[0] + stem[2:]
+            
+            text = stem
 
-        # If the surface had fathatan, Arabic orthography often adds a final alif (…ًا).
-        # After stripping marks, drop this support-alif to match templates (e.g., عظيمًا -> عظيم).
-        # Note: We already converted tanwin to short vowel, so we check for 'َ' at end + 'ا'
+        # Remove support alif after fathatan
         if text.endswith("َا") and len(text) > 3:
-             text = text[:-1] # Remove the alif, keep the fatha? 
-             # Actually, templates like "فعِيل" (aziim) don't have the fatha at the end usually
-             # But let's stick to the previous logic of stripping it if it was a support alif
-             pass
+            pass
 
+        # Normalize hamza and alif
         text = text.replace('أ', 'ا').replace('إ', 'ا').replace('آ', 'ا')
         text = text.replace('ى', 'ي')
+        
         return text.strip()
 
     def _instantiate_template(self, template_str: str, root: Root) -> str:
         chars = []
         l_count = 0
+        
         for ch in template_str:
             if ch == 'ف':
                 chars.append(root.letters[0])
@@ -273,6 +230,7 @@ class PatternMatcher:
                 l_count += 1
             else:
                 chars.append(ch)
+        
         return ''.join(chars)
 
     def _matches(
@@ -280,97 +238,71 @@ class PatternMatcher:
         word: str,
         candidate: str,
         pattern_type: PatternType,
-        advanced_cv_word: str,
-        template: PatternTemplate,
     ) -> Tuple[bool, float]:
+        # Remove tanwin and tanwin alif first
+        word = _remove_tanwin_alif(word)
+        
+        # Normalize to NFD so equivalent diacritic orderings compare equal
+        # (e.g. ل+shadda+fatha vs ل+fatha+shadda for Form II عَلَّمَ)
+        word = unicodedata.normalize("NFD", word)
+        candidate = unicodedata.normalize("NFD", candidate)
+
+        # Exact match
         if word == candidate:
             return True, 1.0
-        
-        # Apply the SAME normalization used in arabic_wazn_matcher_gate.py:
-        # Check if units match (placeholder-aware)
-        
-        # We need to split into units to check shadda/vowel alignment
-        # This requires importing the unit logic or approximating it.
-        # Given we don't have the full Unit class here, let's stick to text matching
-        # but be smarter about shaddas.
-        
+
+        # Strip diacritics and compare
         stripped_word = self._strip_diacritics(word)
         stripped_candidate = self._strip_diacritics(candidate)
         
-        # If consonants don't match, fail immediately
+        # Consonants must match
         if stripped_word != stripped_candidate:
             return False, 0.0
-            
-        # If broken plural fu'ul, special check (unchanged)
-        if pattern_type == PatternType.BROKEN_PLURAL_FUUL:
-            candidate_no_waw = candidate.replace("و", "")
-            stripped_candidate_no_waw = self._strip_diacritics(candidate_no_waw)
-            if stripped_word == stripped_candidate_no_waw:
-                return True, 0.85
         
-        # Check CV pattern if available
-        if template.cv_advanced:
-            template_cv = self._sanitize_cv(template.cv_advanced)
-            if template_cv and (not advanced_cv_word or advanced_cv_word != template_cv):
-                pass
-        
-        # Check shadda match (Crucial from gate matcher)
+        # Check shadda consistency
         # If candidate has shadda, word MUST have shadda
         if 'ّ' in candidate and 'ّ' not in word:
-             return False, 0.0
-             
-        # If candidate has no shadda (and is not placeholder-heavy), word should not have shadda?
-        # In gate matcher: if p_sh and not w_sh -> Fail. if not p_sh and w_sh -> Fail (unless placeholder).
-        # Here candidate is instantiated, so placeholders are filled.
-        # But root letters might have shadda natively? No, usually pattern dictates shadda.
+            return False, 0.0
+        
+        # If candidate has no shadda, word should not have shadda
         if 'ّ' not in candidate and 'ّ' in word:
-             return False, 0.0
-
+            return False, 0.0
+        
         # Lenient match: ignore final short vowel differences
-        # e.g. "كَاتِبُ" vs "كَاتِب"
         def strip_final_vowel(s):
             if s and s[-1] in "َُِ":
                 return s[:-1]
             return s
-            
+        
         if strip_final_vowel(word) == strip_final_vowel(candidate):
             return True, 0.95
-            
+        
         # If lengths match (and stripped text matches), good enough
         if len(word) == len(candidate):
             return True, 0.90
-            
+        
+        # Special handling for Form X
         if pattern_type == PatternType.FORM_X:
             return True, 0.9
-            
-        # If we got here, stripped text matches but full text doesn't
-        # Likely a vowel mismatch. Return a lower confidence match
+        
+        # Vowel mismatch but consonants match
         return True, 0.60
 
-    @staticmethod
-    def _sanitize_cv(value: str) -> str:
-        return "".join(ch for ch in value if ch.isalpha())
-
     def _strip_diacritics(self, text: str) -> str:
-        # Standardize hamza carriers first
+        # Standardize hamza carriers - preserve hamza!
+        # For root extraction, we need to keep hamza distinct
+        # Only normalize the CARRIER, not the hamza itself
         text = (
-            text.replace("أ", "ا")
-            .replace("إ", "ا")
-            .replace("آ", "ا")
-            .replace("ؤ", "و")
-            .replace("ئ", "ي")
+            text.replace("أ", "ء")   # hamza on alif → standalone hamza
+            .replace("إ", "ء")       # hamza under alif → standalone hamza
+            .replace("آ", "ءا")      # alif madda → hamza + alif
+            .replace("ؤ", "ءو")      # hamza on waw → hamza + waw
+            .replace("ئ", "ءي")      # hamza on ya → hamza + ya
         )
         
-        diacritics = "َُِْٰٓٔٱ" + "ًٌٍ" + "ّ"
-        for d in diacritics:
-            text = text.replace(d, '')
-            
-        text = re.sub(r'[\u064B-\u0650\u0652-\u065F\u0670]', '', text)
+        # Remove diacritics (keep shadda!)
+        diacritics = "ْٰٓٔٱًٌٍ"
+        for mark in diacritics:
+            text = text.replace(mark, "")
         
-        # Handle support alif from tanwin fatha
-        if text.endswith("ا") and len(text) > 3:
-             # Heuristic: if it looks like a support alif (e.g. kitaban -> kitab)
-             # But be careful not to strip root letters
-             pass
-             
         return text

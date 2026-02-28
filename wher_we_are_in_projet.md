@@ -73,6 +73,7 @@ While the infrastructure is solid, here is the honest gap between **Current Code
 2.  **Add Constraints**: Implement `ConstraintValidator` to enforce grammar rules (e.g., Verb-Subject agreement).
 3.  **Connect the Brain**: Use the `data/arabic_json` knowledge base to drive the Syntax engine, rather than just heuristics.
 4.  **Implement Advanced Features**: Add explicit detection for *Adad*, *Jins*, *Hadhf*, and *Taqdir*.
+5.  **قبل الإنتاج**: عند نهاية المشروع والذهاب إلى production، تنفيذ مراجعة "Production Readiness" (قواعد البيانات، الاختبارات، المسارات، التطبيع، الـ verbose) — انظر القسم أدناه.
 
 ---
 
@@ -109,3 +110,19 @@ We acknowledged the gap between "Structure exists" and "Functionality works on r
     *   **Result**: Detection jumped from 2.3% to 20.2% (26/129 words). This validates the catalog loading logic.
 
 **Conclusion**: The *integration* effort is bearing fruit (Syntax +34%, Mabniyat +18%), but critical bugs remain in Pattern Matching and Operator Stats. We are tuning the machines, and some are coming online.
+
+---
+
+## 🚀 قبل الإنتاج (Production Readiness – نهاية المشروع)
+
+عند الذهاب إلى **production** يجب تنفيذ المراجعة والتعديلات التالية:
+
+| البند | الوصف |
+|-------|--------|
+| **قواعد البيانات والأدوات** | مراجعة وتصليب `OperatorsParticlesDatabase`، `SpecialWordsDatabase` (asma_mawsolah)، وكل قواعد البيانات المشتقة من JSON/CSV؛ التأكد من معالجة الأخطاء ووجود الملفات. |
+| **الاختبارات** | مراجعة جميع ملفات الاختبار (مثل `test_operators_particles_db.py`)؛ إصلاح أي أخطاء تركيبية أو منطقية؛ التأكد من عدم وجود كود تجريبي معطوب أو مكرر. |
+| **المسارات والملفات** | عدم الاعتماد على مسارات تطويرية فقط؛ دعم تكوين مسارات البيانات (env أو config) للإنتاج. |
+| **التطبيع والـ Unicode** | التأكد من تطبيق NFC (أو المعيار المتفق عليه) بشكل موحد على كل المدخلات والمخرجات العربية. |
+| **الأداء والسجلات** | تعطيل أو تقليل المخرجات اللفظية (verbose) في الإنتاج؛ عدم طباعة تفاصيل التحميل إلا عند الحاجة. |
+
+يُنصح بإدراج هذه البنود في **Sprint 6 (Polish)** أو في مرحلة "Integration & Polish" قبل الإطلاق.

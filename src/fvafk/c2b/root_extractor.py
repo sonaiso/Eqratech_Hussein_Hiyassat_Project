@@ -86,6 +86,13 @@ class RootExtractor:
     # Quran-oriented "do not split" stems (only peel attached pronouns after them)
     _NO_SPLIT_STEMS = {"سيما"}
 
+    # Rule table: (set of stripped forms, root letters). Applied only when stripping rules produce one of these forms.
+    # No external knowledge: add entries here to get a root for a given stripped form.
+    STRIPPED_FORM_TO_ROOT: List[Tuple[Set[str], Tuple[str, ...]]] = [
+        ({"ترا", "يري", "راي"}, ("ر", "أ", "ي")),
+        ({"وي", "وى", "ويٰ"}, ("س", "و", "ي")),  # applied only when prefix contains "است" (see below)
+    ]
+
     def __init__(self, known_roots: Optional[Set[str]] = None):
         self.known_roots = known_roots or set()
 
@@ -123,9 +130,15 @@ class RootExtractor:
                 allow_faw_fatha_clitics=allow_faw_fatha,
             )
 
-            # Quran-focused tiny exception: verb of seeing (رأى/يرى/ترى + clitics)
-            if stripped_extraction in {"ترا", "يري", "راي"}:
-                root = Root(letters=("ر", "أ", "ي"), root_type=RootType.TRILATERAL)
+            # Rule: if stripped form matches a rule table entry, return that root (no other inference).
+            prefix_parts = (prefix or "").split("+")
+            for forms, letters in self.STRIPPED_FORM_TO_ROOT:
+                if stripped_extraction not in forms:
+                    continue
+                # Second rule (س-و-ي) applies only when prefix contains "است".
+                if letters == ("س", "و", "ي") and "است" not in prefix_parts:
+                    continue
+                root = Root(letters=letters, root_type=RootType.TRILATERAL)
                 return (
                     RootExtractionResult(
                         root=root,
@@ -137,23 +150,7 @@ class RootExtractor:
                     _score_root(root.letters),
                 )
 
-            # Quran-focused: contracted "استوى" normalization.
-            # After segmentation: prefix contains "است" and core collapses to "وي".
-            # Root should be س-و-ي.
-            if ("است" in (prefix or "").split("+")) and stripped_extraction in {"وي", "وى", "ويٰ"}:
-                root = Root(letters=("س", "و", "ي"), root_type=RootType.TRILATERAL)
-                return (
-                    RootExtractionResult(
-                        root=root,
-                        normalized_word=normalized_display,
-                        stripped_word=stripped_display,
-                        prefix=prefix,
-                        suffix=suffix,
-                    ),
-                    _score_root(root.letters),
-                )
-
-            consonants = self._extract_consonants(stripped_extraction)
+            consonants = self._extract_consonants(stripped_extraction, stripped_word=stripped_extraction)
             # Uthmani dagger alif (ٰ) often marks فَعْلَان (…ٰن) where final ن is pattern,
             # not a radical (e.g., الرَّحْمَٰنِ -> ر-ح-م).
             if "ٰ" in word and len(consonants) == 4 and consonants[-1] == "ن":
@@ -188,6 +185,9 @@ class RootExtractor:
         for allow_bkl in (False, True):
             for allow_faw in (False, True):
                 cand, score = _build_candidate(allow_bkl=allow_bkl, allow_faw_fatha=allow_faw)
+                # Prefer stripping ب when word starts with ب (بِدَيْنٍ → د-ي-ن not ب-د-ن).
+                if cand.root and cand.root.letters[0] == "ب" and (word.startswith("ب") or word.startswith("بِ")):
+                    score -= 5
                 candidates.append((cand, score, (allow_bkl, allow_faw)))
 
         # Pick max score; tie-breaker prefers conservative (no bkl, no faw-fatha).
@@ -272,13 +272,17 @@ class RootExtractor:
         if original_word and ("\u064b" in original_word) and text.endswith("ا") and len(text) > 3:
             text = text[:-1]
 
-        # Lam of purpose/causation (لام التعليل): لِ + imperfect verb.
-        # Example: لِيَغِيظَ -> ل + يغيظ
-        if (not no_split_mode) and original_word:
-            surf = self._strip_diacritics_surface(original_word)
-            if surf.startswith("ل") and len(text) >= 2 and text.startswith("ل") and text[1] in {"ي", "ت", "ن", "أ"}:
-                text = text[1:]
-                prefix_parts.append("ل")
+        # Lam of purpose/command (لام التعليل/الأمر): لِ + imperfect verb.
+        # Example: لِيَغِيظَ -> ل + يغيظ; also after و/ف: وَلْيَتَّقِ -> و then ل then يتقي
+        def _strip_lam_if_imperfect():
+            if (not no_split_mode) and len(text) >= 2 and text.startswith("ل") and text[1] in {"ي", "ت", "ن", "أ"}:
+                return True
+            return False
+        if _strip_lam_if_imperfect():
+            text = text[1:]
+            prefix_parts.append("ل")
+        # After stripping و/ف we may see ل + imperfect again (وَلْيَتَّقِ).
+        # Clitic loop runs next; we'll strip ل there if allow_bkl; for لام الأمر we strip ل here when at start.
 
         # 1) complex multi-letter prefixes (است، ال، وال، إلخ)
         if not no_split_mode:
@@ -321,15 +325,43 @@ class RootExtractor:
             if not removed:
                 break
 
+        # 2a) After و/ف, strip لام الأمر/التعليل when ل + ي/ت/ن/أ (وَلْيَتَّقِ → ل then يتقي).
+        if _strip_lam_if_imperfect():
+            text = text[1:]
+            prefix_parts.append("ل")
+
         # 2b) derivational prefixes after clitics (است/ان/افت/ات...)
         # Needed for tokens like: فاستغلظ (clitic ف then derivational است)
         if not no_split_mode:
+            # Protect Form VIII (افتعل/انتفعال) from being mis-segmented as Form VII (انفعل).
+            # Pattern: ا + C1 + ت + ... should NOT have 'ان' stripped.
+            # Example: انتحار = ا+ن+ت+حار (Form VIII), NOT ان+تحار (Form VII).
+            _is_form8 = False
+            if text.startswith('ا') and len(text) >= 4:
+                lets = [ch for ch in text if ch.isalpha() and '\u0600' <= ch <= '\u06FF']
+                if len(lets) >= 4 and lets[2] == 'ت':
+                    _is_form8 = True
+
             deriv_prefixes = ["است", "ان", "افت", "ات"]
             for dp in deriv_prefixes:
                 if text.startswith(dp) and len(text) - len(dp) >= 2:
+                    # Skip ان if this is Form VIII
+                    if dp == "ان" and _is_form8:
+                        continue
+                    # Protect Form IV (أَفْعَلَ) from mis-segmentation as Form VII (انفعل).
+                    # Form IV: أَنْزَلَ (after normalization: انزل) should strip 'أ' only, not 'ان'.
+                    # Pattern: ا + ن + consonant + vowel/consonant (but NOT ا+ن+ت which is Form VIII).
+                    # If we have 'ان' and the remainder starts with a strong consonant (not ت),
+                    # this is likely Form IV, so strip only 'أ' instead of 'ان'.
+                    if dp == "ان" and len(text) >= 4:
+                        remainder = text[2:]  # after removing 'ان'
+                        if remainder and remainder[0] not in {'ت', 'ف', 'ا', 'و', 'ي'}:
+                            # Likely Form IV: strip only 'ا', not 'ان'
+                            text = text[1:]
+                            prefix_parts.append("ا")
+                            continue
                     rest = text[len(dp) :]
-                    # If stripping derivational prefix would leave < 3 letters, undo it
-                    # except for known contracted Quranic verbs like: استوى -> سوي.
+                    # Rule: if prefix "است" stripped and remainder in {وي,وى}, set stem to سوي (one rule only).
                     if dp == "است" and len(rest) < 3:
                         surf = self._strip_diacritics_surface(original_word) if original_word else ""
                         if "استو" in surf and rest in {"وي", "وى"}:
@@ -386,7 +418,9 @@ class RootExtractor:
                 # "وجوههم" should be (وجوه + هم), not (وجو + ه + هم)
                 if suffix == "ه" and ("هم" in suffix_parts) and text.endswith(("وه", "يه", "اه")):
                     continue
-                if text.endswith(suffix) and len(text) - len(suffix) >= 3:
+                # Require ≥4 letters remain for "ين" so we don't strip from تَدَايَنتُم → تداين (ين is radical).
+                min_remain = 4 if suffix == "ين" else 3
+                if text.endswith(suffix) and len(text) - len(suffix) >= min_remain:
                     text = text[:-len(suffix)]
                     suffix_parts.append(suffix)
                     removed = True
@@ -394,21 +428,70 @@ class RootExtractor:
             if not removed:
                 break
 
-        # 4) morphological single-letter prefixes (imperfect/nominal markers) — at most one
-        # (after suffix peeling to avoid stripping true radicals in short stems like: مثلهم)
+        # 4) morphological single-letter prefixes (imperfect/nominal markers)
+        # Allow up to 2 strips so لِيَتَّقِ → ل then ي then ت → قى (stem ق-و-ي).
         morph_prefixes = ["ت", "ي", "ن", "أ", "م"]
-        for prefix in morph_prefixes:
-            if text.startswith(prefix) and len(text) - len(prefix) >= 3:
-                text = text[len(prefix) :]
-                prefix_parts.append(prefix)
+        for _ in range(2):
+            removed = False
+            for prefix in morph_prefixes:
+                if text.startswith(prefix) and len(text) - len(prefix) >= 2:
+                    # تراهم → ترا+هم: do not strip ت from ترا (رأى with ت prefix).
+                    if prefix == "ت" and text == "ترا" and "هم" in suffix_parts:
+                        continue
+                    # مَرَّ (مرر): do not strip م when remainder would be doubled letter (رر).
+                    if prefix == "م" and len(text) == 3 and text[0] == "م" and text[1] == text[2]:
+                        continue
+                    text = text[len(prefix) :]
+                    prefix_parts.append(prefix)
+                    removed = True
+                    break
+            if not removed:
                 break
-        
+
+        # 4b) After morph prefixes, strip derivational prefix (است/ان/…) so استطيع → طيع.
+        # Also strip "ست" as است when ا was dropped (يَسْتَطِيعُ → يستطيع → ستطيع).
+        if not no_split_mode:
+            if text.startswith("ست") and len(text) - 2 >= 2:
+                rest = text[2:]
+                if len(rest) >= 2 and rest[0] not in self.PATTERN_LETTERS:
+                    text = rest
+                    prefix_parts.append("است")
+            # Re-check Form VIII pattern (same as above) to protect ان from stripping
+            # after morphological prefixes have been removed.
+            _is_form8 = False
+            if text.startswith('ا') and len(text) >= 4:
+                lets = [ch for ch in text if ch.isalpha() and '\u0600' <= ch <= '\u06FF']
+                if len(lets) >= 4:
+                    if lets[2] == 'ت':
+                        _is_form8 = True
+                    elif len(lets) >= 5 and lets[1] == 'ن' and lets[2] == 'ت':
+                        _is_form8 = True
+
+            deriv_prefixes = ["است", "ان", "افت", "ات"]
+            for dp in deriv_prefixes:
+                if text.startswith(dp) and len(text) - len(dp) >= 2:
+                    # Skip ان if this is Form VIII
+                    if dp == "ان" and _is_form8:
+                        continue
+                    rest = text[len(dp) :]
+                    if dp == "است" and len(rest) < 3:
+                        surf = self._strip_diacritics_surface(original_word) if original_word else ""
+                        if "استو" in surf and rest in {"وي", "وى"}:
+                            text = "سوي"
+                            prefix_parts.append(dp)
+                            break
+                        continue
+                    text = rest
+                    prefix_parts.append(dp)
+                    break
+
         # Keep boundaries between multiple affixes for clarity.
         prefix_str = "+".join(prefix_parts)
         suffix_str = "+".join(reversed(suffix_parts))
         return text.strip(), prefix_str, suffix_str
 
-    def _extract_consonants(self, word: str) -> List[str]:
+    def _extract_consonants(self, word: str, *, stripped_word: str = "") -> List[str]:
+        use_stripped = stripped_word or word
         letters = [ch for ch in word if self._is_arabic_letter(ch)]
         consonants: List[str] = []
         for idx, letter in enumerate(letters):
@@ -420,20 +503,75 @@ class RootExtractor:
             consonants.append(letter)
 
         # إزالة التكرار الناتج عن الشدة في الأوزان الصرفية
-        # مثال: "زرراع" (من زُرَّاع) → إزالة إحدى الراءات → "زراع"
         consonants = self._deduplicate_gemination(consonants)
         pattern_filtered = [ch for ch in consonants if ch not in self.PATTERN_LETTERS]
         if len(consonants) > len(pattern_filtered) >= 3:
             consonants = pattern_filtered
+        # Restore middle و/ي when it was filtered and we have a short defective stem (e.g. طيع → ط-و-ع).
+        # Do not restore when ي is radical: د-ي-ن, غ-ي-ظ.
+        if len(consonants) == 2 and len(letters) == 3 and letters[1] in self.PATTERN_LETTERS:
+            if (letters[0], letters[2]) not in (("د", "ن"), ("غ", "ظ")):
+                consonants = list(letters)
+        # Doubled root مَرَّ (مرر): if we have 2 consonants but letters had 3 with last two same, use full.
+        if len(consonants) == 2 and len(letters) == 3 and letters[1] == letters[2]:
+            consonants = list(letters)
 
         consonants = self._trim_weak_ending(consonants)
 
+        # Form III/VI: middle ا is elongation (فاعل/تفاعل) → drop for 3-radical root.
+        dropped_middle_alif = False
+        if len(consonants) == 4 and consonants[1] == "ا":
+            consonants = [consonants[0], consonants[2], consonants[3]]
+            dropped_middle_alif = True
+
+        # Form VIII (افتعل): infixed ت after first radical (ا + C1 + ت + C2 + C3)
+        # Examples: اقترض → ق-ر-ض, اعتمد → ع-م-د, انتحار → ن-ح-ر
+        # The initial ا gets filtered out early (it's in PATTERN_LETTERS), so we check
+        # the original letters in use_stripped to detect the pattern.
+        if len(consonants) == 4 and consonants[1] == 'ت':
+            lets = [ch for ch in use_stripped if self._is_arabic_letter(ch)]
+            # Pattern: ا C1 ت C2 C3 (letters[0]='ا', letters[2]='ت')
+            if len(lets) >= 5 and lets[0] == 'ا' and lets[2] == 'ت':
+                # Remove the infixed ت: consonants = [C1, ت, C2, C3] → [C1, C2, C3]
+                consonants = [consonants[0]] + consonants[2:]
+
+
         if len(consonants) == 4 and consonants[0] == consonants[1] and consonants[2] != consonants[0]:
             consonants = consonants[1:]
+        # Defective ف-و-ي when word ends with وا (اتقوا → قوا): last ا is suffix, root ends in ي.
+        if len(consonants) == 3 and consonants[-1] == "ا" and use_stripped.endswith("وا"):
+            consonants = consonants[:-1] + ["ي"]
+
         if len(consonants) in (3, 4):
+            # واوي اسم مفعول (مُفَعَّل من فعّل): last radical و not ي (e.g. مُسَمًّى → س-م-و).
+            # After stripping م the stem is سَمَّى (سممي) so check for م doubling in stem.
+            if len(consonants) == 3 and consonants[-1] == "ي":
+                lets = [ch for ch in use_stripped if self._is_arabic_letter(ch)]
+                if len(lets) >= 4 and use_stripped.endswith(("ى", "ي")):
+                    # مُفَعَّل: م + C + C + same + ى, or after stripping م: C + C + C + ى (سممي).
+                    if len(lets) >= 5 and use_stripped.startswith("م") and lets[2] == lets[3]:
+                        consonants = consonants[:-1] + ["و"]
+                    elif len(lets) == 4 and lets[1] == lets[2]:  # سممي: س م م ي
+                        consonants = consonants[:-1] + ["و"]
+            # Defective واوي in short stem (استطاع → طيع → ط-و-ع). Do NOT apply when we just
+            # dropped middle ا (Form III ب-ي-ع has ي as radical).
+            if not dropped_middle_alif:
+                letters_only = [ch for ch in word if self._is_arabic_letter(ch)]
+                if (
+                    len(consonants) == 3
+                    and consonants[1] == "ي"
+                    and "و" not in letters_only
+                    and len(letters_only) <= 4
+                ):
+                    consonants = [consonants[0], "و", consonants[2]]
             return consonants
         if len(consonants) > 4:
             return consonants[:4]
+        if len(consonants) == 2:
+            # Defective stem (e.g. قى → ق-و-ي; ابا from يَأْبَ → أ-ب-ي).
+            expanded = self._expand_defective_root(consonants, word=use_stripped)
+            if expanded:
+                return expanded
         if len(consonants) < 3:
             return letters[:3] if len(letters) >= 3 else letters
         return consonants
@@ -476,6 +614,28 @@ class RootExtractor:
         while len(trimmed) > 3 and trimmed[-1] in self.WEAK_LETTERS:
             trimmed.pop()
         return trimmed
+
+    def _expand_defective_root(
+        self, two_consonants: List[str], *, word: str = ""
+    ) -> Optional[List[str]]:
+        """
+        Expand a 2-consonant defective stem to 3-radical root (ف-ع-ل).
+        E.g. قى → ق-و-ي; ابا (يَأْبَ) → أ-ب-ي when word ends with ا.
+        """
+        if len(two_consonants) != 2:
+            return None
+        c1, c2 = two_consonants
+        if c2 in {"و", "ي"}:
+            return [c1, "و", c2]
+        if c1 in {"و", "ي"} and c2 not in self.PATTERN_LETTERS:
+            return [c1, c2, "ي"] if c1 == "ي" else [c1, c2, "و"]
+        # يائي مثل أَبَى: ابا or اب (يَأْبَ) → ا-ب-ي.
+        if c1 in {"ا", "أ", "إ"} and (word.rstrip().endswith("ا") or word.rstrip() in ("اب", "أب")):
+            return [c1, c2, "ي"]
+        # يَتَّقِ (Form V من و-ق-ي): stem تق → root ق-و-ي.
+        if (c1, c2) == ("ت", "ق") and word.rstrip() == "تق":
+            return ["ق", "و", "ي"]
+        return None
 
     def _is_valid_root(self, letters: List[str]) -> bool:
         if len(letters) not in (3, 4):

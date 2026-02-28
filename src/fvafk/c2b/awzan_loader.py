@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import csv
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set, Tuple
 
 from .morpheme import PatternType
 
@@ -68,19 +68,31 @@ class AwzanPatternLoader:
         "يُفْعِلُونَ": PatternType.FORM_IV,
     }
 
+    _VERB_FORM_LABELS: Dict[PatternType, str] = {
+        PatternType.FORM_I: "I",
+        PatternType.FORM_II: "II",
+        PatternType.FORM_III: "III",
+        PatternType.FORM_IV: "IV",
+        PatternType.FORM_V: "V",
+        PatternType.FORM_VI: "VI",
+        PatternType.FORM_VII: "VII",
+        PatternType.FORM_VIII: "VIII",
+        PatternType.FORM_IX: "IX",
+        PatternType.FORM_X: "X",
+    }
+
+    @classmethod
+    def _form_from_pattern_type(cls, pattern_type: PatternType) -> Optional[str]:
+        """Derive form label (e.g. 'I', 'II') from pattern type when CSV has no الاسم."""
+        return cls._VERB_FORM_LABELS.get(pattern_type)
+
     @classmethod
     def load(cls) -> List[dict]:
         if cls._cache is not None:
             return cls._cache
         patterns: List[dict] = []
-        if cls.CSV_PATH_PHONOLOGY_CLEAN.exists():
-            csv_path = cls.CSV_PATH_PHONOLOGY_CLEAN
-        elif cls.CSV_PATH_PHONOLOGY_FULL.exists():
-            csv_path = cls.CSV_PATH_PHONOLOGY_FULL
-        elif cls.CSV_PATH.exists():
-            csv_path = cls.CSV_PATH
-        else:
-            csv_path = cls.CSV_PATH_LEGACY
+        # FORCE: Use only data/awzan_merged_final.csv
+        csv_path = cls.CSV_PATH
         if not csv_path.exists():
             cls._cache = patterns
             return cls._cache
@@ -94,7 +106,7 @@ class AwzanPatternLoader:
                 # Default to comma for the merged file shape.
                 delimiter = ","
             reader = csv.DictReader(handle, delimiter=delimiter)
-            seen = set()
+            seen: Set[str] = set()
             for row in reader:
                 template = (row.get("الوزن") or "").strip()
                 if not template or template in seen:
@@ -102,19 +114,27 @@ class AwzanPatternLoader:
                 seen.add(template)
                 pattern_type = cls.PATTERN_TYPE_MAP.get(template, PatternType.UNKNOWN)
                 category = cls._infer_category(row, pattern_type)
-                patterns.append(
-                    {
-                        "template": template,
-                        "pattern_type": pattern_type,
-                        "category": category,
-                        "form": row.get("الاسم") or None,
-                        "meaning": row.get("الوصف") or None,
-                        "cv_simple": row.get("CV") or None,
-                        "cv_detailed": row.get("Detailed_CV") or None,
-                        "cv_advanced": row.get("Advanced_CV") or None,
-                        "notes": row.get("ملاحظات") or None,
-                    }
-                )
+                raw_form = (row.get("الاسم") or "").strip()
+                form = raw_form or cls._form_from_pattern_type(pattern_type) or "unknown"
+                entry = {
+                    "template": template,
+                    "pattern_type": pattern_type,
+                    "category": category,
+                    "form": form,
+                    "meaning": row.get("الوصف", "unknown"),
+                    "cv_simple": row.get("CV") or None,
+                    "cv_detailed": row.get("Detailed_CV", "unknown"),
+                    "cv_advanced": row.get("Advanced_CV", "unknown"),
+                    "notes": row.get("ملاحظات", "unknown"),
+                }
+                patterns.append(entry)
+                # فِعَال is both verbal noun (مصدر) and broken plural; add noun entry so كِتَاب matches as verbal noun first
+                if template == "فِعَال":
+                    patterns.append({
+                        **entry,
+                        "pattern_type": PatternType.VERBAL_NOUN,
+                        "category": "noun",
+                    })
         cls._cache = patterns
         return cls._cache
 
@@ -135,6 +155,15 @@ class AwzanPatternLoader:
             PatternType.BROKEN_PLURAL_FIUL,
         }:
             return "plural"
+        if pattern_type in {
+            PatternType.ACTIVE_PARTICIPLE,
+            PatternType.PASSIVE_PARTICIPLE,
+            PatternType.VERBAL_NOUN,
+            PatternType.INTENSIVE,
+            PatternType.ELATIVE,
+            PatternType.PLACE_TIME_NOUN,
+        }:
+            return "noun"
         if pattern_type != PatternType.UNKNOWN:
             return "verb"
         return "noun"
