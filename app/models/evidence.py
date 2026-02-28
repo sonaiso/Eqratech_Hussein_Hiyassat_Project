@@ -44,7 +44,26 @@ class Evidence(BaseModel):
         >>> evidence.score
         0.85
     """
-    
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "score": 0.85,
+                "scope_ok": True,
+                "truth_ok": True,
+                "reference_ok": True,
+                "reality_links": [
+                    {
+                        "reference": "Quran 1:1",
+                        "weight": 1.0,
+                        "verified": True,
+                    }
+                ],
+                "notes": "Strong corpus evidence from classical texts",
+            }
+        }
+    )
+
     score: float = Field(..., ge=0.0, le=1.0, description="Overall evidence score")
     scope_ok: bool = Field(default=True, description="Scope constraints satisfied")
     truth_ok: bool = Field(default=True, description="Truth conditions met")
@@ -61,22 +80,3 @@ class Evidence(BaseModel):
             and self.truth_ok
             and self.reference_ok
         )
-
-    model_config = ConfigDict(
-        json_schema_extra={
-            "example": {
-                "score": 0.85,
-                "scope_ok": True,
-                "truth_ok": True,
-                "reference_ok": True,
-                "reality_links": [
-                    {
-                        "reference": "Quran 1:1",
-                        "weight": 1.0,
-                        "verified": True
-                    }
-                ],
-                "notes": "Strong corpus evidence from classical texts"
-            }
-        }
-    )

@@ -474,7 +474,7 @@ def _cv_from_segments(segments) -> Dict[str, str]:
     }
 
 
-def analyze_text_for_cv_after_phonology(text: str, *, engine: str = "c2a") -> Dict[str, object]:
+def analyze_text_for_cv_after_phonology(text: str, engine: str = "c2a") -> Dict[str, object]:
     """
     CV analysis AFTER phonological normalization (C2a gates).
 
@@ -482,8 +482,14 @@ def analyze_text_for_cv_after_phonology(text: str, *, engine: str = "c2a") -> Di
     - Exclude golden names (EXCLUDED_NAME / jawamed) from CV analysis
     - For the rest: run C1Encoder + C2a gates per-token, then compute CV from final segments.
 
+    When engine="phonology_v2", uses cv_pattern/advanced_cv_pattern directly (expand_shadda
+    treats shadda as geminate CC) rather than the C2a gate pipeline.
+
     Output keeps `words` entries minimal: only `cv` and `cv_advanced`.
     """
+    if engine == "phonology_v2":
+        return _analyze_text_for_cv_phonology_v2(text)
+
     from fvafk.c1.encoder import C1Encoder
     from fvafk.c2a import (
         GateAssimilation,
@@ -507,11 +513,11 @@ def analyze_text_for_cv_after_phonology(text: str, *, engine: str = "c2a") -> Di
     orchestrator = GateOrchestrator(
         gates=[
             GateSukun(),
+            GateIdgham(),
             GateShadda(),
             GateWasl(),
             GateHamza(),
             GateWaqf(),
-            GateIdgham(),
             GateMadd(),
             GateAssimilation(),
             GateTanwin(),
@@ -532,55 +538,52 @@ def analyze_text_for_cv_after_phonology(text: str, *, engine: str = "c2a") -> Di
         if special and special.get("kind") == "excluded_name":
             excluded_names += 1
             continue
-        if engine == "phonology_v2":
-            # Use the syllable-lattice engine (Assumption A) to compute CV.
-            from fvafk.phonology_v2 import analyze_word as analyze_word_v2
-
-            wa = analyze_word_v2(tok, verbose=False)
-            # Fallback to C2a segments if V2 can't syllabify the token.
-            if not wa.cv_pattern or not wa.best_syllabification:
-                segs = encoder.encode(tok)
-                final_segs, _gate_results = orchestrator.run(segs)
-                computed.append(_cv_from_segments(final_segs))
-            else:
-                # Build cv_advanced from the chosen syllabification.
-                # Long vowels emit a doubled nucleus, then normalized (VaVa -> VA, etc).
-                out_adv: List[str] = []
-                for syl in wa.best_syllabification:
-                    for seg in list(syl.onset) + [syl.nucleus] + list(syl.coda):
-                        # Local enum name to avoid importing phonology_v2 types here
-                        kind_name = getattr(getattr(seg, "kind", None), "name", "")
-                        surf = getattr(seg, "surface", "") or ""
-                        if kind_name == "C":
-                            out_adv.append("C")
-                            continue
-                        if kind_name == "V_SHORT":
-                            sym = "a" if surf == FATHA else "i" if surf == KASRA else "o" if surf == DAMMA else ""
-                            out_adv.extend(["V", sym] if sym else ["V"])
-                            continue
-                        if kind_name == "V_LONG":
-                            sym = "a" if surf in {"ا", "آ", "ى"} else "o" if surf == "و" else "i" if surf == "ي" else ""
-                            if sym:
-                                out_adv.extend(["V", sym, "V", sym])
-                            else:
-                                out_adv.append("V")
-                            continue
-                        out_adv.append("C")
-                computed.append(
-                    {
-                        "cv": wa.cv_pattern,
-                        "cv_advanced": normalize_long_vowels("".join(out_adv)),
-                    }
-                )
-        else:
-            segs = encoder.encode(tok)
-            final_segs, _gate_results = orchestrator.run(segs)
-            computed.append(_cv_from_segments(final_segs))
+        segs = encoder.encode(tok)
+        final_segs, _gate_results = orchestrator.run(segs)
+        computed.append(_cv_from_segments(final_segs))
 
     return {
+        "engine": "c2a",
         "total_words_input": len(spans),
         "total_words_computed": len(computed),
         "excluded_names": excluded_names,
-        "engine": engine,
+        "words": computed,
+    }
+
+
+def _analyze_text_for_cv_phonology_v2(text: str) -> Dict[str, object]:
+    """
+    CV analysis using the phonology_v2 path (cv_pattern/advanced_cv_pattern directly).
+
+    This treats shadda as a geminate (CC) rather than processing it through C2a gates.
+    """
+    from fvafk.c2b.word_boundary import WordBoundaryDetector
+    from fvafk.c2b.special_words_catalog import get_special_words_catalog
+
+    spans = WordBoundaryDetector().detect(text)
+    catalog = get_special_words_catalog()
+    excluded_names = 0
+    computed = []
+
+    for sp in spans:
+        tok = sp.token
+        if should_exclude(tok):
+            continue
+        special = catalog.classify(tok)
+        if special and special.get("kind") == "excluded_name":
+            excluded_names += 1
+            continue
+        normalized = normalize_initial_hamza(tok)
+        normalized = normalize_missing_harakat(normalized)
+        computed.append({
+            "cv": cv_pattern(normalized),
+            "cv_advanced": advanced_cv_pattern(normalized),
+        })
+
+    return {
+        "engine": "phonology_v2",
+        "total_words_input": len(spans),
+        "total_words_computed": len(computed),
+        "excluded_names": excluded_names,
         "words": computed,
     }

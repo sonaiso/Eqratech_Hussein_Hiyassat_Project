@@ -82,15 +82,6 @@ class AnalysisResult(BaseModel):
         >>> result.input
         'كِتَابٌ'
     """
-    
-    input: str = Field(..., description="Original input text")
-    c1: C1Result = Field(..., description="C1 encoding result")
-    c2a: C2aResult = Field(..., description="C2a phonology result")
-    c2b: Optional[C2bResult] = Field(default=None, description="C2b morphology result")
-    syntax: Optional[SyntaxResult] = Field(default=None, description="Syntax result")
-    stats: Stats = Field(..., description="Performance statistics")
-    proof_artifacts: Optional[List[ProofArtifact]] = Field(default=None, description="Coq proof artifacts")
-    metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional metadata")
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -100,23 +91,32 @@ class AnalysisResult(BaseModel):
                 "c2a": {
                     "syllables": [],
                     "gates": [],
-                    "cv_pattern": "CV-CVC-CVC"
+                    "cv_pattern": "CV-CVC-CVC",
                 },
                 "c2b": {
                     "words_count": 3,
-                    "words": []
+                    "words": [],
                 },
                 "syntax": {
                     "word_forms": [],
-                    "links": {"isnadi": []}
+                    "links": {"isnadi": []},
                 },
                 "stats": {
                     "c1_time_ms": 3.5,
                     "c2a_time_ms": 18.2,
                     "c2b_time_ms": 12.8,
                     "total_time_ms": 34.5,
-                    "gates_count": 11
-                }
+                    "gates_count": 11,
+                },
             }
         }
     )
+
+    input: str = Field(..., description="Original input text")
+    c1: C1Result = Field(..., description="C1 encoding result")
+    c2a: C2aResult = Field(..., description="C2a phonology result")
+    c2b: Optional[C2bResult] = Field(default=None, description="C2b morphology result")
+    syntax: Optional[SyntaxResult] = Field(default=None, description="Syntax result")
+    stats: Stats = Field(..., description="Performance statistics")
+    proof_artifacts: Optional[List[ProofArtifact]] = Field(default=None, description="Coq proof artifacts")
+    metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional metadata")

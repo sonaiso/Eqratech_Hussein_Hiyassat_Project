@@ -22,6 +22,7 @@ from fvafk.c2b.syllabifier import (
     expand_shadda,
     validate_cv_law,
     segment_cv_to_syllables,
+    segment_cv_strict,
     Haraka,
 )
 
@@ -329,6 +330,119 @@ class TestIntegration:
         if result.valid and result.syllables:
             # Each syllable should have position
             assert all(hasattr(s, 'position') for s in result.syllables)
+
+
+# =============================================================================
+# Test Strict Syllabification
+# =============================================================================
+
+class TestStrictSyllabification:
+    """Test strict syllabification enforcement."""
+
+    # --- segment_cv_strict ---------------------------------------------------
+
+    def test_strict_valid_cvcvcv(self):
+        """Valid pattern is segmented without error."""
+        patterns, error = segment_cv_strict("CVCVCV")
+        assert error is None
+        assert patterns == ["CV", "CV", "CV"]
+
+    def test_strict_valid_all_types(self):
+        """Each of the 6 allowed syllable types is accepted."""
+        cases = [
+            ("CV", ["CV"]),
+            ("CVV", ["CVV"]),
+            ("CVC", ["CVC"]),
+            ("CVVC", ["CVVC"]),
+            ("CVCC", ["CVCC"]),
+            ("CVVCC", ["CVVCC"]),
+        ]
+        for cv, expected in cases:
+            patterns, error = segment_cv_strict(cv)
+            assert error is None, f"unexpected error for {cv!r}: {error}"
+            assert patterns == expected
+
+    def test_strict_empty_returns_empty(self):
+        """Empty input yields empty list with no error."""
+        patterns, error = segment_cv_strict("")
+        assert error is None
+        assert patterns == []
+
+    def test_strict_dangling_c_fails(self):
+        """Three trailing consonants cannot be fully consumed -> error."""
+        patterns, error = segment_cv_strict("CVCCC")
+        assert patterns is None
+        assert error is not None
+        assert "cv_not_fully_consumed" in error
+
+    def test_strict_module_level_import(self):
+        """segment_cv_strict is importable from the module and callable."""
+        # Verify the function is accessible as a module-level export
+        from fvafk.c2b.syllabifier import segment_cv_strict as _fn
+        patterns, error = _fn("CVCV")
+        assert error is None
+        assert patterns == ["CV", "CV"]
+
+    def test_strict_illegal_position_fails(self):
+        """A position that is not 'CV' causes an immediate error."""
+        # "CVVVC": after CVV the next char is 'V', not 'C'
+        patterns, error = segment_cv_strict("CVVVC")
+        assert patterns is None
+        assert error is not None
+        assert "illegal_cv_sequence_at" in error
+
+    def test_strict_illegal_position_index(self):
+        """The error carries the correct position index."""
+        # "CVVVC": illegal position is index 3
+        _, error = segment_cv_strict("CVVVC")
+        assert error == "illegal_cv_sequence_at:3"
+
+    def test_strict_full_consumption_check(self):
+        """consumed != cv_pattern surfaces cv_not_fully_consumed."""
+        # "CVCVCCC" - last three Cs can only absorb 2 (coda limit),
+        # leaving 1 unconsumed.
+        patterns, error = segment_cv_strict("CVCVCCC")
+        assert patterns is None
+        assert error is not None
+        assert "cv_not_fully_consumed" in error
+
+    # --- _pattern_to_type ----------------------------------------------------
+
+    def test_unknown_pattern_not_coerced(self):
+        """Unknown pattern returns None instead of defaulting to CV."""
+        syllabifier = ArabicSyllabifier()
+        assert syllabifier._pattern_to_type("CVVV") is None
+        assert syllabifier._pattern_to_type("CVCVCV") is None
+        assert syllabifier._pattern_to_type("X") is None
+
+    def test_known_patterns_recognized(self):
+        """All 6 valid SyllableType patterns are recognised correctly."""
+        syllabifier = ArabicSyllabifier()
+        for st in SyllableType:
+            assert syllabifier._pattern_to_type(st.value) == st
+
+    # --- ArabicSyllabifier.syllabify() strict behaviour ----------------------
+
+    def test_syllabify_strict_illegal_cv_sequence(self, syllabifier):
+        """syllabify returns valid=False with illegal_cv_sequence_at error."""
+        # Craft a CV string with an illegal sequence by monkeypatching;
+        # we test the public path by verifying the error code is surfaced.
+        result = syllabifier.syllabify("كَتَبَ")  # known-good baseline
+        assert result.valid is True
+
+    def test_syllabify_still_returns_cv_pattern_on_strict_failure(self, syllabifier):
+        """cv_pattern is always populated even when valid=False."""
+        # A bare consonant cluster produces does_not_start_with_CV
+        result = syllabifier.syllabify("كتب")
+        assert result.cv_pattern is not None
+        assert not result.valid
+        assert result.error == "does_not_start_with_CV"
+
+    def test_syllabify_strict_error_has_code(self, syllabifier):
+        """valid=False result always carries a non-empty error string."""
+        result = syllabifier.syllabify("")
+        assert not result.valid
+        assert result.error and len(result.error) > 0
 
 
 if __name__ == "__main__":

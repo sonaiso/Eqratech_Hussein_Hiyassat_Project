@@ -23,11 +23,6 @@ class Unit(BaseModel):
         >>> unit.text
         'ك'
     """
-    
-    text: str = Field(..., description="Unicode text of the unit")
-    category: str = Field(..., description="Category: LETTER, DIACRITIC, SPACE, etc.")
-    index: int = Field(..., ge=0, description="Position in original input (0-indexed)")
-    metadata: Optional[dict] = Field(default=None, description="Additional metadata")
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -35,7 +30,12 @@ class Unit(BaseModel):
                 "text": "ك",
                 "category": "LETTER",
                 "index": 0,
-                "metadata": {"normalized": True}
+                "metadata": {"normalized": True},
             }
         }
     )
+
+    text: str = Field(..., description="Unicode text of the unit")
+    category: str = Field(..., description="Category: LETTER, DIACRITIC, SPACE, etc.")
+    index: int = Field(..., ge=0, description="Position in original input (0-indexed)")
+    metadata: Optional[dict] = Field(default=None, description="Additional metadata")

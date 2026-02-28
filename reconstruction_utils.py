@@ -3,7 +3,7 @@ import re
 import ast
 import pandas as pd
 
-from typing import Tuple, Dict, List, Optional
+from typing import Tuple, Dict, List
 
 
 HARAKA_NAME_TO_MARK = {
@@ -21,8 +21,6 @@ HARAKA_NAME_TO_MARK = {
 LETTER_PATTERN = re.compile(r'[\u0621-\u064A\u0660-\u0669]')
 HARAKA_PATTERN = re.compile(r'[\u064B-\u0652\u0670]')  # يشمل المد (ألف خنجرية)
 
-_maps_cache: Optional[Tuple[Dict[str, str], Dict[str, str]]] = None
-
 
 def _full_unicode(token: str) -> str:
     t = str(token)
@@ -38,11 +36,16 @@ def _full_utf8(token: str) -> str:
     return ' '.join(str(ch.encode('utf-8')) for ch in t)
 
 
+from functools import lru_cache
+
+
+@lru_cache(maxsize=1)
 def load_maps() -> Tuple[Dict[str, str], Dict[str, str]]:
-    """Load phoneme and harakat UTF-8 maps from their engines (cached after first call)."""
-    global _maps_cache
-    if _maps_cache is not None:
-        return _maps_cache
+    """Load phoneme and harakat UTF-8 maps from their engines.
+
+    Results are cached after the first call to avoid repeated module imports
+    during batch processing.
+    """
     from phonemes_engine import PhonemesEngine
     from harakat_engine import حركات
 
@@ -60,8 +63,7 @@ def load_maps() -> Tuple[Dict[str, str], Dict[str, str]]:
     if 'UTF-8' not in harakat_df.columns:
         harakat_df['UTF-8'] = harakat_df[haraka_symbol_col].apply(lambda h: str(str(h)[:1].encode('utf-8')) if h else '')
     harakat_utf8_map = dict(zip(harakat_df[haraka_symbol_col], harakat_df['UTF-8']))
-    _maps_cache = phoneme_utf8_map, harakat_utf8_map
-    return _maps_cache
+    return phoneme_utf8_map, harakat_utf8_map
 
 
 def _map_haraka_names_to_marks(tokens: List[str]) -> List[str]:

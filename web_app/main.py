@@ -1,143 +1,102 @@
 """
-FVAFK/Bayan FastAPI web application.
+FastAPI application for FVAFK / Bayan Arabic NLP pipeline.
 
-Exposes the FVAFK Arabic NLP pipeline via a REST API.
-
-Usage:
-    python run_server.py [--host 127.0.0.1] [--port 8000] [--reload]
+Run with:
+    python run_server.py
     # or directly:
-    uvicorn web_app.main:app --host 127.0.0.1 --port 8000
+    uvicorn web_app.main:app --reload
 """
 from __future__ import annotations
 
-import sys
-import os
-import time
-from typing import Any, Dict, Optional
-
-# Allow imports from src/ when running outside the installed package
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+from typing import Any, Optional
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
+from fvafk.cli.main import MinimalCLI
+
 app = FastAPI(
-    title="Bayan-FVAFK Arabic NLP API",
+    title="FVAFK / Bayan — Arabic NLP API",
     description=(
-        "Arabic NLP pipeline: phonology (C1/C2a), morphology (C2b), "
-        "and syntax analysis via the FVAFK pipeline."
+        "REST API for the FVAFK Arabic NLP pipeline: "
+        "encoding (C1), phonological gates (C2a), morphology (C2b)."
     ),
     version="0.1.0",
 )
 
-
-# ---------------------------------------------------------------------------
-# Request / Response models
-# ---------------------------------------------------------------------------
-
-class AnalyzeRequest(BaseModel):
-    text: str = Field(..., description="Arabic text to analyze", min_length=1)
-    morphology: bool = Field(False, description="Enable morphological analysis (C2b)")
+# Initialise once so gate setup cost is paid at startup, not per request.
+_cli = MinimalCLI(verbose=False, json_output=True)
 
 
-class HealthResponse(BaseModel):
-    status: str
-    version: str
+class AnalyseRequest(BaseModel):
+    text: str = Field(..., min_length=1)
+    morphology: bool = False
 
 
-# ---------------------------------------------------------------------------
-# Routes
-# ---------------------------------------------------------------------------
+@app.get("/", response_class=HTMLResponse, summary="Web UI")
+def root() -> str:
+    """Serve a minimal HTML page for quick interactive checks."""
+    return """<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>بيان - FVAFK</title>
+</head>
+<body>
+  <h1>بيان / FVAFK</h1>
+  <p>خدمة فحص النص العربي جاهزة.</p>
+</body>
+</html>"""
 
-@app.get("/health", response_model=HealthResponse, summary="Health check")
-def health() -> HealthResponse:
-    """Return service health status."""
-    return HealthResponse(status="ok", version="0.1.0")
+
+@app.get("/health", summary="Health check (alias)")
+def health() -> dict[str, str]:
+    return {"status": "ok", "version": app.version}
+
+
+def _normalize_analyze_response(payload: dict[str, Any]) -> dict[str, Any]:
+    c2a = payload.get("c2a")
+    if isinstance(c2a, dict):
+        gates = c2a.get("gates")
+        if isinstance(gates, list):
+            normalized_gates: list[dict[str, Any]] = []
+            for gate in gates:
+                if isinstance(gate, dict):
+                    item = dict(gate)
+                    item.setdefault("gate", item.get("gate_id", ""))
+                    normalized_gates.append(item)
+                else:
+                    normalized_gates.append({"gate": str(gate), "status": "ACCEPT"})
+            c2a["gates"] = normalized_gates
+    return payload
+
+
+def _run_analysis(request: AnalyseRequest) -> dict[str, Any]:
+    """
+    Run the full FVAFK pipeline on the supplied Arabic text.
+
+    - **text**: Arabic text to analyse (with or without diacritics)
+    - **morphology**: also run the C2b morphological analyser
+    """
+    if not request.text or not request.text.strip():
+        raise HTTPException(status_code=422, detail="text must not be empty")
+
+    result: Optional[dict[str, Any]] = _cli.run(
+        request.text,
+        morphology=request.morphology,
+    )
+    if not isinstance(result, dict):
+        raise HTTPException(status_code=500, detail="analysis failed")
+    return _normalize_analyze_response(result)
+
+
+@app.post("/analyse", summary="Analyse Arabic text")
+def analyse(request: AnalyseRequest) -> dict[str, Any]:
+    return _run_analysis(request)
 
 
 @app.post("/analyze", summary="Analyze Arabic text")
-def analyze(request: AnalyzeRequest) -> Dict[str, Any]:
-    """
-    Run the FVAFK pipeline on the supplied Arabic text.
-
-    - **text**: The Arabic text to process (with or without diacritics).
-    - **morphology**: When ``true``, the C2b morphological layer is included.
-
-    Returns a JSON object with ``c1``, ``c2a``, optional ``c2b``, and ``stats``
-    keys — identical to the CLI ``--json`` output.
-    """
-    try:
-        from fvafk.c1 import C1Encoder
-        from fvafk.c2a import (
-            GateDeletion,
-            GateEpenthesis,
-            GateFramework,
-            GateHamza,
-            GateIdgham,
-            GateMadd,
-            GateShadda,
-            GateSukun,
-            GateWasl,
-        )
-    except ImportError as exc:  # pragma: no cover
-        raise HTTPException(
-            status_code=503,
-            detail=f"FVAFK library not available: {exc}",
-        ) from exc
-
-    start = time.perf_counter()
-
-    # C1 encoding
-    t0 = time.perf_counter()
-    encoder = C1Encoder()
-    units = encoder.encode(request.text)
-    c1_ms = (time.perf_counter() - t0) * 1000
-
-    # C2a phonological gates
-    t0 = time.perf_counter()
-    gates = [
-        GateSukun(), GateShadda(), GateHamza(),
-        GateIdgham(), GateMadd(), GateDeletion(),
-        GateEpenthesis(), GateWasl(),
-    ]
-    framework = GateFramework(gates)
-    gate_results = framework.apply(units)
-    c2a_ms = (time.perf_counter() - t0) * 1000
-
-    result: Dict[str, Any] = {
-        "input": request.text,
-        "c1": {"num_units": len(units)},
-        "c2a": {
-            "gates": [
-                {"gate": r.gate_name, "status": r.status.value}
-                for r in gate_results
-            ],
-        },
-        "stats": {
-            "c1_time_ms": round(c1_ms, 3),
-            "c2a_time_ms": round(c2a_ms, 3),
-            "total_time_ms": round((time.perf_counter() - start) * 1000, 3),
-            "gates_count": len(gates),
-        },
-    }
-
-    # Optional C2b morphological analysis
-    if request.morphology:
-        from fvafk.c2b import PatternMatcher, RootExtractor
-        t0 = time.perf_counter()
-        extractor = RootExtractor()
-        matcher = PatternMatcher()
-        root = extractor.extract(request.text)
-        pattern = matcher.match(request.text)
-        c2b_ms = (time.perf_counter() - t0) * 1000
-        result["c2b"] = {
-            "root": root.formatted if root else None,
-            "pattern": pattern.template if pattern else None,
-        }
-        result["stats"]["c2b_time_ms"] = round(c2b_ms, 3)
-        result["stats"]["total_time_ms"] = round(
-            (time.perf_counter() - start) * 1000, 3
-        )
-
-    return result
+def analyze(request: AnalyseRequest) -> dict[str, Any]:
+    return _run_analysis(request)

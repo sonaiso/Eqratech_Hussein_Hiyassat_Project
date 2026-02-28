@@ -118,6 +118,34 @@ class TestPatternMatcherPlurals:
         assert pattern.pattern_type == PatternType.BROKEN_PLURAL_FUUL
 
 
+class TestBestConfidenceSelection:
+    """Verify that match() returns the highest-confidence match, not the first."""
+
+    def test_active_participle_beats_form_iii(self):
+        matcher = PatternMatcher()
+        root = Root(letters=("ك", "ت", "ب"), root_type=RootType.TRILATERAL)
+        pattern = matcher.match("كَاتِب", root)
+        assert pattern is not None
+        assert pattern.pattern_type == PatternType.ACTIVE_PARTICIPLE
+        assert float(pattern.features["confidence"]) > 0.60
+
+    def test_broken_plural_beats_form_i(self):
+        matcher = PatternMatcher()
+        root = Root(letters=("ك", "ت", "ب"), root_type=RootType.TRILATERAL)
+        pattern = matcher.match("كُتُب", root)
+        assert pattern is not None
+        assert pattern.pattern_type == PatternType.BROKEN_PLURAL_FUUL
+        assert float(pattern.features["confidence"]) >= 0.85
+
+    def test_exact_match_short_circuits(self):
+        matcher = PatternMatcher()
+        root = Root(letters=("ك", "ت", "ب"), root_type=RootType.TRILATERAL)
+        pattern = matcher.match("كَتَبَ", root)
+        assert pattern is not None
+        assert pattern.pattern_type == PatternType.FORM_I
+        assert float(pattern.features["confidence"]) == 1.0
+
+
 class TestPatternMatcherEdgeCases:
     def test_empty_word(self):
         matcher = PatternMatcher()

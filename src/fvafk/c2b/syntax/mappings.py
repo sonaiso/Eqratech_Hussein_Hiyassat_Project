@@ -1,80 +1,99 @@
-"""Arabic-English mappings for I3rab terms.
+"""
+Arabic-English mappings for I3rab (grammatical annotation) terms.
 
 Author: Hussein Hiyassat
 Date: 2026-02-21
-Sprint: 4 - Syntax Foundation
+Sprint: 4 - Task 4.2
 """
 
-from typing import Dict
-
-# I3rab Type Mappings (Top 5 priority)
-I3RAB_TYPE_AR_TO_EN: Dict[str, str] = {
+# I3rab type mappings (Arabic -> English)
+I3RAB_TYPE_MAPPING = {
     "مبتدأ": "mubtada",
     "خبر": "khabar",
     "فاعل": "fa'il",
     "مفعول به": "maf'ul_bihi",
     "حرف": "harf",
-    # Additional types (lower priority)
-    "نعت": "na't",
-    "حال": "hal",
+    # Extended types
     "مضاف إليه": "mudaf_ilayhi",
+    "نعت": "na't",
+    "مفعول مطلق": "maf'ul_mutlaq",
+    "مفعول لأجله": "maf'ul_lajlih",
+    "حال": "hal",
+    "تمييز": "tamyeez",
     "بدل": "badal",
     "عطف": "atf",
+    "توكيد": "tawkid",
+    "نائب فاعل": "na'ib_fa'il",
+    "اسم كان": "ism_kana",
+    "خبر كان": "khabar_kana",
+    "اسم إن": "ism_inna",
+    "خبر إن": "khabar_inna",
+    "مجرور": "majrur",
 }
 
-I3RAB_TYPE_EN_TO_AR: Dict[str, str] = {v: k for k, v in I3RAB_TYPE_AR_TO_EN.items()}
+# Reverse mapping (English -> Arabic)
+I3RAB_TYPE_MAPPING_REVERSE = {v: k for k, v in I3RAB_TYPE_MAPPING.items()}
 
-# Case Mappings
-CASE_AR_TO_EN: Dict[str, str] = {
+# Syntactic role mappings (I3rab type -> syntactic role)
+SYNTACTIC_ROLE_MAPPING = {
+    "mubtada": "subject",
+    "khabar": "predicate",
+    "fa'il": "agent",
+    "maf'ul_bihi": "object",
+    "harf": "particle",
+    "mudaf_ilayhi": "genitive_complement",
+    "na't": "adjunct",
+    "maf'ul_mutlaq": "cognate_object",
+    "maf'ul_lajlih": "purpose",
+    "hal": "circumstantial",
+    "tamyeez": "specifier",
+    "badal": "appositive",
+    "atf": "conjunction",
+    "tawkid": "emphasis",
+    "na'ib_fa'il": "passive_subject",
+    "ism_kana": "subject",
+    "khabar_kana": "predicate",
+    "ism_inna": "subject",
+    "khabar_inna": "predicate",
+    "majrur": "oblique",
+}
+
+# Case mappings (Arabic -> English)
+CASE_MAPPING = {
     "مرفوع": "nominative",
     "منصوب": "accusative",
     "مجرور": "genitive",
 }
 
-CASE_EN_TO_AR: Dict[str, str] = {v: k for k, v in CASE_AR_TO_EN.items()}
+# Reverse case mapping
+CASE_MAPPING_REVERSE = {v: k for k, v in CASE_MAPPING.items()}
 
-# Case Marker Mappings
-CASE_MARKER_AR_TO_EN: Dict[str, str] = {
+# Case marker mappings
+CASE_MARKER_MAPPING = {
     "الضمة": "damma",
     "الفتحة": "fatha",
     "الكسرة": "kasra",
     "الواو": "waw",
     "الياء": "ya",
     "الألف": "alif",
+    "النون": "nun",
+    "الحركات": "short_vowels",
 }
 
-# Syntactic Role Mappings
-I3RAB_TO_ROLE: Dict[str, str] = {
-    "mubtada": "subject",
-    "khabar": "predicate",
-    "fa'il": "agent",
-    "maf'ul_bihi": "object",
-    "harf": "particle",
-    "na't": "adjective",
-    "hal": "adverb",
-    "mudaf_ilayhi": "possessive",
+# Mahall (محل) mappings
+MAHALL_MAPPING = {
+    "في محل رفع": "in_nominative_position",
+    "في محل نصب": "in_accusative_position",
+    "في محل جر": "in_genitive_position",
+    "لا محل له من الإعراب": "no_grammatical_position",
+    "لا محل له": "no_grammatical_position",
 }
 
-
-def map_i3rab_to_role(i3rab_type_en: str) -> str:
-    """Map I3rab type to syntactic role."""
-    return I3RAB_TO_ROLE.get(i3rab_type_en, "unknown")
-
-
-def map_ar_to_en(arabic_term: str, category: str) -> str:
-    """Generic mapper for Arabic to English.
-    
-    Args:
-        arabic_term: Arabic term
-        category: 'i3rab_type', 'case', or 'case_marker'
-    
-    Returns:
-        English equivalent or 'unknown'
-    """
-    mappings = {
-        "i3rab_type": I3RAB_TYPE_AR_TO_EN,
-        "case": CASE_AR_TO_EN,
-        "case_marker": CASE_MARKER_AR_TO_EN,
-    }
-    
-    return mappings.get(category, {}).get(arabic_term, "unknown")
+# Top 5 I3rab types (Phase 1 - Sprint 4)
+TOP5_I3RAB_TYPES = {
+    "مبتدأ",
+    "خبر",
+    "فاعل",
+    "مفعول به",
+    "حرف",
+}

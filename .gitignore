@@ -1,86 +1,97 @@
-# Generated artifacts and OS metadata
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
-*.pyo
-*.pyd
+*$py.class
+
+# C extensions
 *.so
-*.dll
-*.log
-*.tmp
-*.zip
 
-# Virtual environments
-.venv/
-.env/
-.env*/
-
-# Jupyter artifacts
-.ipynb_checkpoints/
-.hypothesis/
-
-# OS metadata
-Desktop.ini
-desktop.ini
-Thumbs.db
-
-# Editor artifacts
-.vscode/
-
-# Temporary workbook files
-~$*
-# macOS
-.DS_Store
-
-# Python
-*.pyc
-__pycache__/
-*.pyo
-*.pyd
+# Distribution / packaging
 .Python
-
-# Project specific
-*.tar.gz
-out.txt
-extraction_results*.txt
-benchmark_report.json
-*.log
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# Virtual environments
-venv/
-env/
-.env
-src/fvafk.egg-info/
-
-# Coq build artifacts
-coq/**/*.vo
-coq/**/*.vos
-coq/**/*.vok
-coq/**/*.glob
-coq/**/*.aux
-
-i3rab/
-
-# Python build artifacts
-dist/
 build/
-*.egg-info/
+develop-eggs/
+dist/
+downloads/
+eggs/
 .eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 
-# Test and coverage artifacts
-.pytest_cache/
-.coverage
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
 htmlcov/
 .tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
 
-# Temporary Microsoft Office lock files
-~$*
+# Translations
+*.mo
+*.pot
 
-# Excel outputs (generated artifacts)
-full_multilayer_grammar.xlsx
-full_multilayer_grammar*.xlsx
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+*.tmp
+
+# Excel temporary files
+~$*.xlsx
+~$*.xls
+
+i3rab/
+src/bayan_fvafk.egg-info/
+src/*.egg-info/

@@ -38,24 +38,6 @@ from fvafk.c2b import PatternMatcher, RootExtractor
 from fvafk.c2b.morpheme import Pattern, PatternType, Root, RootType
 
 
-def _word_form_to_syntax_dict(wf: Any, word_id: int) -> Dict[str, Any]:
-    """Serialize a WordForm for CLI syntax output (Sprint 1, Task #1.7)."""
-    return {
-        "id": word_id,
-        "surface": wf.surface,
-        "bare": getattr(wf, "bare", wf.surface),
-        "kind": getattr(wf, "kind", "unknown"),
-        "pos": getattr(wf.pos, "value", str(wf.pos)),
-        "span": {"start": wf.span.start, "end": wf.span.end} if wf.span else None,
-        "case": getattr(wf.case, "value", None) if getattr(wf, "case", None) else None,
-        "number": getattr(wf.number, "value", None) if getattr(wf, "number", None) else None,
-        "gender": getattr(wf.gender, "value", None) if getattr(wf, "gender", None) else None,
-        "definiteness": getattr(wf, "definiteness", None),
-        "root": wf.root.formatted if getattr(wf, "root", None) and wf.root else None,
-        "pattern": wf.pattern.template if getattr(wf, "pattern", None) and wf.pattern else None,
-    }
-
-
 class MinimalCLI:
     """
     Minimal command-line interface for FVAFK.
@@ -71,11 +53,11 @@ class MinimalCLI:
 
         gates = [
             GateSukun(),
+            GateIdgham(),
             GateShadda(),
             GateWasl(),
             GateHamza(),
             GateWaqf(),
-            GateIdgham(),
             GateMadd(),
                 GateAssimilation(),
                 GateTanwin(),
@@ -208,8 +190,9 @@ class MinimalCLI:
         total_time = (time.perf_counter() - start) * 1000
 
         unit_rows = [self._segment_to_unit(s) for s in segments]
-        cv_engine = "phonology_v2" if phonology_v2 else "c2a"
-        cv_analysis = analyze_text_for_cv_after_phonology(text, engine=cv_engine)
+        cv_analysis = analyze_text_for_cv_after_phonology(
+            text, engine="phonology_v2" if phonology_v2 else "c2a"
+        )
 
         result: Dict[str, Any] = {
             "input": text,
@@ -1084,6 +1067,20 @@ Examples:
     parser.add_argument("--phonology-v2-witnesses", action="store_true", help="Include Phonology V2 witnesses (large output; requires --phonology-v2-details)")
 
     args = parser.parse_args()
+
+    # Guard against unreasonably large inputs (protects against accidental
+    # large-file pastes and potential DoS; 10 000 characters ≈ ~4 pages of text)
+    _MAX_INPUT_CHARS = 10_000
+    if len(args.text) > _MAX_INPUT_CHARS:
+        error_msg = (
+            f"Input too long: {len(args.text)} characters "
+            f"(maximum {_MAX_INPUT_CHARS}). Truncate your text and try again."
+        )
+        if args.json:
+            print(json.dumps({"success": False, "error": error_msg}, ensure_ascii=False))
+        else:
+            print(f"Error: {error_msg}", file=sys.stderr)
+        sys.exit(1)
 
     try:
         cli = MinimalCLI()

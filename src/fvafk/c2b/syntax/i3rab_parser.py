@@ -1,161 +1,210 @@
-"""I3rab Parser - Extract structured data from Arabic I3rab text.
+"""
+I3rab Parser - Extract structured syntax data from I3rab text.
 
-This parser uses regex patterns to extract I3rab components from
-the raw Arabic I3rab descriptions in the corpus.
+Uses a hybrid rule-based approach with regex patterns covering the
+Top 5 I3rab types (Phase 1, ~70% coverage).
 
 Author: Hussein Hiyassat
 Date: 2026-02-21
-Sprint: 4 - Task 4.2
+Sprint: 4 - Task 4.1
 """
 
 import re
-from typing import Optional, Tuple
-from .models import I3rabComponents
-from .mappings import CASE_AR_TO_EN, I3RAB_TYPE_AR_TO_EN, CASE_MARKER_AR_TO_EN
+from typing import Optional, Dict, List
+
+from .i3rab_components import I3rabComponents
+from .mappings import (
+    I3RAB_TYPE_MAPPING,
+    CASE_MAPPING,
+    CASE_MARKER_MAPPING,
+    MAHALL_MAPPING,
+)
 
 
 class I3rabParser:
-    """Parse I3rab text using regex patterns.
-    
-    Extracts:
-    - I3rab type (مبتدأ، خبر، فاعل، مفعول به، حرف)
-    - Case (مرفوع، منصوب، مجرور)
-    - Case marker (الضمة، الفتحة، الكسرة)
-    - Mahall (في محل / لا محل له من الإعراب)
     """
-    
-    # Regex patterns for extraction
-    PATTERNS = {
-        # I3rab types (Top 5 priority)
-        "i3rab_type": r"(مبتدأ|خبر|فاعل|مفعول به|حرف جر|حرف)",
-        
-        # Case markers
-        "case": r"(مرفوع|منصوب|مجرور|مبني)",
-        
-        # Case marker signs
-        "case_marker": r"(الضمة|الفتحة|الكسرة|الواو|الياء|الألف)",
-        
-        # Mahall (syntactic position)
-        "mahall": r"(في محل|لا محل له)",
+    Parse I3rab text using regex patterns.
+
+    Phase 1 covers the Top 5 I3rab types:
+      مبتدأ، خبر، فاعل، مفعول به، حرف
+
+    Examples:
+        >>> parser = I3rabParser()
+        >>> comp = parser.parse("مُبْتَدَأٌ مَرْفُوعٌ وَعَلَامَةُ رَفْعِهِ الضَّمَّةُ")
+        >>> comp.i3rab_type
+        'مبتدأ'
+        >>> comp.case
+        'nominative'
+        >>> comp.confidence > 0.5
+        True
+    """
+
+    # ------------------------------------------------------------------
+    # Core regex patterns (diacritic-insensitive matching via strip)
+    # ------------------------------------------------------------------
+
+    # I3rab type patterns ordered by priority (more specific first)
+    _I3RAB_TYPE_PATTERNS: List[tuple] = [
+        # Two-word types first
+        ("مفعول به", r"مَفْعُولٌ\s*بِهِ|مفعول\s*به"),
+        ("مضاف إليه", r"مُضَافٌ\s*إِلَيْهِ|مضاف\s*إليه|مُضَافٌ\s*إِلَيْه"),
+        ("نائب فاعل", r"نَائِبُ\s*الْفَاعِلِ|نائب\s*فاعل"),
+        ("اسم كان", r"اسْمُ\s*كَانَ|اسم\s*كان"),
+        ("خبر كان", r"خَبَرُ\s*كَانَ|خبر\s*كان"),
+        ("اسم إن", r"اسْمُ\s*إِنَّ|اسم\s*إن"),
+        ("خبر إن", r"خَبَرُ\s*إِنَّ|خبر\s*إن"),
+        # Single-word types
+        ("مبتدأ", r"مُبْتَدَأٌ|مُبْتَدَأ|مبتدأ"),
+        ("خبر", r"(?<!\S)خَبَرٌ|(?<!\S)خَبَرُ|(?<!\S)خبر(?!\s*كان|\s*إن)"),
+        ("فاعل", r"فَاعِلٌ|فَاعِلُ|(?<!\S)فاعل"),
+        ("حرف", r"حَرْفٌ|حَرْفُ|(?<!\S)حرف"),
+        ("نعت", r"نَعْتٌ|نَعْتُ|(?<!\S)نعت"),
+        ("حال", r"حَالٌ|حَالُ|(?<!\S)حال"),
+        ("تمييز", r"تَمْيِيزٌ|(?<!\S)تمييز"),
+        ("بدل", r"بَدَلٌ|(?<!\S)بدل"),
+        ("توكيد", r"تَوْكِيدٌ|(?<!\S)توكيد"),
+        ("مجرور", r"(?<!\S)مَجْرُورٌ(?!\s*وَ)|(?<!\S)مجرور"),
+    ]
+
+    # Case patterns
+    _CASE_PATTERNS: Dict[str, List[str]] = {
+        "nominative": [
+            r"مَرْفُوعٌ",
+            r"مَرْفُوع",
+            r"رَفْعِهِ",
+            r"عَلَامَةُ رَفْع",
+            r"مرفوع",
+        ],
+        "accusative": [
+            r"مَنْصُوبٌ",
+            r"مَنْصُوب",
+            r"نَصْبِهِ",
+            r"عَلَامَةُ نَصْب",
+            r"منصوب",
+        ],
+        "genitive": [
+            r"مَجْرُورٌ",
+            r"مَجْرُور",
+            r"جَرِّهِ",
+            r"عَلَامَةُ جَرّ",
+            r"مجرور",
+        ],
     }
-    
-    def __init__(self):
-        """Initialize parser with compiled regex patterns."""
-        self.compiled_patterns = {
-            key: re.compile(pattern)
-            for key, pattern in self.PATTERNS.items()
-        }
-    
+
+    # Case marker patterns
+    _CASE_MARKER_PATTERNS: Dict[str, List[str]] = {
+        "الضمة": [r"الضَّمَّةُ", r"الضمة", r"ضَمَّة"],
+        "الفتحة": [r"الْفَتْحَةُ", r"الفتحة", r"فَتْحَة"],
+        "الكسرة": [r"الْكَسْرَةُ", r"الكسرة", r"كَسْرَة"],
+        "الواو": [r"الْوَاوُ", r"الواو(?!\s*و)"],
+        "الياء": [r"الْيَاءُ", r"الياء"],
+        "الألف": [r"الْأَلِفُ", r"الألف"],
+        "النون": [r"حَذْفِ النُّونِ", r"حذف النون"],
+    }
+
+    # Mahall patterns
+    _MAHALL_PATTERNS: Dict[str, List[str]] = {
+        "لا محل له من الإعراب": [
+            r"لَا مَحَلَّ لَهُ مِنَ الْإِعْرَابِ",
+            r"لا محل له من الإعراب",
+            r"لَا مَحَلَّ لَهَا",
+            r"لا محل لها",
+        ],
+        "في محل رفع": [r"فِي مَحَلِّ رَفْعٍ", r"في محل رفع"],
+        "في محل نصب": [r"فِي مَحَلِّ نَصْبٍ", r"في محل نصب"],
+        "في محل جر": [r"فِي مَحَلِّ جَرٍّ", r"في محل جر"],
+    }
+
     def parse(self, i3rab_text: str) -> I3rabComponents:
-        """Parse I3rab text and extract components.
-        
-        Args:
-            i3rab_text: Raw Arabic I3rab description
-            
-        Returns:
-            I3rabComponents with extracted data
         """
-        components = I3rabComponents(raw_text=i3rab_text)
-        
-        # Extract I3rab type
-        i3rab_type_ar = self._extract_pattern(i3rab_text, "i3rab_type")
-        if i3rab_type_ar:
-            # Handle "حرف جر" → "حرف"
-            i3rab_type_ar = i3rab_type_ar.replace("حرف جر", "حرف")
-            components.i3rab_type = I3RAB_TYPE_AR_TO_EN.get(i3rab_type_ar)
-        
-        # Extract case
-        case_ar = self._extract_pattern(i3rab_text, "case")
-        if case_ar and case_ar != "مبني":  # Skip mabni (indeclinable)
-            components.case = CASE_AR_TO_EN.get(case_ar)
-        
-        # Extract case marker
-        marker_ar = self._extract_pattern(i3rab_text, "case_marker")
-        if marker_ar:
-            components.case_marker = CASE_MARKER_AR_TO_EN.get(marker_ar)
-        
-        # Extract mahall
-        mahall = self._extract_pattern(i3rab_text, "mahall")
-        if mahall:
-            components.mahall = mahall
-        
-        # Compute confidence
-        components.confidence = self._compute_confidence(components)
-        
-        return components
-    
-    def _extract_pattern(self, text: str, pattern_name: str) -> Optional[str]:
-        """Extract first match for a pattern.
-        
-        Args:
-            text: Text to search
-            pattern_name: Name of pattern to use
-            
-        Returns:
-            First matched group or None
-        """
-        pattern = self.compiled_patterns.get(pattern_name)
-        if not pattern:
-            return None
-        
-        match = pattern.search(text)
-        return match.group(1) if match else None
-    
-    def _compute_confidence(self, components: I3rabComponents) -> float:
-        """Compute parsing confidence based on extracted components.
-        
-        Confidence factors:
-        - Has I3rab type: +0.4
-        - Has case: +0.3
-        - Has case marker: +0.2
-        - Has mahall: +0.1
-        
-        Args:
-            components: Parsed components
-            
-        Returns:
-            Confidence score 0.0-1.0
-        """
-        confidence = 0.0
-        
-        if components.i3rab_type:
-            confidence += 0.4
-        
-        if components.case:
-            confidence += 0.3
-        
-        if components.case_marker:
-            confidence += 0.2
-        
-        if components.mahall:
-            confidence += 0.1
-        
-        return min(confidence, 1.0)  # Cap at 1.0
-    
-    def parse_with_validation(self, i3rab_text: str) -> Tuple[I3rabComponents, bool]:
-        """Parse and validate I3rab text.
-        
-        Args:
-            i3rab_text: Raw Arabic I3rab description
-            
-        Returns:
-            Tuple of (components, is_valid)
-            is_valid is True if at least I3rab type was extracted
-        """
-        components = self.parse(i3rab_text)
-        is_valid = components.i3rab_type is not None
-        return components, is_valid
+        Extract I3rab components from Arabic I3rab text.
 
+        Args:
+            i3rab_text: Full I3rab description in Arabic.
 
-# Convenience function
-def parse_i3rab(i3rab_text: str) -> I3rabComponents:
-    """Parse I3rab text (convenience function).
-    
-    Args:
-        i3rab_text: Raw Arabic I3rab description
-        
-    Returns:
-        Parsed I3rabComponents
-    """
-    parser = I3rabParser()
-    return parser.parse(i3rab_text)
+        Returns:
+            I3rabComponents with extracted fields and confidence score.
+
+        Examples:
+            >>> parser = I3rabParser()
+            >>> comp = parser.parse("فَاعِلٌ مَرْفُوعٌ وَعَلَامَةُ رَفْعِهِ الضَّمَّةُ")
+            >>> comp.i3rab_type
+            'فاعل'
+            >>> comp.case
+            'nominative'
+        """
+        if not i3rab_text or not i3rab_text.strip():
+            return I3rabComponents(raw_text=i3rab_text or "")
+
+        i3rab_type = self._extract_i3rab_type(i3rab_text)
+        i3rab_type_en = I3RAB_TYPE_MAPPING.get(i3rab_type) if i3rab_type else None
+        case = self._extract_case(i3rab_text)
+        case_marker = self._extract_case_marker(i3rab_text)
+        mahall = self._extract_mahall(i3rab_text)
+        confidence = self._compute_confidence(i3rab_type, case, case_marker)
+
+        return I3rabComponents(
+            i3rab_type=i3rab_type,
+            i3rab_type_en=i3rab_type_en,
+            case=case,
+            case_marker=case_marker,
+            mahall=mahall,
+            confidence=confidence,
+            raw_text=i3rab_text,
+        )
+
+    # ------------------------------------------------------------------
+    # Private helpers
+    # ------------------------------------------------------------------
+
+    def _extract_i3rab_type(self, text: str) -> Optional[str]:
+        """Extract the primary I3rab type from text."""
+        for ar_type, pattern in self._I3RAB_TYPE_PATTERNS:
+            if re.search(pattern, text):
+                return ar_type
+        return None
+
+    def _extract_case(self, text: str) -> Optional[str]:
+        """Extract grammatical case from text."""
+        for case_en, patterns in self._CASE_PATTERNS.items():
+            for pattern in patterns:
+                if re.search(pattern, text):
+                    return case_en
+        return None
+
+    def _extract_case_marker(self, text: str) -> Optional[str]:
+        """Extract case marker (e.g. الضمة) from text."""
+        for marker_ar, patterns in self._CASE_MARKER_PATTERNS.items():
+            for pattern in patterns:
+                if re.search(pattern, text):
+                    return marker_ar
+        return None
+
+    def _extract_mahall(self, text: str) -> Optional[str]:
+        """Extract mahall (grammatical position clause) from text."""
+        for mahall_ar, patterns in self._MAHALL_PATTERNS.items():
+            for pattern in patterns:
+                if re.search(pattern, text):
+                    return mahall_ar
+        return None
+
+    def _compute_confidence(
+        self,
+        i3rab_type: Optional[str],
+        case: Optional[str],
+        case_marker: Optional[str],
+    ) -> float:
+        """
+        Compute parsing confidence based on matched fields.
+
+        Confidence increases with the number of successfully extracted
+        fields.
+        """
+        score = 0.0
+        if i3rab_type:
+            score += 0.5
+        if case:
+            score += 0.3
+        if case_marker:
+            score += 0.2
+        return min(1.0, score)

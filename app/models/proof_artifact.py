@@ -43,18 +43,6 @@ class ProofArtifact(BaseModel):
         >>> artifact.status
         <ProofStatus.PROVEN: 'proven'>
     """
-    
-    theorem_name: str = Field(..., description="Coq theorem/lemma name")
-    status: ProofStatus = Field(..., description="Proof status")
-    coq_file: str = Field(..., description="Path to .v file")
-    line_number: Optional[int] = Field(default=None, ge=1, description="Line number in file")
-    proof_term: Optional[str] = Field(default=None, description="Proof term (if proven)")
-    dependencies: List[str] = Field(default_factory=list, description="Dependent lemmas")
-    notes: Optional[str] = Field(default=None, description="Additional notes")
-    
-    def is_safe(self) -> bool:
-        """Check if proof is safe to rely on (proven, not admitted)"""
-        return self.status == ProofStatus.PROVEN
 
     model_config = ConfigDict(
         use_enum_values=False,
@@ -66,7 +54,19 @@ class ProofArtifact(BaseModel):
                 "line_number": 42,
                 "proof_term": "exact (refl_equal _).",
                 "dependencies": ["length_preservation"],
-                "notes": "Verified 2026-02-15"
+                "notes": "Verified 2026-02-15",
             }
-        }
+        },
     )
+
+    theorem_name: str = Field(..., description="Coq theorem/lemma name")
+    status: ProofStatus = Field(..., description="Proof status")
+    coq_file: str = Field(..., description="Path to .v file")
+    line_number: Optional[int] = Field(default=None, ge=1, description="Line number in file")
+    proof_term: Optional[str] = Field(default=None, description="Proof term (if proven)")
+    dependencies: List[str] = Field(default_factory=list, description="Dependent lemmas")
+    notes: Optional[str] = Field(default=None, description="Additional notes")
+
+    def is_safe(self) -> bool:
+        """Check if proof is safe to rely on (proven, not admitted)"""
+        return self.status == ProofStatus.PROVEN
