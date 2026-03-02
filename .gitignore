@@ -95,3 +95,12 @@ Thumbs.db
 i3rab/
 src/bayan_fvafk.egg-info/
 src/*.egg-info/
+
+# Local Quran dataset (external / large)
+data/quran-simple-clean.txt
+
+# Local outputs
+out*.csv
+full_quran.csv
+pipeline.log
+
