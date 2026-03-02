@@ -80,20 +80,21 @@ class OrthographyAdapter:
         'الكتاب'
     """
     
-    keep_diacritics: bool = False
+    keep_diacritics: bool = True
     apply_tanwin_waqf: bool = True
     apply_hamza_normalization: bool = True
     apply_taa_normalization: bool = True
     apply_alef_normalization: bool = True
-    
-    def normalize(self, text: str, strip_diacritics: bool = True) -> str:
+
+    def normalize(self, text: str, strip_diacritics: bool = False) -> str:
         """
-        Normalize Arabic text according to orthography rules
-        
+        Normalize Arabic text according to orthography rules.
+        التشكيل معلومة (فَعَلَ ≠ فَعِلَ) — الافتراضي: حفظ التشكيل، لا إزالة.
+
         Args:
             text: Input Arabic text
-            strip_diacritics: Whether to remove diacritics
-        
+            strip_diacritics: If True, remove diacritics; default False (preserve).
+
         Returns:
             Normalized text
         """
