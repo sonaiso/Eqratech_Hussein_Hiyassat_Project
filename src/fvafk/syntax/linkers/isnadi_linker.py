@@ -128,11 +128,11 @@ class IsnadiLinker:
         if self.require_definiteness and not word.is_definite:
             return False
         
-        # Usually at beginning (position 0 or 1)
-        # But we'll be lenient for now
-        if position > 2:
+        # Allow مبتدأ anywhere in the verse (nominal sentences can appear mid-verse)
+        # Previously restricted to position <= 2; relaxed so إسنادي links are found in long text.
+        if position > 200:
             return False
-        
+
         return True
     
     def _find_khabar(self, words: List[WordForm], mubtada_idx: int) -> Optional[tuple]:

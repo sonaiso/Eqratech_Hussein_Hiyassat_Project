@@ -206,19 +206,22 @@ class RootExtractor:
         best = max(candidates, key=_tie_key)
         return best[0]
 
-    def _normalize(self, word: str, *, expand_shadda: bool = True) -> str:
+    def _normalize(
+        self, word: str, *, expand_shadda: bool = True, preserve_harakat: bool = False
+    ) -> str:
+        """
+        تطبيع الكلمة (همزة، ألف، ى). عند preserve_harakat=True يُحافظ على التشكيل ولا يحذفه.
+        """
         buffer: List[str] = []
         i = 0
         while i < len(word):
             ch = word[i]
             if ch == 'ّ':
-                # For root extraction we sometimes want gemination expansion,
-                # but for display (normalized_word) we keep orthographic form.
                 if expand_shadda and buffer:
                     buffer.append(buffer[-1])
                 i += 1
                 continue
-            if ch in self.DIACRITICS or ch == 'ـ':
+            if not preserve_harakat and (ch in self.DIACRITICS or ch == 'ـ'):
                 i += 1
                 continue
             buffer.append(ch)
@@ -226,10 +229,12 @@ class RootExtractor:
         text = ''.join(buffer)
         text = text.replace('أ', 'ا').replace('إ', 'ا').replace('آ', 'ا')
         text = text.replace('ى', 'ي')
-        text = re.sub(r'[\u064B-\u065F\u0670]', '', text)
+        if not preserve_harakat:
+            text = re.sub(r'[\u064B-\u065F\u0670]', '', text)
         text = text.replace('أ', 'ا').replace('إ', 'ا').replace('آ', 'ا')
         text = text.replace('ى', 'ي').replace('ـ', '')
-        text = re.sub(r'[\u064B-\u065F\u0670]', '', text)
+        if not preserve_harakat:
+            text = re.sub(r'[\u064B-\u065F\u0670]', '', text)
         return text.strip()
 
     def _strip_diacritics_surface(self, text: str) -> str:
@@ -285,13 +290,16 @@ class RootExtractor:
         # Clitic loop runs next; we'll strip ل there if allow_bkl; for لام الأمر we strip ل here when at start.
 
         # 1) complex multi-letter prefixes (است، ال، وال، إلخ)
+        # أل التعريف: نزعها إذا بقي حرفان فأكثر (الشح→شح، الظن→ظن)
+        DEFINITE_ARTICLE_PREFIXES = frozenset({"ال", "وال", "فال", "بال", "كال", "لل"})
         if not no_split_mode:
             complex_prefixes = [p for p in self.PREFIXES if len(p) >= 2]
             for prefix in sorted(complex_prefixes, key=len, reverse=True):
                 # Prevent mis-segmentation of "سيما" as (سي + ما...)
                 if prefix == "سي" and text.startswith("سيما"):
                     continue
-                if text.startswith(prefix) and len(text) - len(prefix) >= 3:
+                min_remain = 2 if prefix in DEFINITE_ARTICLE_PREFIXES else 3
+                if text.startswith(prefix) and len(text) - len(prefix) >= min_remain:
                     text = text[len(prefix) :]
                     prefix_parts.append(prefix)
                     break
