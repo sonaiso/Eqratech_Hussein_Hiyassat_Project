@@ -153,3 +153,29 @@ coq/Gates/*.vok
 coq/Gates/*.glob
 coq/Gates/*.aux
 
+
+# Local scratch / outputs (repo root)
+out*.csv
+out*.txt
+out_wazn_operators.txt
+out_wazn_ops.json
+output_final.json
+pipeline.log
+full_quran.csv
+quran_analysis_sample.csv
+extraction_results*.txt
+test_root_extractor.log
+claude.out
+code_snapshot.tar.gz
+src/fvafk/files.zip
+
+# Local env/editor
+.eab/
+
+# Coq build artifacts
+coq/Gates/*.vo
+coq/Gates/*.vos
+coq/Gates/*.vok
+coq/Gates/*.glob
+coq/Gates/*.aux
+
