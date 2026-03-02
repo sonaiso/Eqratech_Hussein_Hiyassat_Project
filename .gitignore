@@ -179,3 +179,9 @@ coq/Gates/*.vok
 coq/Gates/*.glob
 coq/Gates/*.aux
 
+
+# Python artifacts
+__pycache__/
+*.pyc
+*.pyo
+
