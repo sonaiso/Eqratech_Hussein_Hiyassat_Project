@@ -185,3 +185,23 @@ __pycache__/
 *.pyc
 *.pyo
 
+
+# Local experiments / scratch scripts (repo root)
+debug_*.py
+fix_*.py
+analyze_*.py
+add_*_fix.py
+trace_*.py
+awzan_analysis*.txt
+awzan_matcher*.py
+
+# Local root-level scratch tests (keep real tests under tests/)
+test_*.py
+
+# Script backups / legacy
+scripts/*-old.py
+scripts/*-backup.py
+
+# Local backups
+*.backup
+
