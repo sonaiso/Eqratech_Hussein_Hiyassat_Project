@@ -104,3 +104,11 @@ out*.csv
 full_quran.csv
 pipeline.log
 
+
+# Local Quran dataset (external / large)
+data/quran-simple-clean.txt
+
+# Local outputs
+out*.csv
+full_quran.csv
+pipeline.log
