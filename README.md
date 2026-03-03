@@ -52,6 +52,8 @@ pip install bayan-fvafk
 PYTHONPATH=src pytest -q
 ```
 
+> 📖 See **[TESTING.md](TESTING.md)** for the full local-testing guide (virtual-env setup, running by area, coverage, CLI smoke tests, and troubleshooting).
+
 ---
 
 ## 💻 Usage (CLI)
