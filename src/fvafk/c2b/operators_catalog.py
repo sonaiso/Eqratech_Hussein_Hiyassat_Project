@@ -141,6 +141,15 @@ class OperatorsCatalog:
                     return [self._best_entry(op1), self._best_entry(rest)]  # type: ignore[list-item]
         return None
 
+    def get_entries_by_bare(self, bare: str) -> List[OperatorEntry]:
+        """Return all catalog entries whose bare (diacritic-stripped) form equals *bare*."""
+        return list(self._by_bare.get(bare, []))
+
+    def iter_all_entries(self):
+        """Yield every :class:`OperatorEntry` in the catalog (all bare forms, all duplicates)."""
+        for entries in self._by_bare.values():
+            yield from entries
+
     def _format_result(self, token_bare: str, prefixes: str, parts: List[OperatorEntry]) -> Dict[str, object]:
         primary = parts[0]
         return {
