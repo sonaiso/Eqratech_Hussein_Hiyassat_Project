@@ -97,6 +97,12 @@ class RootExtractor:
         self.known_roots = known_roots or set()
 
     def extract(self, word: str) -> Optional[Root]:
+        # C2B NO-ROOT STOPLIST (particles/operators)
+        import re as _re
+        _c2b_surface = _re.sub(r"[\u064B-\u0652\u0670\u0640]", "", word)
+        if _c2b_surface in {"حتى", "كأن", "كأنّ", "كأنما"}:
+            return None
+
         context = self._extract_context(word)
         return context.root
 
