@@ -102,15 +102,15 @@ def _infer_gender(bare: str, *, suffix: Optional[str] = None) -> Optional[str]:
 
 
 def _infer_case(bare: str, *, token: str, suffix: Optional[str] = None) -> Optional[str]:
-    tanwin_case = _detect_case_from_token(token)
-    if tanwin_case:
-        return tanwin_case
+    # Sound masculine plural endings are unambiguous case markers and must be
+    # checked before vowel-based heuristics (the final fatha on ن in "ونَ" is
+    # part of the plural suffix, not a case vowel).
     suf = _suffix_tail(suffix)
     if suf == "ون" or bare.endswith("ون"):
         return "nominative"
     if suf == "ين" or bare.endswith("ين"):
         return "accusative_or_genitive"
-    # Fallback: case from last short vowel in token (for إسنادي etc.)
+    # Tanwin or last short vowel as case marker.
     return _detect_case_from_token(token)
 
 

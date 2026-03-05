@@ -63,7 +63,10 @@ class TestPatternMatcherFromDatabase:
     @pytest.fixture
     def db(self):
         """Pattern database fixture - USES TEST DATA"""
-        return AwzanTestPatternDatabase()
+        try:
+            return AwzanTestPatternDatabase()
+        except FileNotFoundError as exc:
+            pytest.skip(str(exc))
 
     @pytest.fixture
     def matcher(self, db):
