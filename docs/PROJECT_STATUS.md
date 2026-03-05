@@ -112,6 +112,8 @@ The **full task checklist** (Parts 1–6) is in **`docs/MASTER_PLAN_CHECKLIST.md
 
 ---
 
+**Note:** Status entries are listed from newest to oldest.
+
 **Sprint 4 – Syntax Layer with I3rab Integration** ✅ (2026-02-21)
 - I3rab Parser (regex, Top-5 types: مبتدأ، خبر، فاعل، مفعول به، حرف)
 - Syntax Data Model: `I3rabAnnotation` → `I3rabComponents` → `SyntaxFeatures`
@@ -123,3 +125,10 @@ The **full task checklist** (Parts 1–6) is in **`docs/MASTER_PLAN_CHECKLIST.md
 ---
 
 *For detailed acceptance criteria and GitHub issue list, see ENHANCED_ROADMAP.md.*
+## Sprint 3 (Semantic Gates + C2B Fixes) ✅
+
+- Merged `sprint3/semantic-gates` into `main`
+- C2B fixes:
+  - Case inference: suffix overrides last-vowel (e.g., كاتبون = nominative)
+  - RootExtractor: prevent roots for particles/operators (حتى، كأن)
+- Tests: 829 passed, 16 skipped (pytest -q on main)
