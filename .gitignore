@@ -205,3 +205,9 @@ scripts/*-backup.py
 # Local backups
 *.backup
 
+
+# allow real tests under /tests
+!tests/
+!tests/**/
+!tests/test_*.py
+!tests/**/test_*.py
