@@ -36,14 +36,17 @@ class OperatorsCatalog:
     """
     Catalog of Arabic operators/particles (حروف/أدوات) loaded from a CSV.
     Used to short-circuit morphology (root/pattern) for tokens that are operators.
+
+    If both enriched and plain CSV exist, the enriched one is used automatically.
+    To generate enriched: PYTHONPATH=src python -m fvafk.c2b.read_inputs_for_enrichment_pipeline
     """
 
+    # Prefer enriched catalog (project_effect_signature, project_usage_universal_ar, evidence); fallback to plain.
     DEFAULT_CANDIDATE_PATHS = [
-        # User-provided external dataset path (optional).
-        Path("/Users/husseinhiyassat/clean_code__morphology_pipeline/data/operators_catalog_split.csv"),
-        # Common local locations (optional).
-        Path.cwd() / "operators_catalog_split.csv",
+        Path.cwd() / "data" / "operators_catalog_split_enriched.csv",
         Path.cwd() / "data" / "operators_catalog_split.csv",
+        Path.cwd() / "operators_catalog_split_enriched.csv",
+        Path.cwd() / "operators_catalog_split.csv",
     ]
 
     PREFIX_CHARS = ("و", "ف", "ب", "ك", "ل", "س")

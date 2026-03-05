@@ -4,6 +4,7 @@ Database of Indeclinable Words and Grammatical Operators
 """
 import json
 import csv
+import os
 import unicodedata
 from pathlib import Path
 from typing import Dict, Optional, Tuple
@@ -21,6 +22,23 @@ _MABNI_CATEGORIES = frozenset({
     "اسم موصول", "اسم إشارة", "ضمير", "أسماء الاستفهام", "أداة شرط", "أداة نداء",
     "ظرف", "اسم فعل", "أداة ربط", "حرف عطف", "أداة نحوية", "name",
 })
+
+
+def _resolve_operators_csv(base_path: Path) -> Optional[Path]:
+    """Prefer enriched catalog, then plain; respect FVAFK_OPERATORS_CSV."""
+    env = os.environ.get("FVAFK_OPERATORS_CSV")
+    if env:
+        p = Path(env).expanduser()
+        if p.exists():
+            return p
+    candidates = [
+        base_path / "data" / "operators_catalog_split_enriched.csv",
+        base_path / "data" / "operators_catalog_split.csv",
+    ]
+    for p in candidates:
+        if p.exists():
+            return p
+    return None
 
 
 def normalize_arabic(text: str) -> str:
@@ -340,12 +358,11 @@ class SpecialWordsDatabase:
             print(f"Loaded {count} conjunctions (حروف العطف)")
     
     def _load_operators_from_csv(self):
-        """تحميل الأدوات النحوية من ملف CSV"""
-        csv_path = self.base_path / "data" / "operators_catalog_split.csv"
-        
-        if not csv_path.exists():
+        """تحميل الأدوات النحوية من ملف CSV (يفضّل enriched ثم fallback إلى plain)."""
+        csv_path = _resolve_operators_csv(self.base_path)
+        if csv_path is None:
             if self.verbose:
-                print(f"CSV file not found: {csv_path}")
+                print("Operators CSV not found (tried FVAFK_OPERATORS_CSV, enriched, plain).")
             return
         
         count = 0
