@@ -26,6 +26,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
+      - name: Generate enriched operators catalog (required by dataset tests)
+        run: |
+          PYTHONPATH=src python -m fvafk.c2b.read_inputs_for_enrichment_pipeline
+          test -f data/operators_catalog_split_enriched.csv
+
       - name: Run tests
         run: pytest -q
 

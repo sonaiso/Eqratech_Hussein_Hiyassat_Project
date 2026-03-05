@@ -205,3 +205,6 @@ scripts/*-backup.py
 # Local backups
 *.backup
 
+# Generated enrichment artifact (produced by CI / read_inputs_for_enrichment_pipeline.py)
+data/operators_catalog_split_enriched.csv
+
