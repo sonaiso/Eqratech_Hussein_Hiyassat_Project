@@ -17,14 +17,14 @@ jobs:
       - name: Setup Coq
         uses: coq-community/docker-coq-action@v1
         with:
-          # Prefer pinning to a specific version for reproducibility; keeping "latest" to match your intent.
           coq_version: 'latest'
 
       - name: Compile Coq sources
         working-directory: ./coq
         run: |
           set -e
-          if [ -f _CoqProject ]; then
+
+          if command -v coq_makefile >/dev/null 2>&1 && [ -f _CoqProject ]; then
             coq_makefile -f _CoqProject -o Makefile
             make -j2
           elif [ -f Makefile ]; then
