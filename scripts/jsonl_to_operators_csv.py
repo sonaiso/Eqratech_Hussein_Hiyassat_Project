@@ -1,3 +1,14 @@
+"""
+Build operators_catalog_split_project.csv for the operators catalog pipeline.
+
+- Load from operators_catalog_split_enriched.jsonl when present; otherwise fall back
+  to data/operators_catalog_split.csv so the pipeline can run from the base CSV when
+  JSONL is missing.
+- Normalize rows to include all BASE + PROJECT keys (missing fields default to "").
+- Skip header-artifact rows and apply project defaults (effect signature, usage,
+  i3rab template) for both JSONL and CSV inputs.
+- Raise a clear error when neither source file exists.
+"""
 from __future__ import annotations
 
 import csv
@@ -218,8 +229,9 @@ def main() -> None:
         rows = _load_rows_from_csv(csv_src)
     else:
         raise FileNotFoundError(
-            "No input found. Expected either "
-            f"{jsonl_src.as_posix()} or {csv_src.as_posix()}."
+            "No input found. Provide one of: "
+            f"{jsonl_src.as_posix()} or {csv_src.as_posix()}. "
+            "Run the enrichment pipeline or add the base CSV to data/."
         )
 
     out.parent.mkdir(parents=True, exist_ok=True)
