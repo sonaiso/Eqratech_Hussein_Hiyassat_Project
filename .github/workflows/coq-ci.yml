@@ -19,16 +19,47 @@ jobs:
         with:
           coq_version: 'latest'
 
+      - name: Debug: show available Coq/Rocq binaries
+        run: |
+          set -e
+          echo "PATH=$PATH"
+          command -v coqc || true
+          command -v coq_makefile || true
+          command -v rocq || true
+          command -v rocqtop || true
+          ls -la /usr/bin | grep -E 'coq|rocq' || true
+          ls -la /usr/local/bin | grep -E 'coq|rocq' || true
+
       - name: Compile Coq sources
         working-directory: ./coq
         run: |
           set -e
 
+          # Pick a compiler command that exists
+          if command -v coqc >/dev/null 2>&1; then
+            COQC=coqc
+          elif command -v rocq >/dev/null 2>&1; then
+            # If we're on Rocq, attempt to use its coqc-compatible frontend if present
+            # (we'll fall back to a clear error if not).
+            if command -v rocqc >/dev/null 2>&1; then
+              COQC=rocqc
+            else
+              echo "ERROR: 'coqc' not found, and 'rocqc' not found. Available rocq tools:"
+              command -v rocq || true
+              command -v rocqtop || true
+              exit 1
+            fi
+          else
+            echo "ERROR: No Coq compiler found (coqc/rocqc)."
+            exit 1
+          fi
+
+          # Build
           if command -v coq_makefile >/dev/null 2>&1 && [ -f _CoqProject ]; then
             coq_makefile -f _CoqProject -o Makefile
             make -j2
           elif [ -f Makefile ]; then
             make -j2
           else
-            find . -name '*.v' -print0 | xargs -0 -n1 coqc
+            find . -name '*.v' -print0 | xargs -0 -n1 "$COQC"
           fi
