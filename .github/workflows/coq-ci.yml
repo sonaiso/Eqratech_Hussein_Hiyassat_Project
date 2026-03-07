@@ -14,29 +14,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Coq
+      - name: Setup Coq + build
         uses: coq-community/docker-coq-action@v1
         with:
-          # Pin to a classic Coq release so we get coqc/coq_makefile (not Rocq tool names)
           coq_version: '8.19'
+          custom_script: |
+            set -euo pipefail
 
-      - name: Compile Coq sources
-        working-directory: ./coq
-        run: |
-          set -e
+            cd coq
 
-          # Ensure opam switch environment is active so coqc/coq_makefile are on PATH
-          eval "$(opam env)"
-
-          # Optional sanity checks
-          command -v coqc
-          coqc --version
-
-          if command -v coq_makefile >/dev/null 2>&1 && [ -f _CoqProject ]; then
-            coq_makefile -f _CoqProject -o Makefile
-            make -j2
-          elif [ -f Makefile ]; then
-            make -j2
-          else
-            find . -name '*.v' -print0 | xargs -0 -n1 coqc
-          fi
+            # If your project has _CoqProject, prefer makefile generation.
+            if command -v coq_makefile >/dev/null 2>&1 && [ -f _CoqProject ]; then
+              coq_makefile -f _CoqProject -o Makefile
+              make -j2
+            elif [ -f Makefile ]; then
+              make -j2
+            else
+              find . -name '*.v' -print0 | xargs -0 -n1 coqc
+            fi
