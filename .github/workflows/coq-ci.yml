@@ -15,9 +15,10 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup Coq
-        uses: coq-community/coq-action@v1
+        uses: coq-community/docker-coq-action@v1
         with:
-          coq-version: 'latest'
+          # Prefer pinning to a specific version for reproducibility; keeping "latest" to match your intent.
+          coq_version: 'latest'
 
       - name: Compile Coq sources
         working-directory: ./coq
