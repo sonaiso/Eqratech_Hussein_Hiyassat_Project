@@ -6,6 +6,7 @@ This document describes the operators catalog generation pipeline: canonical out
 
 - **Canonical path:** `data/operators_catalog_split_project_enriched.csv`
 - **Backward-compatibility alias:** The generator copies the canonical file to `data/operators_catalog_split_enriched.csv` so existing code that expects the legacy path still works.
+- **Loaders:** Code that loads the operators catalog (e.g. `OperatorsCatalog`, `SpecialWordsDatabase`, `run_complete_snapshot.load_operators_catalog`) **prefers the enriched canonical file**, then falls back to `operators_catalog_split_enriched.csv`, then `operators_catalog_split.csv`. Set **`FVAFK_OPERATORS_CSV`** to a path to override (e.g. for tests or a custom CSV).
 - **One command:** From repo root, run:
   ```bash
   bash scripts/generate_operators_catalog_enriched.sh

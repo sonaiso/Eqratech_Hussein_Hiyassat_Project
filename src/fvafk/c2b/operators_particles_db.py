@@ -4,10 +4,33 @@ Database of Indeclinable Words and Grammatical Operators
 """
 import json
 import csv
+import os
+import sys
 import unicodedata
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 from dataclasses import dataclass
+
+
+def _resolve_operators_csv(base_path: Path) -> Optional[Path]:
+    """Prefer enriched canonical CSV, then legacy. FVAFK_OPERATORS_CSV overrides."""
+    env = os.environ.get("FVAFK_OPERATORS_CSV")
+    if env:
+        p = Path(env).expanduser()
+        if p.is_absolute() and p.exists():
+            return p
+        q = base_path / env if not Path(env).is_absolute() else p
+        if q.exists():
+            return q
+    for name in (
+        "operators_catalog_split_project_enriched.csv",
+        "operators_catalog_split_enriched.csv",
+        "operators_catalog_split.csv",
+    ):
+        candidate = base_path / "data" / name
+        if candidate.exists():
+            return candidate
+    return None
 
 # Common prefixes (conjunction/particle) that may attach to another operator in text
 # e.g. وََلَا = وَ + لَا, فَإِن = فَ + إِنْ
@@ -340,12 +363,11 @@ class SpecialWordsDatabase:
             print(f"Loaded {count} conjunctions (حروف العطف)")
     
     def _load_operators_from_csv(self):
-        """تحميل الأدوات النحوية من ملف CSV"""
-        csv_path = self.base_path / "data" / "operators_catalog_split.csv"
-        
-        if not csv_path.exists():
+        """تحميل الأدوات النحوية من ملف CSV (prefer enriched canonical, then legacy)."""
+        csv_path = _resolve_operators_csv(self.base_path)
+        if not csv_path or not csv_path.exists():
             if self.verbose:
-                print(f"CSV file not found: {csv_path}")
+                print("Operators CSV not found (tried project_enriched, enriched, legacy)", file=sys.stderr)
             return
         
         count = 0

@@ -38,12 +38,12 @@ class OperatorsCatalog:
     Used to short-circuit morphology (root/pattern) for tokens that are operators.
     """
 
+    # Prefer enriched canonical, then legacy. Env FVAFK_OPERATORS_CSV overrides.
     DEFAULT_CANDIDATE_PATHS = [
-        # User-provided external dataset path (optional).
-        Path("/Users/husseinhiyassat/clean_code__morphology_pipeline/data/operators_catalog_split.csv"),
-        # Common local locations (optional).
-        Path.cwd() / "operators_catalog_split.csv",
+        Path.cwd() / "data" / "operators_catalog_split_project_enriched.csv",
+        Path.cwd() / "data" / "operators_catalog_split_enriched.csv",
         Path.cwd() / "data" / "operators_catalog_split.csv",
+        Path.cwd() / "operators_catalog_split.csv",
     ]
 
     PREFIX_CHARS = ("و", "ف", "ب", "ك", "ل", "س")

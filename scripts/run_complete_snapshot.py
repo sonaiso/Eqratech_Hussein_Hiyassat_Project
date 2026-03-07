@@ -532,19 +532,39 @@ AYAT_AL_DAYN = (
 )
 
 
+def _resolve_operators_catalog_path() -> Optional[Path]:
+    """Prefer enriched canonical CSV, then legacy. FVAFK_OPERATORS_CSV overrides."""
+    import os
+    env = os.environ.get("FVAFK_OPERATORS_CSV")
+    if env:
+        p = Path(env).expanduser()
+        if p.exists():
+            return p
+        if not p.is_absolute():
+            q = Path("data") / p.name if p.name else Path(env)
+            if q.exists():
+                return q
+    for name in (
+        "operators_catalog_split_project_enriched.csv",
+        "operators_catalog_split_enriched.csv",
+        "operators_catalog_split.csv",
+    ):
+        candidate = Path("data") / name
+        if candidate.exists():
+            return candidate
+    return None
+
+
 def load_operators_catalog(verbose: bool = False) -> Dict[str, Dict[str, Any]]:
-    """Load operators catalog from CSV file."""
-    catalog_path = Path("data/operators_catalog_split.csv")
-    
-    if not catalog_path.exists():
+    """Load operators catalog from CSV (prefer enriched canonical, then legacy)."""
+    catalog_path = _resolve_operators_catalog_path()
+    if not catalog_path:
         if verbose:
-            print(f"Warning: Operators catalog not found at {catalog_path}", file=sys.stderr)
+            print("Warning: Operators catalog not found (tried project_enriched, enriched, legacy)", file=sys.stderr)
         return {}
-    
     operators = {}
-    
     try:
-        with open(catalog_path, 'r', encoding='utf-8') as f:
+        with open(catalog_path, 'r', encoding='utf-8-sig') as f:
             reader = csv.DictReader(f)
             for row in reader:
                 operator = row['Operator'].strip()
