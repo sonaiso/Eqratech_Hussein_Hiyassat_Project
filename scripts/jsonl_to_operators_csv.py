@@ -170,10 +170,17 @@ def apply_project_defaults(rec: Dict[str, Any]) -> Dict[str, Any]:
     return out
 
 
-def main() -> None:
-    src = Path("data/operators_catalog_split_enriched.jsonl")
-    out = Path("data/operators_catalog_split_project.csv")
+def _normalize_row(row: Dict[str, Any]) -> Dict[str, Any]:
+    """Ensure BASE+PROJECT keys exist (empty if missing)."""
+    out: Dict[str, Any] = {}
+    for k in BASE:
+        out[k] = (row.get(k, "") if row.get(k, "") is not None else "")
+    for k in PROJECT:
+        out[k] = (row.get(k, "") if row.get(k, "") is not None else "")
+    return out
 
+
+def _load_rows_from_jsonl(src: Path) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
     with src.open("r", encoding="utf-8") as f:
         for line in f:
@@ -184,7 +191,36 @@ def main() -> None:
             if _is_header_artifact(obj):
                 continue
             rec = apply_project_defaults(obj)
-            rows.append(rec)
+            rows.append(_normalize_row(rec))
+    return rows
+
+
+def _load_rows_from_csv(src: Path) -> List[Dict[str, Any]]:
+    rows: List[Dict[str, Any]] = []
+    with src.open("r", encoding="utf-8-sig", newline="") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            if _is_header_artifact(row):
+                continue
+            rec = apply_project_defaults(row)
+            rows.append(_normalize_row(rec))
+    return rows
+
+
+def main() -> None:
+    jsonl_src = Path("data/operators_catalog_split_enriched.jsonl")
+    csv_src = Path("data/operators_catalog_split.csv")
+    out = Path("data/operators_catalog_split_project.csv")
+
+    if jsonl_src.exists():
+        rows = _load_rows_from_jsonl(jsonl_src)
+    elif csv_src.exists():
+        rows = _load_rows_from_csv(csv_src)
+    else:
+        raise FileNotFoundError(
+            "No input found. Expected either "
+            f"{jsonl_src.as_posix()} or {csv_src.as_posix()}."
+        )
 
     out.parent.mkdir(parents=True, exist_ok=True)
     with out.open("w", encoding="utf-8", newline="") as g:
@@ -192,6 +228,7 @@ def main() -> None:
         w.writeheader()
         for r in rows:
             w.writerow({k: r.get(k, "") for k in (BASE + PROJECT)})
+
 
 if __name__ == "__main__":
     main()
