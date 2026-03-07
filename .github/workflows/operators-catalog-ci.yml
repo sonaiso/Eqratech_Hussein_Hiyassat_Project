@@ -33,14 +33,10 @@ jobs:
         run: |
           python3 scripts/qa_operators_enriched.py
 
-      - name: Ensure generated CSVs are committed (no drift)
+      # Option 1 policy: treat generated CSVs as build artifacts (no "fail on drift").
+      # This keeps CI validating that generation + QA succeed, without forcing commits of regenerated outputs.
+      - name: Show drift (informational)
         run: |
-          git diff --exit-code -- \
+          git diff -- \
             data/operators_catalog_split_project_enriched.csv \
-            data/operators_catalog_split_enriched.csv || {
-              echo "Generated operators catalogs differ from committed versions."
-              echo "Run: bash scripts/generate_operators_catalog_enriched.sh"
-              echo "Then: python3 scripts/qa_operators_enriched.py"
-              echo "Then commit the updated CSVs."
-              exit 1
-            }
+            data/operators_catalog_split_enriched.csv || true
