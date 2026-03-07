@@ -21,9 +21,15 @@ jobs:
           custom_script: |
             set -euo pipefail
 
-            cd coq
+            # Use a writable build directory
+            BUILD_DIR="/tmp/coq-build"
+            rm -rf "$BUILD_DIR"
+            mkdir -p "$BUILD_DIR"
 
-            # If your project has _CoqProject, prefer makefile generation.
+            # Copy sources into the writable dir (simplest, avoids mount permission issues)
+            cp -R coq/. "$BUILD_DIR/"
+            cd "$BUILD_DIR"
+
             if command -v coq_makefile >/dev/null 2>&1 && [ -f _CoqProject ]; then
               coq_makefile -f _CoqProject -o Makefile
               make -j2
