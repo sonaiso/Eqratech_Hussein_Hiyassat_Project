@@ -14,6 +14,7 @@ from .morpheme import (
 )
 from .pattern_matcher import PatternDatabase, PatternMatcher, PatternTemplate
 from .root_extractor import RootExtractionResult, RootExtractor
+from .mabni_rules import MabniResult, classify_mabni, should_skip_root_extraction as mabni_should_skip_root
 from .word_form import (
     WordForm,
     PartOfSpeech,
@@ -36,6 +37,9 @@ __all__ = [
     "RootType",
     "RootExtractionResult",
     "RootExtractor",
+    "MabniResult",
+    "classify_mabni",
+    "mabni_should_skip_root",
     "PatternMatcher",
     "PatternTemplate",
     "PatternDatabase",

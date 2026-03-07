@@ -52,6 +52,8 @@ pip install bayan-fvafk
 PYTHONPATH=src pytest -q
 ```
 
+> 📖 See **[TESTING.md](TESTING.md)** for the full local-testing guide (virtual-env setup, running by area, coverage, CLI smoke tests, and troubleshooting).
+
 ---
 
 ## 💻 Usage (CLI)
@@ -88,6 +90,10 @@ PYTHONPATH=src python -m fvafk.cli "كِتَاب" --json --phonology-v2 --phonol
 ```
 
 See `docs/MIGRATION_GUIDE.md` for migration notes and JSON schema details.
+
+### Operators catalog (C2B)
+
+If `data/operators_catalog_split_enriched.csv` exists, it is used automatically; otherwise the plain `operators_catalog_split.csv` is used. To generate the enriched catalog: `PYTHONPATH=src python -m fvafk.c2b.read_inputs_for_enrichment_pipeline`
 
 ---
 

@@ -100,7 +100,11 @@ class WordFormBuilder:
             2
         """
         return [self.from_c2b(c2b_word, word_id=i) for i, c2b_word in enumerate(c2b_words)]
-    
+
+    def from_multi_word_item(self, c2b_word: Dict[str, Any], word_id: Optional[int] = None) -> WordForm:
+        """Alias for from_c2b for CLI compatibility (multi-word morphology output)."""
+        return self.from_c2b(c2b_word, word_id=word_id)
+
     def reset_id(self):
         """Reset the word ID counter"""
         self._next_id = 0
