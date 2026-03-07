@@ -26,3 +26,4 @@ Definition normalize_token (t : FractalHubSpec.PositionToken) (m : Mode)
         |}
       |}
   end.
+  End FractalHubCodecRoundTrip.
