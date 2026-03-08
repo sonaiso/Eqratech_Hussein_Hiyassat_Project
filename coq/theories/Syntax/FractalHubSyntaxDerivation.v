@@ -55,7 +55,7 @@ Record SyntaxState := {
 
   ss_edges_in_range :
     forall e, In e ss_graph ->
-      src e < length ss_tokens /\ dst e < length ss_tokens
+      src e < List.length ss_tokens /\ dst e < List.length ss_tokens
 }.
 
 (* ============================================================
@@ -98,8 +98,8 @@ Inductive DerivesSyntax : SyntaxState -> SyntaxState -> Prop :=
 | DS_AddEdge :
     forall (s1 : SyntaxState) (e : SynEdge) (g : FractalHubGates.GateRun),
       (* Edge indices must be in range *)
-      src e < length (ss_tokens s1) ->
-      dst e < length (ss_tokens s1) ->
+      src e < List.length (ss_tokens s1) ->
+      dst e < List.length (ss_tokens s1) ->
       (* Gate required for syntax operations *)
       FractalHubGates.gate_id g = "SYNTAX_GATE" ->
       (* Result state *)
@@ -190,7 +190,7 @@ Theorem DerivedEdgesInRange :
   forall s0 s,
     DerivesSyntaxStar s0 s ->
     forall e, In e (ss_graph s) ->
-      src e < length (ss_tokens s) /\ dst e < length (ss_tokens s).
+      src e < List.length (ss_tokens s) /\ dst e < List.length (ss_tokens s).
 Proof.
   intros s0 s Hstar.
   apply (ss_edges_in_range s).
