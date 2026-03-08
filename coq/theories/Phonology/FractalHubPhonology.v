@@ -1,7 +1,15 @@
 From Coq Require Import List.
 From Coq Require Import String.
 From Coq Require Import Arith.
+From Coq Require Import Classical.
 Import ListNotations.
+
+Definition excluded_middle_informative (P : Prop) : {P} + {~ P}.
+Proof.
+  destruct (classic P) as [HP | HnP].
+  - left; exact HP.
+  - right; exact HnP.
+Qed.
 
 Require Import FractalHub.FractalHubSpec.
 Require Import FractalHub.FractalHubGates.

@@ -22,6 +22,9 @@ Record Gate := {
   gate_op : GateOp
 }.
 
+(** Compatibility alias: some layers refer to a "gate run" *)
+Definition GateRun := Gate.
+
 (** Pipeline: sequence of gates (for syntax state) *)
 Definition Pipeline := list Gate.
 
