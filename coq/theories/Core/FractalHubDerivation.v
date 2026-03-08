@@ -62,7 +62,7 @@ Theorem gate_preserves_capacity : forall (g : Gate) (h : Hub),
 Proof.
   intros g h.
   unfold apply_gate.
-  destruct (gate_op g); simpl; reflexivity.
+  destruct (gate_op g); destruct (hub_state h); simpl; reflexivity.
 Qed.
 
 (** Capacity is preserved under gate sequences *)
