@@ -63,7 +63,7 @@ Record SyntaxState := {
    ============================================================ *)
 
 Lemma in_app_singleton {A : Type} :
-  forall (x : A) (l : list A), In x (l ++ [x]).
+  forall (x : A) (l : list A), In x ((l ++ [x])%list).
 Proof.
   intros x l.
   apply in_or_app.
@@ -72,7 +72,7 @@ Qed.
 
 Lemma graph_has_app :
   forall (g1 g2 : SynGraph) (K : SynEdgeKind),
-    graph_has g1 K -> graph_has (g1 ++ g2) K.
+    graph_has g1 K -> graph_has ((g1 ++ g2)%list) K.
 Proof.
   intros g1 g2 K [e [Hin Hk]].
   exists e. split.
@@ -105,7 +105,7 @@ Inductive DerivesSyntax : SyntaxState -> SyntaxState -> Prop :=
       (* Result state *)
       DerivesSyntax s1
         {| ss_tokens := ss_tokens s1;
-           ss_graph  := ss_graph s1 ++ [e];
+           ss_graph  := (ss_graph s1 ++ [e])%list;
            ss_pipe   := FractalHubGates.push_gate (ss_pipe s1) g;
            ss_edges_in_range := _ |}.
 
