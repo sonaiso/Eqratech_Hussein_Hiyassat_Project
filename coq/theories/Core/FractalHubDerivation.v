@@ -36,6 +36,10 @@ Definition au_consonant_code (au : AtomicUnit) : nat :=
 Definition au_vowel_code (au : AtomicUnit) : nat :=
   vowel_code au.
 
+(* Backwards-compatible aliases (some modules refer to FractalHubDerivation.vowel_code / consonant_code) *)
+Definition consonant_code (au : AtomicUnit) : nat := au_consonant_code au.
+Definition vowel_code (au : AtomicUnit) : nat := au_vowel_code au.
+
 (** Check if a token has a consonant (consonant_code <> 0) *)
 Definition has_consonant (t : PositionToken) : Prop :=
   au_consonant_code (unpack_position t) <> 0.

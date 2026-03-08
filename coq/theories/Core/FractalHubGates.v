@@ -5,6 +5,7 @@
 *)
 
 Require Import FractalHub.FractalHubSpec.
+Require Import List.
 
 (** ** Gate Types *)
 
@@ -20,6 +21,9 @@ Record Gate := {
   gate_target : HubId;
   gate_op : GateOp
 }.
+
+(** Pipeline: sequence of gates (for syntax state) *)
+Definition Pipeline := list Gate.
 
 (** ** Gate Operations *)
 
