@@ -1,0 +1,124 @@
+DIGEST 668ef1c70bc896c05eb85eae46a954b1
+FFractalHub.Core.FractalHubDerivation
+R215:239 FractalHub.FractalHubSpec <> <> lib
+R257:282 FractalHub.FractalHubGates <> <> lib
+R300:303 Stdlib.Lists.List <> <> lib
+R313:325 Stdlib.Lists.List ListNotations <> mod
+def 405:416 <> GateSequence
+R421:424 Corelib.Init.Datatypes <> list ind
+R426:429 FractalHub.Core.FractalHubGates <> Gate rec
+def 484:502 <> apply_gate_sequence
+R510:521 FractalHub.Core.FractalHubDerivation <> GateSequence def
+binder 505:506 <> gs:1
+R529:531 FractalHub.Core.FractalHubSpec <> Hub rec
+binder 525:525 <> h:2
+R536:538 FractalHub.Core.FractalHubSpec <> Hub rec
+R551:552 FractalHub.Core.FractalHubDerivation <> gs:1 var
+R563:565 Corelib.Init.Datatypes <> nil constr
+R570:570 FractalHub.Core.FractalHubDerivation <> h:2 var
+R577:580 Corelib.Init.Datatypes <> ::list_scope:x_'::'_x not
+R589:607 FractalHub.Core.FractalHubDerivation <> apply_gate_sequence:3 def
+R615:624 FractalHub.Core.FractalHubGates <> apply_gate def
+R628:628 FractalHub.Core.FractalHubDerivation <> h:2 var
+rec 740:744 <> State
+proj 753:761 <> st_tokens
+R765:768 Corelib.Init.Datatypes <> list ind
+R770:782 FractalHub.Core.FractalHubSpec <> PositionToken rec
+def 920:936 <> au_consonant_code
+R944:953 FractalHub.Core.FractalHubSpec <> AtomicUnit rec
+binder 939:940 <> au:7
+R958:960 Corelib.Init.Datatypes <> nat ind
+R967:980 FractalHub.Core.FractalHubSpec <> consonant_code proj
+R982:983 FractalHub.Core.FractalHubDerivation <> au:7 var
+def 998:1010 <> au_vowel_code
+R1018:1027 FractalHub.Core.FractalHubSpec <> AtomicUnit rec
+binder 1013:1014 <> au:8
+R1032:1034 Corelib.Init.Datatypes <> nat ind
+R1041:1050 FractalHub.Core.FractalHubSpec <> vowel_code proj
+R1052:1053 FractalHub.Core.FractalHubDerivation <> au:8 var
+def 1176:1189 <> consonant_code
+R1197:1206 FractalHub.Core.FractalHubSpec <> AtomicUnit rec
+binder 1192:1193 <> au:9
+R1211:1213 Corelib.Init.Datatypes <> nat ind
+R1218:1234 FractalHub.Core.FractalHubDerivation <> au_consonant_code def
+R1236:1237 FractalHub.Core.FractalHubDerivation <> au:9 var
+def 1251:1260 <> vowel_code
+R1268:1277 FractalHub.Core.FractalHubSpec <> AtomicUnit rec
+binder 1263:1264 <> au:10
+R1282:1284 Corelib.Init.Datatypes <> nat ind
+R1289:1301 FractalHub.Core.FractalHubDerivation <> au_vowel_code def
+R1303:1304 FractalHub.Core.FractalHubDerivation <> au:10 var
+def 1381:1393 <> has_consonant
+R1400:1412 FractalHub.Core.FractalHubSpec <> PositionToken rec
+binder 1396:1396 <> t:11
+R1464:1467 Corelib.Init.Logic <> ::type_scope:x_'<>'_x not
+R1427:1443 FractalHub.Core.FractalHubDerivation <> au_consonant_code def
+R1446:1460 FractalHub.Core.FractalHubSpec <> unpack_position proj
+R1462:1462 FractalHub.Core.FractalHubDerivation <> t:11 var
+def 1537:1545 <> has_vowel
+R1552:1564 FractalHub.Core.FractalHubSpec <> PositionToken rec
+binder 1548:1548 <> t:12
+R1612:1615 Corelib.Init.Logic <> ::type_scope:x_'<>'_x not
+R1579:1591 FractalHub.Core.FractalHubDerivation <> au_vowel_code def
+R1594:1608 FractalHub.Core.FractalHubSpec <> unpack_position proj
+R1610:1610 FractalHub.Core.FractalHubDerivation <> t:12 var
+ind 1709:1715 <> Derives
+constr 1747:1758 <> Derives_refl
+constr 1786:1798 <> Derives_trans
+R1724:1727 Corelib.Init.Logic <> ::type_scope:x_'->'_x not
+R1719:1723 FractalHub.Core.FractalHubDerivation <> State rec
+R1733:1736 Corelib.Init.Logic <> ::type_scope:x_'->'_x not
+R1728:1732 FractalHub.Core.FractalHubDerivation <> State rec
+binder 1769:1769 <> s:15
+R1772:1778 FractalHub.Core.FractalHubDerivation <> Derives:13 ind
+R1782:1782 FractalHub.Core.FractalHubDerivation <> s:15 var
+R1780:1780 FractalHub.Core.FractalHubDerivation <> s:15 var
+binder 1809:1810 <> s1:16
+binder 1812:1813 <> s2:17
+binder 1815:1816 <> s3:18
+R1836:1843 Corelib.Init.Logic <> ::type_scope:x_'->'_x not
+R1823:1829 FractalHub.Core.FractalHubDerivation <> Derives:13 ind
+R1834:1835 FractalHub.Core.FractalHubDerivation <> s2:17 var
+R1831:1832 FractalHub.Core.FractalHubDerivation <> s1:16 var
+R1857:1864 Corelib.Init.Logic <> ::type_scope:x_'->'_x not
+R1844:1850 FractalHub.Core.FractalHubDerivation <> Derives:13 ind
+R1855:1856 FractalHub.Core.FractalHubDerivation <> s3:18 var
+R1852:1853 FractalHub.Core.FractalHubDerivation <> s2:17 var
+R1865:1871 FractalHub.Core.FractalHubDerivation <> Derives:13 ind
+R1876:1877 FractalHub.Core.FractalHubDerivation <> s3:18 var
+R1873:1874 FractalHub.Core.FractalHubDerivation <> s1:16 var
+scheme 1709:1715 <> Derives_ind
+scheme 1709:1715 <> Derives_sind
+prf 1982:2004 <> gate_preserves_capacity
+R2020:2023 FractalHub.Core.FractalHubGates <> Gate rec
+binder 2016:2016 <> g:19
+R2031:2033 FractalHub.Core.FractalHubSpec <> Hub rec
+binder 2027:2027 <> h:20
+R2068:2070 Corelib.Init.Logic <> ::type_scope:x_'='_x not
+R2039:2050 FractalHub.Core.FractalHubSpec <> hub_capacity proj
+R2053:2062 FractalHub.Core.FractalHubGates <> apply_gate def
+R2064:2064 FractalHub.Core.FractalHubDerivation <> g:19 var
+R2066:2066 FractalHub.Core.FractalHubDerivation <> h:20 var
+R2071:2082 FractalHub.Core.FractalHubSpec <> hub_capacity proj
+R2084:2084 FractalHub.Core.FractalHubDerivation <> h:20 var
+R2117:2126 FractalHub.Core.FractalHubGates <> apply_gate def
+R2141:2147 FractalHub.Core.FractalHubGates <> gate_op proj
+R2163:2171 FractalHub.Core.FractalHubSpec <> hub_state proj
+R2141:2147 FractalHub.Core.FractalHubGates <> gate_op proj
+R2163:2171 FractalHub.Core.FractalHubSpec <> hub_state proj
+R2163:2171 FractalHub.Core.FractalHubSpec <> hub_state proj
+R2163:2171 FractalHub.Core.FractalHubSpec <> hub_state proj
+prf 2261:2287 <> sequence_preserves_capacity
+R2304:2315 FractalHub.Core.FractalHubDerivation <> GateSequence def
+binder 2299:2300 <> gs:21
+R2323:2325 FractalHub.Core.FractalHubSpec <> Hub rec
+binder 2319:2319 <> h:22
+R2370:2372 Corelib.Init.Logic <> ::type_scope:x_'='_x not
+R2331:2342 FractalHub.Core.FractalHubSpec <> hub_capacity proj
+R2345:2363 FractalHub.Core.FractalHubDerivation <> apply_gate_sequence def
+R2365:2366 FractalHub.Core.FractalHubDerivation <> gs:21 var
+R2368:2368 FractalHub.Core.FractalHubDerivation <> h:22 var
+R2373:2384 FractalHub.Core.FractalHubSpec <> hub_capacity proj
+R2386:2386 FractalHub.Core.FractalHubDerivation <> h:22 var
+R2607:2629 FractalHub.Core.FractalHubDerivation <> gate_preserves_capacity thm
+R2607:2629 FractalHub.Core.FractalHubDerivation <> gate_preserves_capacity thm

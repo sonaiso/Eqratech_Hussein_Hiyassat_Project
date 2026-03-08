@@ -1,0 +1,361 @@
+DIGEST 7d3859ab142402e800185c3e4c739efc
+FFractalHub.Phonology.FractalHubPhonology
+R24:27 Stdlib.Lists.List <> <> lib
+R54:59 Stdlib.Strings.String <> <> lib
+R86:90 Stdlib.Arith.Arith <> <> lib
+R117:120 Stdlib.Bool.Bool <> <> lib
+R147:154 Stdlib.Arith.PeanoNat <> <> lib
+R164:176 Stdlib.Lists.List ListNotations <> mod
+R195:219 FractalHub.FractalHubSpec <> <> lib
+R237:262 FractalHub.FractalHubGates <> <> lib
+R280:310 FractalHub.FractalHubDerivation <> <> lib
+mod 321:339 <> FractalHubPhonology
+def 863:876 FractalHubPhonology vowel_is_nullb
+R884:886 Corelib.Init.Datatypes <> nat ind
+binder 879:880 <> vc:1
+R891:894 Corelib.Init.Datatypes <> bool ind
+R913:916 Corelib.Init.Datatypes <> ::bool_scope:x_'||'_x not
+R901:907 Stdlib.Arith.PeanoNat Nat eqb def
+R909:910 FractalHub.Phonology.FractalHubPhonology <> vc:1 var
+R917:923 Stdlib.Arith.PeanoNat Nat eqb def
+R925:926 FractalHub.Phonology.FractalHubPhonology <> vc:1 var
+def 943:957 FractalHubPhonology vowel_is_shortb
+R965:967 Corelib.Init.Datatypes <> nat ind
+binder 960:961 <> vc:2
+R972:975 Corelib.Init.Datatypes <> bool ind
+R1010:1013 Corelib.Init.Datatypes <> ::bool_scope:x_'||'_x not
+R994:997 Corelib.Init.Datatypes <> ::bool_scope:x_'||'_x not
+R982:988 Stdlib.Arith.PeanoNat Nat eqb def
+R990:991 FractalHub.Phonology.FractalHubPhonology <> vc:2 var
+R998:1004 Stdlib.Arith.PeanoNat Nat eqb def
+R1006:1007 FractalHub.Phonology.FractalHubPhonology <> vc:2 var
+R1014:1020 Stdlib.Arith.PeanoNat Nat eqb def
+R1022:1023 FractalHub.Phonology.FractalHubPhonology <> vc:2 var
+def 1040:1052 FractalHubPhonology vowel_is_null
+R1060:1062 Corelib.Init.Datatypes <> nat ind
+binder 1055:1056 <> vc:3
+R1092:1094 Corelib.Init.Logic <> ::type_scope:x_'='_x not
+R1075:1088 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology vowel_is_nullb def
+R1090:1091 FractalHub.Phonology.FractalHubPhonology <> vc:3 var
+R1095:1098 Corelib.Init.Datatypes <> true constr
+def 1112:1125 FractalHubPhonology vowel_is_short
+R1133:1135 Corelib.Init.Datatypes <> nat ind
+binder 1128:1129 <> vc:4
+R1166:1168 Corelib.Init.Logic <> ::type_scope:x_'='_x not
+R1148:1162 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology vowel_is_shortb def
+R1164:1165 FractalHub.Phonology.FractalHubPhonology <> vc:4 var
+R1169:1172 Corelib.Init.Datatypes <> true constr
+def 1187:1194 FractalHubPhonology is_sukun
+R1202:1204 Corelib.Init.Datatypes <> nat ind
+binder 1197:1198 <> vc:5
+R1219:1221 Corelib.Init.Logic <> ::type_scope:x_'='_x not
+R1217:1218 FractalHub.Phonology.FractalHubPhonology <> vc:5 var
+def 1236:1243 FractalHubPhonology is_fatha
+R1251:1253 Corelib.Init.Datatypes <> nat ind
+binder 1246:1247 <> vc:6
+R1268:1270 Corelib.Init.Logic <> ::type_scope:x_'='_x not
+R1266:1267 FractalHub.Phonology.FractalHubPhonology <> vc:6 var
+def 1285:1292 FractalHubPhonology is_damma
+R1300:1302 Corelib.Init.Datatypes <> nat ind
+binder 1295:1296 <> vc:7
+R1317:1319 Corelib.Init.Logic <> ::type_scope:x_'='_x not
+R1315:1316 FractalHub.Phonology.FractalHubPhonology <> vc:7 var
+def 1334:1341 FractalHubPhonology is_kasra
+R1349:1351 Corelib.Init.Datatypes <> nat ind
+binder 1344:1345 <> vc:8
+R1366:1368 Corelib.Init.Logic <> ::type_scope:x_'='_x not
+R1364:1365 FractalHub.Phonology.FractalHubPhonology <> vc:8 var
+def 1542:1557 FractalHubPhonology token_vowel_code
+R1564:1591 FractalHub.Core.FractalHubSpec <> PositionToken rec
+binder 1560:1560 <> t:9
+R1596:1598 Corelib.Init.Datatypes <> nat ind
+R1605:1635 FractalHub.Core.FractalHubDerivation <> vowel_code def
+R1638:1667 FractalHub.Core.FractalHubSpec <> unpack_position proj
+R1669:1669 FractalHub.Phonology.FractalHubPhonology <> t:9 var
+def 1685:1704 FractalHubPhonology token_consonant_code
+R1711:1738 FractalHub.Core.FractalHubSpec <> PositionToken rec
+binder 1707:1707 <> t:10
+R1743:1745 Corelib.Init.Datatypes <> nat ind
+R1752:1786 FractalHub.Core.FractalHubDerivation <> consonant_code def
+R1789:1818 FractalHub.Core.FractalHubSpec <> unpack_position proj
+R1820:1820 FractalHub.Phonology.FractalHubPhonology <> t:10 var
+def 2207:2216 FractalHubPhonology cc_cluster
+R2227:2254 FractalHub.Core.FractalHubSpec <> PositionToken rec
+binder 2219:2220 <> t1:11
+binder 2222:2223 <> t2:12
+R2306:2311 Corelib.Init.Logic <> ::type_scope:x_'/\'_x not
+R2269:2302 FractalHub.Core.FractalHubDerivation <> has_consonant def
+R2304:2305 FractalHub.Phonology.FractalHubPhonology <> t1:11 var
+R2349:2354 Corelib.Init.Logic <> ::type_scope:x_'/\'_x not
+R2312:2345 FractalHub.Core.FractalHubDerivation <> has_consonant def
+R2347:2348 FractalHub.Phonology.FractalHubPhonology <> t2:12 var
+R2398:2403 Corelib.Init.Logic <> ::type_scope:x_'/\'_x not
+R2391:2393 Corelib.Init.Logic <> ::type_scope:x_'='_x not
+R2355:2368 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology vowel_is_nullb def
+R2371:2386 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology token_vowel_code def
+R2388:2389 FractalHub.Phonology.FractalHubPhonology <> t1:11 var
+R2394:2397 Corelib.Init.Datatypes <> true constr
+R2440:2442 Corelib.Init.Logic <> ::type_scope:x_'='_x not
+R2404:2417 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology vowel_is_nullb def
+R2420:2435 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology token_vowel_code def
+R2437:2438 FractalHub.Phonology.FractalHubPhonology <> t2:12 var
+R2443:2446 Corelib.Init.Datatypes <> true constr
+ax 2541:2552 FractalHubPhonology CC_EXCEPTION
+R2584:2587 Corelib.Init.Logic <> ::type_scope:x_'->'_x not
+R2556:2583 FractalHub.Core.FractalHubSpec <> PositionToken rec
+R2616:2619 Corelib.Init.Logic <> ::type_scope:x_'->'_x not
+R2588:2615 FractalHub.Core.FractalHubSpec <> PositionToken rec
+def 2638:2645 FractalHubPhonology onset_ok
+R2656:2683 FractalHub.Core.FractalHubSpec <> PositionToken rec
+binder 2648:2649 <> t1:15
+binder 2651:2652 <> t2:16
+R2698:2698 Corelib.Init.Logic <> ::type_scope:x_'\/'_x not
+R2717:2721 Corelib.Init.Logic <> ::type_scope:x_'\/'_x not
+R2699:2700 Corelib.Init.Logic <> ::type_scope:'~'_x not
+R2701:2710 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology cc_cluster def
+R2712:2713 FractalHub.Phonology.FractalHubPhonology <> t1:15 var
+R2715:2716 FractalHub.Phonology.FractalHubPhonology <> t2:16 var
+R2722:2733 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology CC_EXCEPTION defax
+R2735:2736 FractalHub.Phonology.FractalHubPhonology <> t1:15 var
+R2738:2739 FractalHub.Phonology.FractalHubPhonology <> t2:16 var
+def 2892:2909 FractalHubPhonology pronounceable_from
+R2921:2948 FractalHub.Core.FractalHubSpec <> PositionToken rec
+binder 2914:2917 <> prev:17
+R2959:2962 Corelib.Init.Datatypes <> list ind
+R2964:2991 FractalHub.Core.FractalHubSpec <> PositionToken rec
+binder 2954:2955 <> ts:18
+R3012:3013 FractalHub.Phonology.FractalHubPhonology <> ts:18 var
+R3024:3025 Stdlib.Lists.List ListNotations ::list_scope:'['_']' not
+R3030:3033 Corelib.Init.Logic <> True ind
+R3040:3043 Corelib.Init.Datatypes <> ::list_scope:x_'::'_x not
+R3065:3068 Corelib.Init.Logic <> ::type_scope:x_'/\'_x not
+R3050:3057 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology onset_ok def
+R3059:3062 FractalHub.Phonology.FractalHubPhonology <> prev:17 var
+R3069:3086 FractalHub.Phonology.FractalHubPhonology <> pronounceable_from:19 def
+def 3112:3131 FractalHubPhonology pronounceable_tokens
+R3139:3142 Corelib.Init.Datatypes <> list ind
+R3144:3171 FractalHub.Core.FractalHubSpec <> PositionToken rec
+binder 3134:3135 <> ts:21
+R3192:3193 FractalHub.Phonology.FractalHubPhonology <> ts:21 var
+R3204:3205 Stdlib.Lists.List ListNotations ::list_scope:'['_']' not
+R3210:3213 Corelib.Init.Logic <> True ind
+R3220:3223 Corelib.Init.Datatypes <> ::list_scope:x_'::'_x not
+R3230:3247 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology pronounceable_from def
+prf 3358:3388 FractalHubPhonology CCOnsetForbiddenUnlessException
+binder 3401:3402 <> t1:23
+binder 3404:3405 <> t2:24
+binder 3407:3408 <> tl:25
+R3452:3459 Corelib.Init.Logic <> ::type_scope:x_'->'_x not
+R3415:3434 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology pronounceable_tokens def
+R3439:3442 Corelib.Init.Datatypes <> ::list_scope:x_'::'_x not
+R3437:3438 FractalHub.Phonology.FractalHubPhonology <> t1:23 var
+R3445:3448 Corelib.Init.Datatypes <> ::list_scope:x_'::'_x not
+R3443:3444 FractalHub.Phonology.FractalHubPhonology <> t2:24 var
+R3449:3450 FractalHub.Phonology.FractalHubPhonology <> tl:25 var
+R3476:3483 Corelib.Init.Logic <> ::type_scope:x_'->'_x not
+R3460:3469 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology cc_cluster def
+R3471:3472 FractalHub.Phonology.FractalHubPhonology <> t1:23 var
+R3474:3475 FractalHub.Phonology.FractalHubPhonology <> t2:24 var
+R3484:3495 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology CC_EXCEPTION defax
+R3497:3498 FractalHub.Phonology.FractalHubPhonology <> t1:23 var
+R3500:3501 FractalHub.Phonology.FractalHubPhonology <> t2:24 var
+R3599:3606 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology onset_ok def
+prf 3805:3830 FractalHubPhonology NoCCClusterWhenNoException
+binder 3843:3844 <> t1:26
+binder 3846:3847 <> t2:27
+binder 3849:3850 <> tl:28
+R3894:3901 Corelib.Init.Logic <> ::type_scope:x_'->'_x not
+R3857:3876 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology pronounceable_tokens def
+R3881:3884 Corelib.Init.Datatypes <> ::list_scope:x_'::'_x not
+R3879:3880 FractalHub.Phonology.FractalHubPhonology <> t1:26 var
+R3887:3890 Corelib.Init.Datatypes <> ::list_scope:x_'::'_x not
+R3885:3886 FractalHub.Phonology.FractalHubPhonology <> t2:27 var
+R3891:3892 FractalHub.Phonology.FractalHubPhonology <> tl:28 var
+R3922:3929 Corelib.Init.Logic <> ::type_scope:x_'->'_x not
+R3902:3903 Corelib.Init.Logic <> ::type_scope:'~'_x not
+R3904:3915 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology CC_EXCEPTION defax
+R3917:3918 FractalHub.Phonology.FractalHubPhonology <> t1:26 var
+R3920:3921 FractalHub.Phonology.FractalHubPhonology <> t2:27 var
+R3930:3931 Corelib.Init.Logic <> ::type_scope:'~'_x not
+R3932:3941 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology cc_cluster def
+R3943:3944 FractalHub.Phonology.FractalHubPhonology <> t1:26 var
+R3946:3947 FractalHub.Phonology.FractalHubPhonology <> t2:27 var
+R4007:4037 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology CCOnsetForbiddenUnlessException thm
+R4007:4037 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology CCOnsetForbiddenUnlessException thm
+ax 4308:4322 FractalHubPhonology IS_ALIF_CARRIER
+R4329:4332 Corelib.Init.Logic <> ::type_scope:x_'->'_x not
+R4326:4328 Corelib.Init.Datatypes <> nat ind
+ax 4397:4410 FractalHubPhonology IS_WAW_CARRIER
+R4418:4421 Corelib.Init.Logic <> ::type_scope:x_'->'_x not
+R4415:4417 Corelib.Init.Datatypes <> nat ind
+ax 4438:4450 FractalHubPhonology IS_YA_CARRIER
+R4459:4462 Corelib.Init.Logic <> ::type_scope:x_'->'_x not
+R4456:4458 Corelib.Init.Datatypes <> nat ind
+def 4598:4613 FractalHubPhonology forms_long_vowel
+R4628:4655 FractalHub.Core.FractalHubSpec <> PositionToken rec
+binder 4616:4619 <> prev:35
+binder 4621:4624 <> curr:36
+R4670:4670 Corelib.Init.Logic <> ::type_scope:x_'\/'_x not
+R4750:4756 Corelib.Init.Logic <> ::type_scope:x_'\/'_x not
+R4703:4706 Corelib.Init.Logic <> ::type_scope:x_'/\'_x not
+R4671:4678 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology is_fatha def
+R4681:4696 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology token_vowel_code def
+R4698:4701 FractalHub.Phonology.FractalHubPhonology <> prev:35 var
+R4707:4721 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology IS_ALIF_CARRIER defax
+R4724:4743 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology token_consonant_code def
+R4745:4748 FractalHub.Phonology.FractalHubPhonology <> curr:36 var
+R4757:4757 Corelib.Init.Logic <> ::type_scope:x_'\/'_x not
+R4837:4844 Corelib.Init.Logic <> ::type_scope:x_'\/'_x not
+R4924:4924 Corelib.Init.Logic <> ::type_scope:x_'\/'_x not
+R4790:4793 Corelib.Init.Logic <> ::type_scope:x_'/\'_x not
+R4758:4765 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology is_damma def
+R4768:4783 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology token_vowel_code def
+R4785:4788 FractalHub.Phonology.FractalHubPhonology <> prev:35 var
+R4794:4807 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology IS_WAW_CARRIER defax
+R4811:4830 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology token_consonant_code def
+R4832:4835 FractalHub.Phonology.FractalHubPhonology <> curr:36 var
+R4877:4880 Corelib.Init.Logic <> ::type_scope:x_'/\'_x not
+R4845:4852 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology is_kasra def
+R4855:4870 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology token_vowel_code def
+R4872:4875 FractalHub.Phonology.FractalHubPhonology <> prev:35 var
+R4881:4893 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology IS_YA_CARRIER defax
+R4898:4917 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology token_consonant_code def
+R4919:4922 FractalHub.Phonology.FractalHubPhonology <> curr:36 var
+ax 4938:4957 FractalHubPhonology forms_long_vowel_dec
+binder 4970:4973 <> prev:37
+binder 4975:4978 <> curr:38
+R4981:4981 Corelib.Init.Specif <> ::type_scope:'{'_x_'}'_'+'_'{'_x_'}' not
+R5008:5012 Corelib.Init.Specif <> ::type_scope:'{'_x_'}'_'+'_'{'_x_'}' not
+R5041:5041 Corelib.Init.Specif <> ::type_scope:'{'_x_'}'_'+'_'{'_x_'}' not
+R4982:4997 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology forms_long_vowel def
+R4999:5002 FractalHub.Phonology.FractalHubPhonology <> prev:37 var
+R5004:5007 FractalHub.Phonology.FractalHubPhonology <> curr:38 var
+R5013:5014 Corelib.Init.Logic <> ::type_scope:'~'_x not
+R5015:5030 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology forms_long_vowel def
+R5032:5035 FractalHub.Phonology.FractalHubPhonology <> prev:37 var
+R5037:5040 FractalHub.Phonology.FractalHubPhonology <> curr:38 var
+def 5254:5267 FractalHubPhonology nucleus_len_at
+R5282:5309 FractalHub.Core.FractalHubSpec <> PositionToken rec
+binder 5270:5273 <> prev:41
+binder 5275:5278 <> curr:42
+R5314:5316 Corelib.Init.Datatypes <> nat ind
+R5326:5345 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology forms_long_vowel_dec defax
+R5347:5350 FractalHub.Phonology.FractalHubPhonology <> prev:41 var
+R5352:5355 FractalHub.Phonology.FractalHubPhonology <> curr:42 var
+R5374:5388 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology vowel_is_shortb def
+R5391:5406 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology token_vowel_code def
+R5408:5411 FractalHub.Phonology.FractalHubPhonology <> curr:42 var
+prf 5487:5506 FractalHubPhonology LongVowelImpliesLen2
+binder 5519:5522 <> prev:43
+binder 5524:5527 <> curr:44
+R5560:5567 Corelib.Init.Logic <> ::type_scope:x_'->'_x not
+R5534:5549 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology forms_long_vowel def
+R5551:5554 FractalHub.Phonology.FractalHubPhonology <> prev:43 var
+R5556:5559 FractalHub.Phonology.FractalHubPhonology <> curr:44 var
+R5592:5594 Corelib.Init.Logic <> ::type_scope:x_'='_x not
+R5568:5581 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology nucleus_len_at def
+R5583:5586 FractalHub.Phonology.FractalHubPhonology <> prev:43 var
+R5588:5591 FractalHub.Phonology.FractalHubPhonology <> curr:44 var
+R5636:5649 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology nucleus_len_at def
+R5664:5683 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology forms_long_vowel_dec defax
+R5664:5683 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology forms_long_vowel_dec defax
+prf 5843:5863 FractalHubPhonology ShortVowelImpliesLen1
+binder 5876:5879 <> prev:45
+binder 5881:5884 <> curr:46
+R5919:5926 Corelib.Init.Logic <> ::type_scope:x_'->'_x not
+R5891:5892 Corelib.Init.Logic <> ::type_scope:'~'_x not
+R5893:5908 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology forms_long_vowel def
+R5910:5913 FractalHub.Phonology.FractalHubPhonology <> prev:45 var
+R5915:5918 FractalHub.Phonology.FractalHubPhonology <> curr:46 var
+R5965:5972 Corelib.Init.Logic <> ::type_scope:x_'->'_x not
+R5927:5940 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology vowel_is_short def
+R5943:5958 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology token_vowel_code def
+R5960:5963 FractalHub.Phonology.FractalHubPhonology <> curr:46 var
+R5997:5999 Corelib.Init.Logic <> ::type_scope:x_'='_x not
+R5973:5986 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology nucleus_len_at def
+R5988:5991 FractalHub.Phonology.FractalHubPhonology <> prev:45 var
+R5993:5996 FractalHub.Phonology.FractalHubPhonology <> curr:46 var
+R6051:6064 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology nucleus_len_at def
+R6079:6098 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology forms_long_vowel_dec defax
+R6079:6098 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology forms_long_vowel_dec defax
+R6176:6189 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology vowel_is_short def
+def 6383:6401 FractalHubPhonology state_pronounceable
+R6408:6433 FractalHub.Core.FractalHubDerivation <> State rec
+binder 6404:6404 <> s:47
+R6448:6467 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology pronounceable_tokens def
+R6470:6499 FractalHub.Core.FractalHubDerivation <> st_tokens proj
+R6501:6501 FractalHub.Phonology.FractalHubPhonology <> s:47 var
+ind 6598:6609 FractalHubPhonology DerivesPhono
+constr 6683:6689 FractalHubPhonology DP_step
+R6639:6642 Corelib.Init.Logic <> ::type_scope:x_'->'_x not
+R6613:6638 FractalHub.Core.FractalHubDerivation <> State rec
+R6669:6672 Corelib.Init.Logic <> ::type_scope:x_'->'_x not
+R6643:6668 FractalHub.Core.FractalHubDerivation <> State rec
+binder 6704:6705 <> s1:50
+binder 6707:6708 <> s2:51
+R6751:6760 Corelib.Init.Logic <> ::type_scope:x_'->'_x not
+R6717:6744 FractalHub.Core.FractalHubDerivation <> Derives ind
+R6746:6747 FractalHub.Phonology.FractalHubPhonology <> s1:50 var
+R6749:6750 FractalHub.Phonology.FractalHubPhonology <> s2:51 var
+R6783:6792 Corelib.Init.Logic <> ::type_scope:x_'->'_x not
+R6761:6779 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology state_pronounceable def
+R6781:6782 FractalHub.Phonology.FractalHubPhonology <> s2:51 var
+R6793:6804 FractalHub.Phonology.FractalHubPhonology <> DerivesPhono:48 ind
+R6809:6810 FractalHub.Phonology.FractalHubPhonology <> s2:51 var
+R6806:6807 FractalHub.Phonology.FractalHubPhonology <> s1:50 var
+scheme 6598:6609 FractalHubPhonology DerivesPhono_ind
+scheme 6598:6609 FractalHubPhonology DerivesPhono_sind
+ind 6824:6839 FractalHubPhonology DerivesPhonoStar
+constr 6913:6920 FractalHubPhonology DPS_Refl
+constr 6957:6964 FractalHubPhonology DPS_Step
+R6869:6872 Corelib.Init.Logic <> ::type_scope:x_'->'_x not
+R6843:6868 FractalHub.Core.FractalHubDerivation <> State rec
+R6899:6902 Corelib.Init.Logic <> ::type_scope:x_'->'_x not
+R6873:6898 FractalHub.Core.FractalHubDerivation <> State rec
+binder 6931:6931 <> s:54
+R6934:6949 FractalHub.Phonology.FractalHubPhonology <> DerivesPhonoStar:52 ind
+R6953:6953 FractalHub.Phonology.FractalHubPhonology <> s:54 var
+R6951:6951 FractalHub.Phonology.FractalHubPhonology <> s:54 var
+binder 6975:6976 <> s1:55
+binder 6978:6979 <> s2:56
+binder 6981:6982 <> s3:57
+R7007:7014 Corelib.Init.Logic <> ::type_scope:x_'->'_x not
+R6989:7000 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology DerivesPhono ind
+R7002:7003 FractalHub.Phonology.FractalHubPhonology <> s1:55 var
+R7005:7006 FractalHub.Phonology.FractalHubPhonology <> s2:56 var
+R7037:7044 Corelib.Init.Logic <> ::type_scope:x_'->'_x not
+R7015:7030 FractalHub.Phonology.FractalHubPhonology <> DerivesPhonoStar:52 ind
+R7035:7036 FractalHub.Phonology.FractalHubPhonology <> s3:57 var
+R7032:7033 FractalHub.Phonology.FractalHubPhonology <> s2:56 var
+R7045:7060 FractalHub.Phonology.FractalHubPhonology <> DerivesPhonoStar:52 ind
+R7065:7066 FractalHub.Phonology.FractalHubPhonology <> s3:57 var
+R7062:7063 FractalHub.Phonology.FractalHubPhonology <> s1:55 var
+scheme 6824:6839 FractalHubPhonology DerivesPhonoStar_ind
+scheme 6824:6839 FractalHubPhonology DerivesPhonoStar_sind
+prf 7177:7211 FractalHubPhonology DerivationPreservesPronounceability
+binder 7224:7225 <> s0:58
+binder 7227:7227 <> s:59
+R7256:7263 Corelib.Init.Logic <> ::type_scope:x_'->'_x not
+R7234:7252 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology state_pronounceable def
+R7254:7255 FractalHub.Phonology.FractalHubPhonology <> s0:58 var
+R7285:7292 Corelib.Init.Logic <> ::type_scope:x_'->'_x not
+R7264:7279 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology DerivesPhonoStar ind
+R7281:7282 FractalHub.Phonology.FractalHubPhonology <> s0:58 var
+R7284:7284 FractalHub.Phonology.FractalHubPhonology <> s:59 var
+R7293:7311 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology state_pronounceable def
+R7313:7313 FractalHub.Phonology.FractalHubPhonology <> s:59 var
+prf 7506:7534 FractalHubPhonology DerivedStatesArePronounceable
+binder 7547:7548 <> s0:60
+binder 7550:7550 <> s:61
+R7579:7586 Corelib.Init.Logic <> ::type_scope:x_'->'_x not
+R7557:7575 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology state_pronounceable def
+R7577:7578 FractalHub.Phonology.FractalHubPhonology <> s0:60 var
+R7608:7615 Corelib.Init.Logic <> ::type_scope:x_'->'_x not
+R7587:7602 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology DerivesPhonoStar ind
+R7604:7605 FractalHub.Phonology.FractalHubPhonology <> s0:60 var
+R7607:7607 FractalHub.Phonology.FractalHubPhonology <> s:61 var
+R7616:7634 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology state_pronounceable def
+R7636:7636 FractalHub.Phonology.FractalHubPhonology <> s:61 var
+R7654:7688 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology DerivationPreservesPronounceability thm
+R7654:7688 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology DerivationPreservesPronounceability thm
+R7701:7719 FractalHub.Phonology.FractalHubPhonology FractalHubPhonology <> mod
