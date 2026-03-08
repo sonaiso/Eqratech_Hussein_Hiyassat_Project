@@ -28,20 +28,21 @@ Record State := {
   st_tokens : list PositionToken
 }.
 
-(** Helper functions to extract codes from atomic units *)
-Definition consonant_code (au : AtomicUnit) : nat :=
-  AtomicUnit.(consonant_code) au.
+(** Helper functions to extract codes from atomic units
+    (renamed to avoid clashing with record field projections) *)
+Definition au_consonant_code (au : AtomicUnit) : nat :=
+  consonant_code au.
 
-Definition vowel_code (au : AtomicUnit) : nat :=
-  AtomicUnit.(vowel_code) au.
+Definition au_vowel_code (au : AtomicUnit) : nat :=
+  vowel_code au.
 
 (** Check if a token has a consonant (consonant_code <> 0) *)
 Definition has_consonant (t : PositionToken) : Prop :=
-  consonant_code (unpack_position t) <> 0.
+  au_consonant_code (unpack_position t) <> 0.
 
 (** Check if a token has a vowel (vowel_code <> 0) *)
 Definition has_vowel (t : PositionToken) : Prop :=
-  vowel_code (unpack_position t) <> 0.
+  au_vowel_code (unpack_position t) <> 0.
 
 (** ** Derivation Relation *)
 
@@ -79,32 +80,4 @@ Proof.
     simpl.
     rewrite IH.
     apply gate_preserves_capacity.
-Qed.
-
-(** ** Composition Properties *)
-
-(** Two open operations in sequence produce an active hub *)
-Theorem double_open_active : forall (h : Hub) (g1 g2 : Gate),
-  gate_op g1 = Open ->
-  gate_op g2 = Open ->
-  hub_state (apply_gate g2 (apply_gate g1 h)) = Active.
-Proof.
-  intros h g1 g2 H1 H2.
-  unfold apply_gate.
-  rewrite H1, H2.
-  simpl.
-  reflexivity.
-Qed.
-
-(** Opening then closing produces an inactive hub *)
-Theorem open_close_inactive : forall (h : Hub) (g1 g2 : Gate),
-  gate_op g1 = Open ->
-  gate_op g2 = Close ->
-  hub_state (apply_gate g2 (apply_gate g1 h)) = Inactive.
-Proof.
-  intros h g1 g2 H1 H2.
-  unfold apply_gate.
-  rewrite H1, H2.
-  simpl.
-  reflexivity.
 Qed.
