@@ -6,6 +6,7 @@
 
 Require Import FractalHub.FractalHubSpec.
 Require Import List.
+From Coq Require Import String.
 
 (** ** Gate Types *)
 
@@ -19,7 +20,8 @@ Inductive GateOp : Type :=
 Record Gate := {
   gate_source : HubId;
   gate_target : HubId;
-  gate_op : GateOp
+  gate_op : GateOp;
+  gate_id : string
 }.
 
 (** Compatibility alias: some layers refer to a "gate run" *)
@@ -27,6 +29,10 @@ Definition GateRun := Gate.
 
 (** Pipeline: sequence of gates (for syntax state) *)
 Definition Pipeline := list Gate.
+
+(** Syntax layer: pipeline helpers (gate_id is the record projection above) *)
+Definition push_gate (p : Pipeline) (g : Gate) : Pipeline := g :: p.
+Definition pipeline_gates (p : Pipeline) : list Gate := p.
 
 (** ** Gate Operations *)
 

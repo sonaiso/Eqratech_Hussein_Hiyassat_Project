@@ -3,15 +3,7 @@ From Coq Require Import String.
 From Coq Require Import Arith.
 From Coq Require Import Bool.
 From Coq Require Import PeanoNat.
-From Coq Require Import Classical.
 Import ListNotations.
-
-Definition excluded_middle_informative (P : Prop) : {P} + {~ P}.
-Proof.
-  destruct (classic P) as [HP | HnP].
-  - left; exact HP.
-  - right; exact HnP.
-Qed.
 
 Require Import FractalHub.FractalHubSpec.
 Require Import FractalHub.FractalHubGates.
@@ -146,13 +138,16 @@ Definition forms_long_vowel (prev curr : FractalHubSpec.PositionToken) : Prop :=
   (is_damma (token_vowel_code prev) /\ IS_WAW_CARRIER  (token_consonant_code curr)) \/
   (is_kasra (token_vowel_code prev) /\ IS_YA_CARRIER   (token_consonant_code curr)).
 
+Parameter forms_long_vowel_dec :
+  forall prev curr, {forms_long_vowel prev curr} + {~ forms_long_vowel prev curr}.
+
 (* Nucleus length model (audit-friendly):
    - If curr participates as long carrier with prev => length 2 (VV)
    - Else if curr has short vowel => length 1 (V)
    - Else length 0 (null nucleus)
 *)
 Definition nucleus_len_at (prev curr : FractalHubSpec.PositionToken) : nat :=
-  if excluded_middle_informative (forms_long_vowel prev curr) then 2
+  if forms_long_vowel_dec prev curr then 2
   else if vowel_is_shortb (token_vowel_code curr) then 1
   else 0.
 
@@ -164,7 +159,7 @@ Lemma LongVowelImpliesLen2 :
 Proof.
   intros prev curr H.
   unfold nucleus_len_at.
-  destruct (excluded_middle_informative (forms_long_vowel prev curr)) as [Hyes | Hno].
+  destruct (forms_long_vowel_dec prev curr) as [Hyes | Hno].
   - reflexivity.
   - exfalso. apply Hno. exact H.
 Qed.
@@ -178,7 +173,7 @@ Lemma ShortVowelImpliesLen1 :
 Proof.
   intros prev curr Hnol Hshort.
   unfold nucleus_len_at.
-  destruct (excluded_middle_informative (forms_long_vowel prev curr)) as [Hyes | Hno].
+  destruct (forms_long_vowel_dec prev curr) as [Hyes | Hno].
   - exfalso. apply Hnol. exact Hyes.
   - unfold vowel_is_short in Hshort. rewrite Hshort. reflexivity.
 Qed.
