@@ -94,9 +94,13 @@ Qed.
    4) DerivesSyntax: single-step syntax derivation with gate
    ============================================================ *)
 
-Program Inductive DerivesSyntax : SyntaxState -> SyntaxState -> Prop :=
+Inductive DerivesSyntax : SyntaxState -> SyntaxState -> Prop :=
 | DS_AddEdge :
-    forall (s1 : SyntaxState) (e : SynEdge) (g : FractalHubGates.GateRun),
+    forall (s1 : SyntaxState) (e : SynEdge) (g : FractalHubGates.GateRun)
+           (Hrange : forall e0,
+               In e0 ((ss_graph s1 ++ [e])%list) ->
+               src e0 < List.length (ss_tokens s1) /\
+               dst e0 < List.length (ss_tokens s1)),
       (* Edge indices must be in range *)
       src e < List.length (ss_tokens s1) ->
       dst e < List.length (ss_tokens s1) ->
@@ -107,20 +111,7 @@ Program Inductive DerivesSyntax : SyntaxState -> SyntaxState -> Prop :=
         {| ss_tokens := ss_tokens s1;
            ss_graph  := (ss_graph s1 ++ [e])%list;
            ss_pipe   := FractalHubGates.push_gate (ss_pipe s1) g;
-           ss_edges_in_range := _ |}.
-
-(* Proof obligation for ss_edges_in_range *)
-Next Obligation.
-  intros e0 Hin0.
-  apply in_app_or in Hin0.
-  destruct Hin0 as [Hin0 | Hin0].
-  - (* e0 from original graph *)
-    apply (ss_edges_in_range s1 e0 Hin0).
-  - (* e0 is the new edge *)
-    simpl in Hin0.
-    destruct Hin0 as [Heq | []].
-    + rewrite <- Heq. split; assumption.
-Qed.
+           ss_edges_in_range := Hrange |}.
 
 (* ============================================================
    5) DerivesSyntaxStar: reflexive transitive closure
@@ -206,11 +197,10 @@ Proof.
   intros s1 s2 Hderiv.
   inversion Hderiv; subst.
   exists g. split.
-  - (* Gate is in the pipeline *)
+  - (* Gate is in the pipeline: push_gate prepends g, so g is the head *)
     unfold FractalHubGates.push_gate.
     unfold FractalHubGates.pipeline_gates.
-    simpl. right.
-    apply (FractalHubGates.gates_in_pipeline (ss_pipe s1)).
+    simpl. left. reflexivity.
   - (* Gate ID is SYNTAX_GATE *)
     assumption.
 Qed.
