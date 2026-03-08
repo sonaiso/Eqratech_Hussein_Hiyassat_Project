@@ -106,6 +106,16 @@ def split_units(text: str) -> List[Unit]:
     return units
 
 
+def _unit_to_str(u: Unit) -> str:
+    """Render one (base + diacritics) unit to string."""
+    return u.base + "".join(u.diacs)
+
+
+def _units_to_str(units: List[Unit]) -> str:
+    """Render a list of units back to a diacritics-preserving string."""
+    return "".join(_unit_to_str(u) for u in units)
+
+
 def expand_shadda(units: List[Unit]) -> List[Unit]:
     """Expand shadda into two consonants."""
     expanded = []
@@ -720,34 +730,39 @@ def extract_root(word: str, mabniyat_catalog: Optional[Dict[str, Dict[str, Any]]
 
 
 def detect_operator(word: str, operators_catalog: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
-    """Detect Arabic operator (particle/verb) using catalog."""
-    clean_word = ''.join(c for c in word if c not in 'ًٌٍَُِّْٰ')
-    
-    # Direct match
-    if clean_word in operators_catalog:
+    """Detect Arabic operator (particle/verb) using catalog.
+
+    Rules:
+    - Do NOT strip diacritics. Matching is exact against catalog keys.
+    - Prefix handling removes exactly one (base letter + diacritics) unit, preserving stem diacritics.
+    """
+    w = normalize_word(word)
+
+    # Exact match (diacritics-sensitive)
+    if w in operators_catalog:
         return {
             "is_operator": True,
-            "operator": clean_word,
+            "operator": w,
             "original_word": word,
-            **operators_catalog[clean_word],
+            **operators_catalog[w],
         }
-    
-    # Check for prefixed operators
-    prefixes = ["و", "ف", "ب", "ل", "ك"]
-    for prefix in prefixes:
-        if clean_word.startswith(prefix) and len(clean_word) > 1:
-            stem = clean_word[1:]
-            if stem in operators_catalog:
-                return {
-                    "is_operator": False,
-                    "has_operator_prefix": True,
-                    "prefix": prefix,
-                    "prefix_operator": operators_catalog.get(prefix, {}),
-                    "stem": stem,
-                    "stem_operator": operators_catalog.get(stem, {}),
-                    "original_word": word,
-                }
-    
+
+    # Unit-based prefix: one unit (letter + its diacritics) then stem
+    units = split_units(w)
+    if len(units) >= 2:
+        prefix_str = _unit_to_str(units[0])
+        stem_str = _units_to_str(units[1:])
+        if stem_str in operators_catalog:
+            return {
+                "is_operator": False,
+                "has_operator_prefix": True,
+                "prefix": prefix_str,
+                "prefix_operator": operators_catalog.get(prefix_str, {}),
+                "stem": stem_str,
+                "stem_operator": operators_catalog.get(stem_str, {}),
+                "original_word": word,
+            }
+
     return {
         "is_operator": False,
         "has_operator_prefix": False,
