@@ -219,25 +219,19 @@ Lemma PPAttachmentRequired :
       HasAttachPP (ss_graph s') \/ HasGovernPP (ss_graph s').
 Proof.
   intros s Hgov s' Hstar.
-  induction Hstar.
+  revert Hgov.
+  induction Hstar as [s0 | s0 s2 s3 Hstep Hstar2 IHHstar].
   - (* Reflexive case *)
-    right. exact Hgov.
-  - (* Step case *)
-    destruct IHHstar as [Hatt | Hgov'].
+    intro Hgov. right. exact Hgov.
+  - (* Step case: s0 ->1 s2 ->* s3 *)
+    intro Hgov.
+    (* GovernPP is preserved through one step: graph only grows *)
+    assert (HasGovernPP (ss_graph s2)) as Hgov2.
+    { inversion Hstep; subst.
+      unfold HasGovernPP. apply graph_has_app. exact Hgov. }
+    destruct (IHHstar Hgov2) as [Hatt | Hgov'].
     + left. exact Hatt.
-    + (* Check if new edge adds attachment *)
-      inversion H; subst.
-      destruct (k e) eqn:Ek.
-      * (* E_ISNAD *) right. apply graph_has_app. exact Hgov'.
-      * (* E_HAS_SUBJECT *) right. apply graph_has_app. exact Hgov'.
-      * (* E_HAS_OBJECT *) right. apply graph_has_app. exact Hgov'.
-      * (* E_GOVERN_GEN *) right. apply graph_has_app. exact Hgov'.
-      * (* E_SHIBH_ATTACH *) left. unfold HasAttachPP. 
-        unfold graph_has. exists e. split.
-        -- apply in_app_singleton.
-        -- exact Ek.
-      * (* E_NA3T *) right. apply graph_has_app. exact Hgov'.
-      * (* E_IDAFA *) right. apply graph_has_app. exact Hgov'.
+    + right. exact Hgov'.
 Qed.
 
 (* ============================================================
