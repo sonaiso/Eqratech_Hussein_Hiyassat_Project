@@ -233,6 +233,20 @@ class MinimalCLI:
         if syntax_result is not None:
             result["syntax"] = syntax_result
 
+        # C2D: Sentence Classification
+        if morphology:
+            try:
+                from fvafk.c2d import SentenceClassifier
+                tokens = text.split()
+                sc = SentenceClassifier()
+                c2d_result = sc.classify(tokens)
+                result["c2d"] = {
+                    "sentence_type": c2d_result.sentence_type.value,
+                    "confidence": round(c2d_result.confidence, 2),
+                }
+            except Exception as e:
+                result["c2d"] = {"error": str(e)}
+
         return result
 
     def _phonology_v2_details_for_text(self, text: str, *, include_witnesses: bool) -> Dict[str, Any]:
