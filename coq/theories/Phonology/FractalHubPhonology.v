@@ -1,6 +1,8 @@
 From Coq Require Import List.
 From Coq Require Import String.
 From Coq Require Import Arith.
+From Coq Require Import Bool.
+From Coq Require Import PeanoNat.
 From Coq Require Import Classical.
 Import ListNotations.
 
@@ -33,11 +35,15 @@ Module FractalHubPhonology.
    - otherwise stable consonant IDs.
 *)
 
-Definition vowel_is_null (vc : nat) : Prop :=
-  vc = 0 \/ vc = 1.
+(* Boolean classifiers to avoid Prop->Set elimination when computing nucleus_len_at *)
+Definition vowel_is_nullb (vc : nat) : bool :=
+  Nat.eqb vc 0 || Nat.eqb vc 1.
 
-Definition vowel_is_short (vc : nat) : Prop :=
-  vc = 2 \/ vc = 3 \/ vc = 4.
+Definition vowel_is_shortb (vc : nat) : bool :=
+  Nat.eqb vc 2 || Nat.eqb vc 3 || Nat.eqb vc 4.
+
+Definition vowel_is_null (vc : nat) : Prop := vowel_is_nullb vc = true.
+Definition vowel_is_short (vc : nat) : Prop := vowel_is_shortb vc = true.
 
 Definition is_sukun (vc : nat) : Prop := vc = 1.
 Definition is_fatha (vc : nat) : Prop := vc = 2.
@@ -68,8 +74,8 @@ Definition token_consonant_code (t : FractalHubSpec.PositionToken) : nat :=
 Definition cc_cluster (t1 t2 : FractalHubSpec.PositionToken) : Prop :=
   FractalHubDerivation.has_consonant t1 /\
   FractalHubDerivation.has_consonant t2 /\
-  vowel_is_null (token_vowel_code t1) /\
-  vowel_is_null (token_vowel_code t2).
+  vowel_is_nullb (token_vowel_code t1) = true /\
+  vowel_is_nullb (token_vowel_code t2) = true.
 
 (* Exceptions are explicitly declared by the system (loanwords, sandhi, etc.) *)
 Parameter CC_EXCEPTION : FractalHubSpec.PositionToken -> FractalHubSpec.PositionToken -> Prop.
@@ -146,8 +152,8 @@ Definition forms_long_vowel (prev curr : FractalHubSpec.PositionToken) : Prop :=
    - Else length 0 (null nucleus)
 *)
 Definition nucleus_len_at (prev curr : FractalHubSpec.PositionToken) : nat :=
-  if (excluded_middle_informative (forms_long_vowel prev curr)) then 2
-  else if (excluded_middle_informative (vowel_is_short (token_vowel_code curr))) then 1
+  if excluded_middle_informative (forms_long_vowel prev curr) then 2
+  else if vowel_is_shortb (token_vowel_code curr) then 1
   else 0.
 
 (* Lemma: long vowel implies nucleus length 2 *)
@@ -174,9 +180,7 @@ Proof.
   unfold nucleus_len_at.
   destruct (excluded_middle_informative (forms_long_vowel prev curr)) as [Hyes | Hno].
   - exfalso. apply Hnol. exact Hyes.
-  - destruct (excluded_middle_informative (vowel_is_short (token_vowel_code curr))) as [Hy | Hn].
-    + reflexivity.
-    + exfalso. apply Hn. exact Hshort.
+  - unfold vowel_is_short in Hshort. rewrite Hshort. reflexivity.
 Qed.
 
 (* =========================================
