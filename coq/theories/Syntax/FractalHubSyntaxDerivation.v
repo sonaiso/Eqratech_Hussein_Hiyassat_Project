@@ -94,7 +94,7 @@ Qed.
    4) DerivesSyntax: single-step syntax derivation with gate
    ============================================================ *)
 
-Inductive DerivesSyntax : SyntaxState -> SyntaxState -> Prop :=
+Program Inductive DerivesSyntax : SyntaxState -> SyntaxState -> Prop :=
 | DS_AddEdge :
     forall (s1 : SyntaxState) (e : SynEdge) (g : FractalHubGates.GateRun),
       (* Edge indices must be in range *)
