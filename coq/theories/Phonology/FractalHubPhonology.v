@@ -69,12 +69,20 @@ Parameter CC_EXCEPTION : FractalHubSpec.PositionToken -> FractalHubSpec.Position
 Definition onset_ok (t1 t2 : FractalHubSpec.PositionToken) : Prop :=
   (~ cc_cluster t1 t2) \/ CC_EXCEPTION t1 t2.
 
-(* Pronounceable sequence: every adjacent pair satisfies onset_ok *)
-Fixpoint pronounceable_tokens (ts : list FractalHubSpec.PositionToken) : Prop :=
+(* Pronounceable sequence: every adjacent pair satisfies onset_ok.
+   Helper with previous token so recursion is structural on the list. *)
+Fixpoint pronounceable_from
+  (prev : FractalHubSpec.PositionToken)
+  (ts : list FractalHubSpec.PositionToken) : Prop :=
   match ts with
   | [] => True
-  | [_] => True
-  | t1 :: t2 :: tl => onset_ok t1 t2 /\ pronounceable_tokens (t2 :: tl)
+  | t :: tl => onset_ok prev t /\ pronounceable_from t tl
+  end.
+
+Definition pronounceable_tokens (ts : list FractalHubSpec.PositionToken) : Prop :=
+  match ts with
+  | [] => True
+  | t :: tl => pronounceable_from t tl
   end.
 
 (* Core theorem: If pronounceable, there is no forbidden CC cluster unless exception *)
