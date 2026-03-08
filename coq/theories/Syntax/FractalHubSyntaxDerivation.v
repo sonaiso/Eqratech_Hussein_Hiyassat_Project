@@ -219,12 +219,9 @@ Lemma PPAttachmentRequired :
       HasAttachPP (ss_graph s') \/ HasGovernPP (ss_graph s').
 Proof.
   intros s Hgov s' Hstar.
-  (* PP either gets attached or remains governed *)
-  right. 
-  (* Show that GOVERN_GEN is preserved through derivation *)
   induction Hstar.
   - (* Reflexive case *)
-    exact Hgov.
+    right. exact Hgov.
   - (* Step case *)
     destruct IHHstar as [Hatt | Hgov'].
     + left. exact Hatt.
