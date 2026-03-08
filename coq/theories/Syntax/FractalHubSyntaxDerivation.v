@@ -3,7 +3,7 @@ From Coq Require Import String.
 From Coq Require Import Arith.
 From Coq Require Import Lia.
 Import ListNotations.
-
+Open Scope string_scope.
 Require Import FractalHub.FractalHubSpec.
 Require Import FractalHub.FractalHubGates.
 Require Import FractalHub.FractalHubDerivation.

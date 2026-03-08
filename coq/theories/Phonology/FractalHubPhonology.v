@@ -200,23 +200,7 @@ Inductive DerivesPhonoStar : FractalHubDerivation.State -> FractalHubDerivation.
     DerivesPhonoStar s2 s3 ->
     DerivesPhonoStar s1 s3.
 
-(* If the final state is derived through DerivesPhonoStar, it is pronounceable. *)
-Theorem DerivedStatesArePronounceable :
-  forall s0 s,
-    DerivesPhonoStar s0 s ->
-    state_pronounceable s.
-Proof.
-  intros s0 s H.
-  induction H.
-  - (* refl: no guarantee unless assumed; we keep as "trivial" *)
-    (* For a fully closed theorem, you'd require state_pronounceable s0 as hypothesis. *)
-    unfold state_pronounceable. simpl. exact I.
-  - (* step: stored in DerivesPhono premise *)
-    destruct H as [_ Hpron].
-    exact Hpron.
-Qed.
-
-(* Stronger, fully closed version: if s0 pronounceable and we preserve it, then all are pronounceable *)
+(* If s0 is pronounceable and we derive through DerivesPhonoStar to s, then s is pronounceable. *)
 Theorem DerivationPreservesPronounceability :
   forall s0 s,
     state_pronounceable s0 ->
@@ -226,8 +210,17 @@ Proof.
   intros s0 s H0 Hstar.
   induction Hstar.
   - exact H0.
-  - destruct H as [_ Hpron2].
-    exact (IHHstar Hpron2).
+  - inversion H; subst. apply IHHstar. assumption.
+Qed.
+
+(* Corollary: same statement, for backward compatibility. *)
+Theorem DerivedStatesArePronounceable :
+  forall s0 s,
+    state_pronounceable s0 ->
+    DerivesPhonoStar s0 s ->
+    state_pronounceable s.
+Proof.
+  exact DerivationPreservesPronounceability.
 Qed.
 
 End FractalHubPhonology.
