@@ -211,3 +211,13 @@ scripts/*-backup.py
 !tests/**/
 !tests/test_*.py
 !tests/**/test_*.py
+
+# Coq generated build artifacts (coq_makefile output)
+coq/Makefile
+coq/Makefile.conf
+coq/.Makefile.d
+coq/**/*.vo
+coq/**/*.vos
+coq/**/*.vok
+coq/**/*.glob
+coq/**/*.aux
