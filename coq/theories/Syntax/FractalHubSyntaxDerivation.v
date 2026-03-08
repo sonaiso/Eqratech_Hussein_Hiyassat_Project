@@ -258,13 +258,13 @@ Qed.
    9) Integration with FractalHubDerivation
    ============================================================ *)
 
-(* Connect syntax state to general derivation state *)
+(* Connect syntax state to general derivation state (tokens only) *)
 Definition syntax_to_derivation (ss : SyntaxState) : FractalHubDerivation.State :=
-  {| FractalHubDerivation.st_tokens := ss_tokens ss;
-     FractalHubDerivation.st_pipeline := ss_pipe ss;
-     FractalHubDerivation.st_confidence := 1 |}.
+  {| FractalHubDerivation.st_tokens := ss_tokens ss |}.
 
-(* If we can derive syntactically, we can derive generally *)
+(* If we can derive syntactically, we can derive generally.
+   DerivesSyntax only appends edges and pipeline; tokens are unchanged,
+   so both states map to the same derivation state. *)
 Lemma SyntaxDerivesToGeneral :
   forall s1 s2,
     DerivesSyntax s1 s2 ->
@@ -274,11 +274,7 @@ Lemma SyntaxDerivesToGeneral :
 Proof.
   intros s1 s2 Hsyn.
   inversion Hsyn; subst.
-  apply FractalHubDerivation.D_ApplyGate with g.
-  - (* Gate applied *)
-    reflexivity.
-  - (* Confidence preserved *)
-    simpl. lia.
+  apply FractalHubDerivation.Derives_refl.
 Qed.
 
 End FractalHubSyntaxDerivation.
