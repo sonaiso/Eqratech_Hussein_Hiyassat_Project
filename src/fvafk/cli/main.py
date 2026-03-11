@@ -343,8 +343,11 @@ class MinimalCLI:
                         else:
                             root_str = ""
                         affixes = w.get("affixes") or {}
+                        prefix_str = affixes.get("prefix") or ""
+                        c2b_features_prefix = prefix_str  # will be added to c2b_features below
                         stripped = affixes.get("stripped") or w.get("features", {}).get("stripped") or ""
                         c2b_features = dict(w.get("features") or {})
+                        c2b_features["prefix"] = (w.get("affixes") or {}).get("prefix") or ""
                         c2b_features.setdefault("surface_word", word)
                         pat = w.get("pattern")
                         c2b_pattern_template = pat.get("template") if isinstance(pat, dict) else None
@@ -1268,6 +1271,7 @@ class MinimalCLI:
         "stem", "normalized", "stripped",
         "syntactic_analysis", "semantic_analysis", "examples", "compound_operator",
         "operator_effect",
+        "i3rab",
         "isnadi_role", "isnadi_role_en", "isnadi_relation", "isnadi_confidence", "isnadi_reason",
         "root_source", "root_wazn", "root_confidence", "heuristic_reason",
     ]
@@ -1334,6 +1338,7 @@ class MinimalCLI:
                 "examples": "",
                 "compound_operator": "",
                 "operator_effect": (w.get("operator") or {}).get("operator_effect") or "",
+                "i3rab": (w.get("c2e") or {}).get("i3rab_text") or "",
                 "isnadi_role": "",
                 "isnadi_role_en": "",
                 "isnadi_relation": "",

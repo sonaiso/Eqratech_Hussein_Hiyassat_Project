@@ -140,6 +140,22 @@ def _particle_i3rab_text(kind: str, c2b: dict) -> Optional[str]:
         return "حَرْفٌ مَبْنِيٌّ"
     if kind == "pronoun":
         return "ضَمِيرٌ مُنْفَصِلٌ مَبْنِيٌّ"
+    # name: لفظ الجلالة أو اسم علم
+    if kind == "name":
+        word = (c2b.get("surface_word") or "").strip()
+        bare = _bare(word).replace("\u0671", "\u0627")  # ألف وصل → ا for jalala check
+        if _is_jalala_or_no_root_bare(bare):
+            return "لَفْظُ الْجَلَالَةِ مَبْنِيٌّ عَلَى الْفَتْحِ"
+        return "اسْمٌ عَلَمٌ مَبْنِيٌّ"
+    # demonstrative: هذا، ذلك، أولئك...
+    if kind == "demonstrative":
+        return "اسْمُ إِشَارَةٍ مَبْنِيٌّ"
+    # mabni: إياك، ولا، إلَيْكَ...
+    if kind == "mabni":
+        return "كَلِمَةٌ مَبْنِيَّةٌ"
+    # unknown: fallback so every word has some i3rab
+    if kind == "unknown":
+        return "كَلِمَةٌ مَبْنِيَّةٌ"
     return None
 
 
@@ -227,9 +243,24 @@ def _build_i3rab(
                 gender=gend,
                 is_definite=bool(nf.definite),
             )
-            return generate_i3rab(info)
+            noun_i3rab = generate_i3rab(info)
+            # إذا كان الاسم مسبوقاً بحرف جر — نذكر الحرف في العبارة
+            prefix = c2b.get("prefix") or ""
+            jar_map = [
+                ("بال", "الْبَاءُ حَرْفُ جَرٍّ مَبْنِيٌّ عَلَى الْكَسْرِ"),
+                ("ب",   "الْبَاءُ حَرْفُ جَرٍّ مَبْنِيٌّ عَلَى الْكَسْرِ"),
+                ("لل",  "اللَّامُ حَرْفُ جَرٍّ مَبْنِيٌّ عَلَى الْفَتْحِ"),
+                ("ل",   "اللَّامُ حَرْفُ جَرٍّ مَبْنِيٌّ عَلَى الْكَسْرِ"),
+                ("كال", "الْكَافُ حَرْفُ جَرٍّ مَبْنِيٌّ عَلَى الْفَتْحِ"),
+                ("ك",   "الْكَافُ حَرْفُ جَرٍّ مَبْنِيٌّ عَلَى الْفَتْحِ"),
+            ]
+            if case == Case.JARR:
+                for p, letter_i3rab in jar_map:
+                    if prefix.startswith(p):
+                        return f"{letter_i3rab}، وَ{noun_i3rab}"
+            return noun_i3rab
 
-        if kind in {"operator", "particle", "pronoun", "unknown"}:
+        if kind in {"operator", "particle", "pronoun", "unknown", "mabni", "demonstrative", "name"}:
             return _particle_i3rab_text(kind, c2b)
 
     except Exception:
