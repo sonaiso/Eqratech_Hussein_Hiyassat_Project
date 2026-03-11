@@ -331,7 +331,7 @@ class MinimalCLI:
                         if isinstance(morphology_result.get("words"), list)
                         else [morphology_result]
                     )
-                    for w in c2b_words:
+                    for idx, w in enumerate(c2b_words):
                         word = w.get("word") or (result.get("input") if len(c2b_words) == 1 else "")
                         kind = (w.get("kind") or "").strip()
                         root_obj = w.get("root")
@@ -344,9 +344,49 @@ class MinimalCLI:
                             root_str = ""
                         affixes = w.get("affixes") or {}
                         stripped = affixes.get("stripped") or w.get("features", {}).get("stripped") or ""
-                        c2b_features = w.get("features") or {}
+                        c2b_features = dict(w.get("features") or {})
+                        c2b_features.setdefault("surface_word", word)
                         pat = w.get("pattern")
                         c2b_pattern_template = pat.get("template") if isinstance(pat, dict) else None
+
+                        prev_w = c2b_words[idx - 1] if idx > 0 else None
+                        if isinstance(prev_w, dict):
+                            prev_feats = prev_w.get("features") or {}
+                            c2b_features.setdefault("prev_kind", (prev_w.get("kind") or "").strip())
+                            c2b_features.setdefault("prev_case", prev_feats.get("case") or "")
+
+                        if isinstance(w.get("operator"), dict):
+                            op = w["operator"]
+                            c2b_features.setdefault("i3rab_template", op.get("i3rab_template") or "")
+                            c2b_features.setdefault("operator_effect", op.get("operator_effect") or "")
+                            c2b_features.setdefault("effect_signature", op.get("effect_signature") or "")
+
+                        bare_word = self._bare_for_jalala(word)
+                        if kind == "unknown" and bare_word.startswith(("لأنه", "لانه", "أنه", "انه")):
+                            c2b_features.setdefault(
+                                "i3rab_text_hint",
+                                "حَرْفُ تَعْلِيلٍ وَتَوْكِيدٍ، وَالْهَاءُ ضَمِيرٌ مُتَّصِلٌ",
+                            )
+
+                        case_hint = (c2b_features.get("case") or "").strip()
+                        prev_kind = (c2b_features.get("prev_kind") or "").strip()
+                        prev_case = (c2b_features.get("prev_case") or "").strip()
+                        if kind == "noun":
+                            if case_hint == "genitive":
+                                c2b_features.setdefault("i3rab_function_hint", "ism_majrur")
+                            elif case_hint == "accusative":
+                                if c2b_pattern_template in {
+                                    "فَعْل", "فَعل", "فِعَال", "تَفْعِيل", "تَفَعُّل", "تَفَاعُل",
+                                    "اسْتِفْعَال", "افْتِعَال", "انْفِعَال",
+                                }:
+                                    c2b_features.setdefault("i3rab_function_hint", "mafool_mutlaq")
+                                elif prev_kind == "verb":
+                                    c2b_features.setdefault("i3rab_function_hint", "mafool")
+                                elif prev_kind == "noun" and prev_case == "accusative":
+                                    c2b_features.setdefault("i3rab_function_hint", "hal")
+                            elif case_hint == "nominative" and prev_kind == "verb":
+                                c2b_features.setdefault("i3rab_function_hint", "fa3il")
+
                         er = enricher.enrich(
                             word=word,
                             stripped=stripped,
@@ -780,7 +820,10 @@ class MinimalCLI:
         
         words_analysis: List[Dict[str, Any]] = []
         prev_governs_genitive = False
+        pending_verb_case: Optional[str] = None
         genitive_governors = {"من", "في", "على", "إلى", "عن", "ب", "ل", "ك", "مع", "حتى"}
+        jussive_governors = {"لم", "لما", "إن"}
+        accusative_governors = {"لن", "أن", "كي"}
         
         for sp in spans:
             word = sp.token
@@ -793,6 +836,11 @@ class MinimalCLI:
                 op_base = (classification.operator.get("operator") or "").strip()
                 if op_base in genitive_governors:
                     prev_governs_genitive = True
+                effect_sig = ((classification.operator.get("effect_signature") or "") + " " + (classification.operator.get("operator_effect") or "")).upper()
+                if op_base in jussive_governors or "JAZM" in effect_sig:
+                    pending_verb_case = "jussive"
+                elif op_base in accusative_governors or "NASB" in effect_sig:
+                    pending_verb_case = "accusative"
                 words_analysis.append({
                     "word": word,
                     "span": {"start": sp.start, "end": sp.end},
@@ -807,6 +855,10 @@ class MinimalCLI:
                     base = ((classification.special or {}).get("base") or "").strip()
                     if base in genitive_governors:
                         prev_governs_genitive = True
+                    if base in jussive_governors:
+                        pending_verb_case = "jussive"
+                    elif base in accusative_governors:
+                        pending_verb_case = "accusative"
                 bare = (classification.special or {}).get("token_bare") if classification.special else None
                 bare = bare or word
                 dummy_suffix = None
@@ -878,7 +930,9 @@ class MinimalCLI:
                 continue
 
             force_noun_genitive = prev_governs_genitive
+            force_verb_case = pending_verb_case
             prev_governs_genitive = False
+            pending_verb_case = None
 
             # لفظ الجلالة: لا جذر (تطبيع ٱ→ا)
             if self._is_jalala(word):
@@ -1094,9 +1148,31 @@ class MinimalCLI:
             }
 
             features = extract_features(word, extraction, pattern, final_kind, mabni_result=mabni_result)
+            if (
+                final_kind == WordKind.VERB
+                and features.get("case") == "genitive"
+                and not force_verb_case
+                and not (pattern and pattern.pattern_type in {
+                    PatternType.FORM_I,
+                    PatternType.FORM_II,
+                    PatternType.FORM_III,
+                    PatternType.FORM_IV,
+                    PatternType.FORM_V,
+                    PatternType.FORM_VI,
+                    PatternType.FORM_VII,
+                    PatternType.FORM_VIII,
+                    PatternType.FORM_IX,
+                    PatternType.FORM_X,
+                })
+            ):
+                final_kind = WordKind.NOUN
+                word_result["kind"] = final_kind.value
+                features = extract_features(word, extraction, pattern, final_kind, mabni_result=mabni_result)
             if force_noun_genitive:
                 # best-effort: mark likely genitive after preposition
                 features["case"] = features.get("case") or "genitive"
+            if force_verb_case and final_kind == WordKind.VERB:
+                features["case"] = force_verb_case
             if pattern:
                 pat_features = pattern.features.copy()
                 pat_features.setdefault("pattern_type", pattern.pattern_type.name)

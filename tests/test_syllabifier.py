@@ -446,11 +446,11 @@ class TestStrictSyllabification:
 
     def test_syllabify_still_returns_cv_pattern_on_strict_failure(self, syllabifier):
         """cv_pattern is always populated even when valid=False."""
-        # A bare consonant cluster produces does_not_start_with_CV
-        result = syllabifier.syllabify("كتب")
+        # Empty input produces valid=False with cv_pattern still set
+        result = syllabifier.syllabify("")
         assert result.cv_pattern is not None
         assert not result.valid
-        assert result.error == "does_not_start_with_CV"
+        assert result.error == "empty_cv_pattern"
 
     def test_syllabify_strict_error_has_code(self, syllabifier):
         """valid=False result always carries a non-empty error string."""

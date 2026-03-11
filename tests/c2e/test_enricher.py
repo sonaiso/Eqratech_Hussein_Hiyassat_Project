@@ -111,3 +111,15 @@ def test_noun_has_features():
     r = _enrich("الطَّالِبُ", "طالب", "noun", "طلب", c2b_features={"number": "singular", "gender": "masculine"})
     assert r.noun_features is not None
     assert r.derivation == "مشتق"
+
+
+def test_past_verb_i3rab_with_taa_al_fa3il():
+    r = _enrich("ضَرَبْتُ", "ضربت", "verb", "ضرب", c2b_features={"surface_word": "ضَرَبْتُ"})
+    assert r.i3rab_text is not None
+    assert "السُّكُونِ" in r.i3rab_text
+    assert "تَاءِ الْفَاعِلِ" in r.i3rab_text
+
+
+def test_operator_i3rab_text_jazm():
+    r = _enrich("لَمْ", "", "operator", "", c2b_features={"effect_signature": "JAZM"})
+    assert r.i3rab_text == "حَرْفُ جَزْمٍ مَبْنِيٌّ عَلَى السُّكُونِ"

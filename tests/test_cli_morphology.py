@@ -198,6 +198,51 @@ class TestCLIMorphologyIntegration:
         assert data["c2b"]["pattern"]["template"] == "تَفْعَلُ"
         assert data["c2b"]["pattern"]["type"] == "form_i"
 
+    def test_multiword_past_verb_with_taa_not_noun(self):
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "fvafk.cli",
+                "ضَرَبْتُ",
+                "--morphology",
+                "--multi-word",
+                "--json",
+            ],
+            capture_output=True,
+            text=True,
+            env={**os.environ, "PYTHONPATH": "src"},
+        )
+        assert result.returncode == 0, result.stderr or result.stdout
+        data = json.loads(result.stdout)
+        word = data["c2b"]["words"][0]
+        assert word["kind"] == "verb"
+        assert "تَاءِ الْفَاعِلِ" in (word.get("c2e") or {}).get("i3rab_text", "")
+
+    def test_multiword_i3rab_roles_and_jazm(self):
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "fvafk.cli",
+                "ضَرَبْتُ الْكُمْبِيُوتَرَ بِالْمَاوْسِ ضَرْبًا مُبَرِّحًا لِأَنَّهُ لَمْ يُشَغِّلْ شَاتْجِيبْتِ",
+                "--morphology",
+                "--multi-word",
+                "--json",
+            ],
+            capture_output=True,
+            text=True,
+            env={**os.environ, "PYTHONPATH": "src"},
+        )
+        assert result.returncode == 0, result.stderr or result.stdout
+        data = json.loads(result.stdout)
+        words = {w["word"]: w for w in data["c2b"]["words"]}
+        assert "مَفْعُولٌ بِهِ" in words["الْكُمْبِيُوتَرَ"]["c2e"]["i3rab_text"]
+        assert "مَفْعُولٌ مُطْلَقٌ" in words["ضَرْبًا"]["c2e"]["i3rab_text"]
+        assert "حَالٌ" in words["مُبَرِّحًا"]["c2e"]["i3rab_text"]
+        assert words["لَمْ"]["c2e"]["i3rab_text"] == "حَرْفُ جَزْمٍ مَبْنِيٌّ عَلَى السُّكُونِ"
+        assert "مَجْزُومٌ" in words["يُشَغِّلْ"]["c2e"]["i3rab_text"]
+
 
 class TestCLISyntaxOutput:
     """Sprint 1, Task #1.7 / PR-A: CLI outputs syntax when --morphology is set."""

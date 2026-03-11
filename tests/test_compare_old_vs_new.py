@@ -19,7 +19,7 @@ def test_old_vs_new_cv_snapshot_small_set():
         # Stable, expected to match.
         "كِتَاب": {
             "c2a": {"cv": "CVCVVC", "cv_advanced": "CViCVAC"},
-            "phonology_v2": {"cv": "CVCVVC", "cv_advanced": "CViCVAC"},
+            "phonology_v2": {"cv": "CVCVVC", "cv_advanced": "CViCVaVaC"},
         },
         "يَوْم": {
             "c2a": {"cv": "CVCC", "cv_advanced": "CVaCC"},

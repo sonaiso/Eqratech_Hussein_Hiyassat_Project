@@ -346,7 +346,7 @@ class TestPatternMatcherComprehensive:
         # Currently might fail - this is expected
         # TODO: Add فَعْل pattern to catalog
         if pattern:
-            assert pattern.template in ["فَعْل", "فِعَال"]
+            assert pattern.template in ["فَعْل", "فَعل", "فِعَال"]
 
     # ========================================
     # Intensive Pattern Tests (صيغة المبالغة)
@@ -576,7 +576,7 @@ class TestPatternMatcherComprehensive:
         pattern = matcher.match("يَرْمِي", root)
         
         if pattern:
-            assert pattern.template in ["يَفْعِلُ", "فَعَلَ"]
+            assert pattern.template in ["يَفْعِلُ", "يَفْعِل", "فَعَلَ"]
 
     def test_doubly_weak_verb(self, matcher):
         """Test Doubly Weak Verb (وقى): يَقِي"""

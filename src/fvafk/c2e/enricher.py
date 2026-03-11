@@ -5,6 +5,7 @@ Fills verb features (tense, voice, person, number, gender) and noun pattern_type
 """
 from __future__ import annotations
 
+import unicodedata
 from typing import Any, Dict, Optional
 
 from .models import EnrichmentResult, NounFeatures, VerbFeatures
@@ -51,6 +52,97 @@ def _is_jalala_or_no_root_bare(bare_word: str) -> bool:
     return False
 
 
+def _noun_function_from_hint(case: Case, noun_features: Optional[NounFeatures], c2b: dict) -> Function:
+    hint = (c2b.get("i3rab_function_hint") or "").strip().lower()
+    if hint == "ism_majrur" or case == Case.JARR:
+        return Function.ISM_MAJRUR
+    if hint == "mafool":
+        return Function.MAFOOL
+    if hint == "mafool_mutlaq":
+        return Function.MAFOOL_MUTLAQ
+    if hint == "hal":
+        return Function.HAL
+    if hint == "tamyiz":
+        return Function.TAMYIZ
+    if hint == "naib_fa3il":
+        return Function.NAIB_FA3IL
+
+    # Best-effort fallback from noun pattern type
+    pattern_type = ((noun_features.pattern_type if noun_features else None) or "").strip()
+    if case == Case.JARR:
+        return Function.ISM_MAJRUR
+    if case == Case.NASB and "مصدر" in pattern_type:
+        return Function.MAFOOL_MUTLAQ
+    return Function.FA3IL
+
+
+def _mark_after_base(text: str, base_pos: int) -> Optional[str]:
+    nfd = unicodedata.normalize("NFD", text or "")
+    bases = [i for i, c in enumerate(nfd) if unicodedata.category(c) != "Mn" and c not in " \t"]
+    if base_pos < 0:
+        base_pos = len(bases) + base_pos
+    if base_pos < 0 or base_pos >= len(bases):
+        return None
+    j = bases[base_pos] + 1
+    while j < len(nfd) and unicodedata.category(nfd[j]) == "Mn":
+        return nfd[j]
+    return None
+
+
+def _past_bina_from_surface(surface_word: str, vf: VerbFeatures) -> tuple[str, Optional[str]]:
+    bare = _bare(surface_word)
+    if not bare:
+        return "الْفَتْحِ", None
+
+    if bare.endswith("ت") and _mark_after_base(surface_word, -2) == "\u0652":
+        return "السُّكُونِ", "تَاءِ الْفَاعِلِ"
+    if bare.endswith("نا"):
+        return "السُّكُونِ", "نَا الْفَاعِلِينَ"
+    if bare.endswith("وا"):
+        return "الضَّمِّ", "وَاوِ الْجَمَاعَةِ"
+    if bare.endswith("ا") and len(bare) >= 4:
+        return "السُّكُونِ", "أَلِفِ الِاثْنَيْنِ"
+
+    bina_map = {
+        "معلوم_مفرد":   "الْفَتْحِ",
+        "معلوم_جمع":    "الضَّمِّ",
+        "معلوم_مثنى":   "السُّكُونِ",
+        "مجهول_مفرد":   "الْفَتْحِ",
+    }
+    suffix_map = {
+        "جمع":  "وَاوِ الْجَمَاعَةِ",
+        "مثنى": "أَلِفِ الِاثْنَيْنِ",
+    }
+    bina_key = f"{vf.voice}_{vf.number}"
+    return bina_map.get(bina_key, "الْفَتْحِ"), suffix_map.get(vf.number)
+
+
+def _particle_i3rab_text(kind: str, c2b: dict) -> Optional[str]:
+    hint = (c2b.get("i3rab_text_hint") or "").strip()
+    if hint:
+        return hint
+    template = (c2b.get("i3rab_template") or "").strip()
+    if template:
+        if "{" in template:
+            effect_sig = ((c2b.get("effect_signature") or "") + " " + (c2b.get("operator_effect") or "")).upper()
+            if "JAZM" in effect_sig:
+                return "حَرْفُ جَزْمٍ مَبْنِيٌّ عَلَى السُّكُونِ"
+            if "NASB" in effect_sig:
+                return "حَرْفُ نَصْبٍ مَبْنِيٌّ عَلَى السُّكُونِ"
+            return "حَرْفٌ مَبْنِيٌّ"
+        return template
+    effect_sig = ((c2b.get("effect_signature") or "") + " " + (c2b.get("operator_effect") or "")).upper()
+    if "JAZM" in effect_sig:
+        return "حَرْفُ جَزْمٍ مَبْنِيٌّ عَلَى السُّكُونِ"
+    if "NASB" in effect_sig:
+        return "حَرْفُ نَصْبٍ مَبْنِيٌّ عَلَى السُّكُونِ"
+    if kind in {"operator", "particle"}:
+        return "حَرْفٌ مَبْنِيٌّ"
+    if kind == "pronoun":
+        return "ضَمِيرٌ مُنْفَصِلٌ مَبْنِيٌّ"
+    return None
+
+
 def _build_i3rab(
     kind: str,
     verb_features: Optional[VerbFeatures],
@@ -73,19 +165,7 @@ def _build_i3rab(
             is_khamsa = num in (Number.MUTHANA, Number.JAMA3)
 
             if vf.tense == "ماضي":
-                bina_map = {
-                    "معلوم_مفرد":   "الْفَتْحِ",
-                    "معلوم_جمع":    "الضَّمِّ",
-                    "معلوم_مثنى":   "السُّكُونِ",
-                    "مجهول_مفرد":   "الْفَتْحِ",
-                }
-                suffix_map = {
-                    "جمع":  "وَاوِ الْجَمَاعَةِ",
-                    "مثنى": "أَلِفِ الِاثْنَيْنِ",
-                }
-                bina_key = f"{vf.voice}_{vf.number}"
-                bina = bina_map.get(bina_key, "الْفَتْحِ")
-                suffix = suffix_map.get(vf.number)
+                bina, suffix = _past_bina_from_surface(c2b.get("surface_word") or "", vf)
                 info = WordInfo(
                     word_type=WordType.VERB_PAST,
                     function=Function.FA3IL,
@@ -137,16 +217,20 @@ def _build_i3rab(
             case  = case_map.get(nf.case or "nominative", Case.RAFA)
             num   = number_map.get(nf.number or "singular", Number.MUFRAD)
             gend  = Gender.F if (nf.gender or "").startswith("ف") or nf.gender == "feminine" else Gender.M
+            noun_function = _noun_function_from_hint(case, noun_features, c2b)
 
             info = WordInfo(
                 word_type=WordType.NOUN,
-                function=Function.ISM_MAJRUR if case == Case.JARR else Function.FA3IL,
+                function=noun_function,
                 case=case,
                 number=num,
                 gender=gend,
                 is_definite=bool(nf.definite),
             )
             return generate_i3rab(info)
+
+        if kind in {"operator", "particle", "pronoun", "unknown"}:
+            return _particle_i3rab_text(kind, c2b)
 
     except Exception:
         pass
@@ -202,7 +286,7 @@ class MorphEnricher:
         noun_features: Optional[NounFeatures] = None
 
         if kind == "verb":
-            verb_features = analyze_verb(word, word, root_letters)
+            verb_features = analyze_verb(word, word, root_letters, c2b_pattern_template or "")
             if verb_features:
                 confidence = max(confidence, 0.88)
         elif kind == "noun":

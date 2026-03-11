@@ -63,21 +63,61 @@ def _has_damma_early(word: str, max_chars: int = 10) -> bool:
     return False
 
 
-def _detect_tense(word: str, stripped: str) -> str:
+def _detect_tense(word: str, stripped: str, c2b_pattern_template: str = "") -> str:
     """زمن: ماضي | مضارع | أمر."""
+    if c2b_pattern_template:
+        import unicodedata as _ud
+        t = "".join(c for c in _ud.normalize("NFD", c2b_pattern_template)
+                    if not (0x064B <= ord(c) <= 0x0652 or ord(c) == 0x0670))
+        if t:
+            if t[0] == "ف":
+                return "ماضي"
+            if t[0] in "يتنأ":
+                return "مضارع"
     bare = _bare(word)
     st = _bare(stripped) if stripped else bare
     if not st:
         return "ماضي"
-    # مضارع: ي/ت/ن/أ (حروف المضارعة)
+
+    # مضارع: يجب أن يبدأ بحرف مضارعة (ي/ت/ن/أ)
+    # AND أول حرف في word المشكّل يحمل حركة (فتحة/ضمة/كسرة) — ليس سكوناً
     if _starts_with_mudari(st):
-        # أَكْتُبُ (first person) = word starts with أ (U+0623) + damma in word; اكْتُبْ (imperative) = ا (U+0627)
+        # تحقق إضافي: هل الحرف الأول في word المشكّل يحمل حركة مضارعة؟
+        # الفعل الماضي مع تاء الفاعل (نَظَّفْتُ) يبدأ بـ ن لكن ليست مضارعة
+        # المضارع الحقيقي: يَكْتُبُ / تَكْتُبُ / نَكْتُبُ / أَكْتُبُ
+        # الماضي مع تاء: نَظَّفْتُ / كَتَبْتُ / ضَرَبْتُ
+        # الفرق: المضارع جذره ثلاثي ظاهر بعد حرف المضارعة مباشرة
+        # أما نَظَّفْتُ فالـ ن هنا أول حرف الجذر وليست حرف مضارعة
+
+        # قاعدة: حرف المضارعة الحقيقي يسبق الجذر كاملاً
+        # نتحقق: إذا كان bare يبدأ بـ ن/ت/ي/أ لكن ينتهي بـ ت/تُ/تِ/تَ → ماضٍ مع تاء فاعل
+        if st[0] in "نتيأ":
+            # إذا انتهى بتاء → محتمل ماضٍ مع تاء فاعل
+            # لكن إذا انتهى بـ ون/ان/ين → جمع مضارع
+            if bare.endswith("ت") and len(bare) >= 4:
+                # نَظَّفْتُ، كَتَبْتُ، ضَرَبْتُ — ماضٍ مع تاء الفاعل
+                # لكن يَثْبُتُ ينتهي بـ ت أيضاً — فنتحقق من البنية
+                # الفرق: في المضارع حرف المضارعة زائد على الجذر
+                # في الماضي مع تاء: الجذر كامل قبل التاء
+                # إذا كان stripped == word (مررنا word مرتين) نتحقق من الحركة على ما قبل الأخير
+                penultimate_vowel = _get_vowel_at(word, -2) if len(word) >= 2 else None
+                # ماضٍ مع تاء: ما قبل التاء عليه سكون (كَتَبْتُ، نَظَّفْتُ)
+                import unicodedata
+                nfd = unicodedata.normalize("NFD", word)
+                # نبحث عن سكون قبل التاء الأخيرة
+                has_sukun_before_ta = "\u0652" in nfd[:-4] if len(nfd) > 4 else False
+                if has_sukun_before_ta:
+                    return "ماضي"
+
+        # أَكْتُبُ (first person) = word starts with أ (U+0623) + damma in word
+        # اكْتُبْ (imperative) = ا (U+0627)
         if st[0] in "أا" and _looks_imperative(st):
             first_char = word.strip()[0] if word else ""
             if first_char == "\u0623" and _has_damma_early(word):
                 return "مضارع"
             return "أمر"
         return "مضارع"
+
     # أمر: همزة وصل (ا/أ) + _looks_imperative
     if _looks_imperative(st):
         return "أمر"
@@ -220,12 +260,12 @@ def _infer_pattern(word: str, stripped: str, tense: str) -> str:
     return "فَعَلَ"
 
 
-def analyze_verb(word: str, stripped: str, root: str) -> VerbFeatures:
+def analyze_verb(word: str, stripped: str, root: str, c2b_pattern_template: str = "") -> VerbFeatures:
     """
     Analyze verb and return tense, voice, person, number, gender, pattern.
     Uses diacritics from word; no hardcoded word lists.
     """
-    tense = _detect_tense(word, stripped)
+    tense = _detect_tense(word, stripped, c2b_pattern_template)
     voice = _detect_voice(word, stripped, tense)
     person = _detect_person(word, stripped, tense)
     number = _detect_number(word, stripped, tense)

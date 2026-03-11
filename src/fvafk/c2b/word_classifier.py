@@ -29,6 +29,49 @@ def _strip_diacritics(text: str) -> str:
     ).replace("ـ", "").strip()
 
 
+def _base_indices_nfd(text: str) -> list[int]:
+    nfd = unicodedata.normalize("NFD", text or "")
+    return [i for i, c in enumerate(nfd) if unicodedata.category(c) != "Mn" and c not in " \t"]
+
+
+def _mark_after_base(text: str, base_pos: int) -> Optional[str]:
+    nfd = unicodedata.normalize("NFD", text or "")
+    bases = _base_indices_nfd(text)
+    if base_pos < 0:
+        base_pos = len(bases) + base_pos
+    if base_pos < 0 or base_pos >= len(bases):
+        return None
+    j = bases[base_pos] + 1
+    while j < len(nfd) and unicodedata.category(nfd[j]) == "Mn":
+        return nfd[j]
+    return None
+
+
+def _looks_past_verb_with_attached_subject(token: str, bare: str) -> bool:
+    """Detect past verbs like ضَرَبْتُ / كَتَبْنَا conservatively."""
+    if not token or not bare or len(bare) < 4 or len(bare) > 7:
+        return False
+    if bare.startswith(("ال", "وال", "فال", "بال", "كال", "لل")):
+        return False
+    if bare.endswith("ة"):
+        return False
+    if sum(1 for ch in bare[:-1] if ch in {"ا", "و", "ي", "ى"}) > 1:
+        return False
+
+    # ...تُ / ...تَ / ...تِ / ...تْ
+    if bare.endswith("ت"):
+        prev_mark = _mark_after_base(token, -2)
+        last_mark = _mark_after_base(token, -1)
+        return prev_mark == "\u0652" and last_mark in {"\u064f", "\u064e", "\u0650", "\u0652"}
+
+    # ...نَا : often past + نا الفاعلين/المفعولين; require preceding fatha to stay conservative.
+    if bare.endswith("نا") and len(bare) >= 5:
+        prev_mark = _mark_after_base(token, -3)
+        return prev_mark == "\u064e"
+
+    return False
+
+
 class WordKind(str, Enum):
     OPERATOR = "operator"
     DEMONSTRATIVE = "demonstrative"
@@ -208,6 +251,10 @@ class WordClassifier:
             parts = set(prefix.split("+"))
             if parts & {"ي", "ت", "ن", "أ"}:
                 return Classification(kind=WordKind.VERB)
+
+        # Past verb with attached subject pronoun: ضَرَبْتُ، كَتَبْنَا...
+        if _looks_past_verb_with_attached_subject(token, bare):
+            return Classification(kind=WordKind.VERB)
 
         # Default noun for normal-length tokens.
         if len(bare) >= 2:
