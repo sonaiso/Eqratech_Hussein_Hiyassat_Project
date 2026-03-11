@@ -32,6 +32,8 @@ class SpecialWordsCatalog:
     - golden_name_base.csv: excluded names (no root extraction)
     - no_root_jawamed-new.csv: jawamed/no-root words (no root extraction)
     - additional_excludes.csv: categories (DEMONSTRATIVE/PARTICLE/PREP_*) with root hints
+
+    TODO: Revisit يوم، مستقيم for correct kind (دقة التصنيف). See docs/TODO_SPECIAL_WORDS_CATALOG.md.
     """
 
     _BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
@@ -57,6 +59,13 @@ class SpecialWordsCatalog:
         self._load_no_root_jawamed(jawamed)
         self._load_additional_excludes(additional)
 
+        # جوامد لا جذر لها — حتى لو غاب الملف (مثل غير)
+        for jawid in ("غير",):
+            self._map.setdefault(
+                jawid,
+                SpecialEntry(kind="excluded_name", status="NO_ROOT", source_path="builtin"),
+            )
+
         # Built-in minimal demonstratives (fallback even if CSV absent)
         for demo in ("ذلك", "هذه", "هذا", "هؤلاء", "تلك", "أولئك", "هنالك", "هناك", "كذا"):
             self._map.setdefault(
@@ -65,11 +74,15 @@ class SpecialWordsCatalog:
             )
 
         # Built-in relatives / closed-class pronouns (prevent false morphology)
+        # ٱلذين/والذين/وٱلذين for وَٱلَّذِينَ (و + ألف وصل + الذين)
         for rel in (
             "الذي",
             "التي",
             "اللذين",
             "الذين",
+            "ٱلذين",
+            "والذين",
+            "وٱلذين",
             "اللتين",
             "اللاتي",
             "اللائي",

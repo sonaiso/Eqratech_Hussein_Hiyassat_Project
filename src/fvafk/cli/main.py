@@ -10,9 +10,11 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import sys
 import time
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fvafk.c1 import C1Encoder
@@ -37,6 +39,51 @@ from fvafk.c2a.syllable import Segment
 from fvafk.c2b import PatternMatcher, RootExtractor
 from fvafk.c2b.morpheme import Pattern, PatternType, Root, RootType
 
+# ترجمة قيم الوسوم إلى العربية لـ CSV (استخدم --arabic-tags)
+TAG_TO_ARABIC = {
+    "root_type": {"trilateral": "ثلاثي", "quadrilateral": "رباعي"},
+    "category": {"noun": "اسم", "verb": "فعل"},
+    "kind": {
+        "noun": "اسم", "verb": "فعل", "operator": "أداة", "particle": "حرف",
+        "pronoun": "ضمير", "name": "اسم علم", "mabni": "مبني", "unknown": "غير معروف",
+        "demonstrative": "إشارة",
+    },
+    "type": {
+        "unknown": "غير معروف", "trilateral": "ثلاثي", "quadrilateral": "رباعي",
+        "form_i": "صيغة أولى", "form_ii": "صيغة ثانية", "form_iii": "صيغة ثالثة",
+        "form_iv": "صيغة رابعة", "form_v": "صيغة خامسة", "form_vi": "صيغة سادسة",
+        "form_vii": "صيغة سابعة", "form_viii": "صيغة ثامنة", "form_ix": "صيغة تاسعة", "form_x": "صيغة عاشرة",
+        "active_participle": "اسم فاعل", "passive_participle": "اسم مفعول",
+        "verbal_noun": "مصدر", "broken_plural_fu3alaa": "جمع تكسير", "broken_plural_fu33al": "جمع تكسير",
+        "sound_masc_plural": "جمع مذكر سالم", "sound_fem_plural": "جمع مؤنث سالم",
+    },
+    "case": {
+        "nominative": "مرفوع", "accusative": "منصوب", "genitive": "مجرور",
+        "accusative_or_genitive": "منصوب أو مجرور",
+    },
+    "number": {"singular": "مفرد", "dual": "مثنى", "plural": "جمع"},
+    "gender": {"masculine": "مذكر", "feminine": "مؤنث", "unknown": "غير معروف"},
+    "definiteness": {"true": "معرفة", "false": "نكرة", "": ""},
+    "is_mabni": {"true": "مبني"},
+    "root_source": {
+        "cli_verified": "معتمد_cli", "wazn_resolved": "محلول_الوزن",
+        "heuristic": "استدلالي", "no_root": "لا_جذر", "special_jalala": "لفظ_الجلالة",
+    },
+}
+
+
+def _translate_row_tags_to_arabic(row: Dict[str, str]) -> Dict[str, str]:
+    """Return a copy of row with tag-like column values translated to Arabic."""
+    out = dict(row)
+    for key, mapping in TAG_TO_ARABIC.items():
+        if key not in out:
+            continue
+        val = (out.get(key) or "").strip().lower()
+        if not val:
+            continue
+        out[key] = mapping.get(val, out[key])
+    return out
+
 
 class MinimalCLI:
     """
@@ -50,6 +97,7 @@ class MinimalCLI:
         self.c1_encoder = C1Encoder()
         self._verbose_default = verbose
         self._json_output_default = json_output
+        self._wazn_adapter_cache: Optional[Any] = None  # WaznAdapter | False if not available
 
         gates = [
             GateSukun(),
@@ -67,6 +115,45 @@ class MinimalCLI:
 
         self.orchestrator = GateOrchestrator(gates=gates)
 
+    @staticmethod
+    def _bare_for_jalala(s: str) -> str:
+        """حروف فقط + تطبيع ٱ → ا للتحقق من لفظ الجلالة."""
+        if not s:
+            return ""
+        s = (s or "").replace("-", "").strip().replace("\u0671", "\u0627")
+        return "".join(
+            c for c in s
+            if not (0x064B <= ord(c) <= 0x0652 or ord(c) == 0x0670)
+        ).strip()
+
+    def _is_jalala(self, word: str) -> bool:
+        """True إذا كانت الكلمة لفظ جلالة (الله/لله/اللهم) بعد تطبيع ٱ→ا."""
+        bare = self._bare_for_jalala(word)
+        if not bare:
+            return False
+        if bare in ("الله", "اللهم", "لله"):
+            return True
+        for suf in ("الله", "لله"):
+            if bare.endswith(suf) and len(bare) <= len(suf) + 2:
+                return True
+        return False
+
+    def _get_wazn_adapter(self):
+        """Lazy-load WaznAdapter from data/awzan_merged_final.csv for وزن fallback (فَعَلَ، يَفْعُلُ، فَاعِل)."""
+        if self._wazn_adapter_cache is not None:
+            return self._wazn_adapter_cache if self._wazn_adapter_cache is not False else None
+        try:
+            from fvafk.c2b.root_resolver.wazn_adapter import WaznAdapter
+            for base in (Path.cwd(), Path(__file__).resolve().parents[3]):
+                path = base / "data" / "awzan_merged_final.csv"
+                if path.is_file():
+                    self._wazn_adapter_cache = WaznAdapter.load(str(path))
+                    return self._wazn_adapter_cache
+        except Exception:
+            pass
+        self._wazn_adapter_cache = False
+        return None
+
     def run(
         self,
         text: str,
@@ -76,6 +163,8 @@ class MinimalCLI:
         phonology_v2: bool = False,
         phonology_v2_details: bool = False,
         phonology_v2_witnesses: bool = False,
+        output_csv: Optional[str] = None,
+        output_arabic_tags: bool = False,
     ) -> Dict[str, Any]:
         """Run full FVAFK pipeline."""
         start = time.perf_counter()
@@ -91,6 +180,9 @@ class MinimalCLI:
         )
 
         syllable_count = self._count_syllables(final_segments)
+        syllables_list = self._compute_syllables_list(text)
+        if syllables_list and syllable_count <= 0:
+            syllable_count = len(syllables_list)
         c2a_time = (time.perf_counter() - c2a_start) * 1000
 
         morphology_result: Optional[Dict[str, Any]] = None
@@ -209,7 +301,7 @@ class MinimalCLI:
                 ],
                 "syllables": {
                     "count": syllable_count,
-                    "syllables": None,
+                    "syllables": syllables_list,
                 },
             },
             "stats": {
@@ -229,6 +321,43 @@ class MinimalCLI:
 
         if morphology_result:
             result["c2b"] = morphology_result
+            # C2e: morphological enrichment (only when --morphology)
+            if morphology:
+                try:
+                    from fvafk.c2e import MorphEnricher
+                    enricher = MorphEnricher()
+                    c2b_words = (
+                        morphology_result["words"]
+                        if isinstance(morphology_result.get("words"), list)
+                        else [morphology_result]
+                    )
+                    for w in c2b_words:
+                        word = w.get("word") or (result.get("input") if len(c2b_words) == 1 else "")
+                        kind = (w.get("kind") or "").strip()
+                        root_obj = w.get("root")
+                        if isinstance(root_obj, dict):
+                            root_str = root_obj.get("formatted") or ""
+                            if not root_str and root_obj.get("letters"):
+                                letters = root_obj["letters"]
+                                root_str = "-".join(letters) if isinstance(letters, list) else str(letters)
+                        else:
+                            root_str = ""
+                        affixes = w.get("affixes") or {}
+                        stripped = affixes.get("stripped") or w.get("features", {}).get("stripped") or ""
+                        c2b_features = w.get("features") or {}
+                        pat = w.get("pattern")
+                        c2b_pattern_template = pat.get("template") if isinstance(pat, dict) else None
+                        er = enricher.enrich(
+                            word=word,
+                            stripped=stripped,
+                            kind=kind,
+                            root=root_str,
+                            c2b_features=c2b_features,
+                            c2b_pattern_template=c2b_pattern_template,
+                        )
+                        w["c2e"] = er.to_dict()
+                except Exception:
+                    pass
 
         if syntax_result is not None:
             result["syntax"] = syntax_result
@@ -246,6 +375,10 @@ class MinimalCLI:
                 }
             except Exception as e:
                 result["c2d"] = {"error": str(e)}
+
+        # Export morphology to CSV (same schema as out_with_sources.csv)
+        if output_csv and morphology_result:
+            self._write_morphology_csv(result, output_csv, arabic_tags=output_arabic_tags)
 
         return result
 
@@ -339,7 +472,7 @@ class MinimalCLI:
                 "root": None,
                 "pattern": None,
             }
-        if classification.kind in {WordKind.DEMONSTRATIVE, WordKind.NAME, WordKind.PARTICLE}:
+        if classification.kind in {WordKind.DEMONSTRATIVE, WordKind.PARTICLE}:
             bare = (classification.special or {}).get("token_bare") if classification.special else None
             bare = bare or text
             dummy_suffix = None
@@ -354,9 +487,7 @@ class MinimalCLI:
             )
             payload_key = "special"
             kind_value = classification.kind.value
-            if classification.kind == WordKind.NAME:
-                payload_key = "name"
-            elif classification.kind == WordKind.DEMONSTRATIVE:
+            if classification.kind == WordKind.DEMONSTRATIVE:
                 payload_key = "demonstrative"
             elif classification.kind == WordKind.PARTICLE:
                 payload_key = "particle"
@@ -385,6 +516,23 @@ class MinimalCLI:
                 "root": None,
                 "pattern": None,
                 "features": extract_features(text, dummy, None, WordKind.PRONOUN, mabni_result=mabni_result),
+            }
+
+        # لفظ الجلالة: لا جذر (تطبيع ٱ→ا)
+        if self._is_jalala(text):
+            bare = self._bare_for_jalala(text)
+            dummy = RootExtractionResult(
+                root=None,
+                normalized_word=bare,
+                stripped_word=bare,
+                prefix="",
+                suffix="",
+            )
+            return {
+                "kind": "name",
+                "root": None,
+                "pattern": None,
+                "features": extract_features(text, dummy, None, WordKind.NAME, mabni_result=mabni_result),
             }
 
         root_extractor = RootExtractor()
@@ -595,6 +743,15 @@ class MinimalCLI:
                 "category": cat,
                 "error": "Could not match pattern"
             }
+            # Fallback: fill template from awzan (فَعَلَ، يَفْعُلُ، فَاعِل) when root exists
+            root_fmt = result["root"].get("formatted") or "-".join(result["root"].get("letters") or [])
+            if root_fmt:
+                adapter = self._get_wazn_adapter()
+                if adapter:
+                    wazn = adapter.get_pattern_for_word_root(text, root_fmt)
+                    if wazn:
+                        result["pattern"]["template"] = wazn
+                        result["pattern"].pop("error", None)
 
         features = extract_features(text, extraction, pattern, final_kind, mabni_result=mabni_result)
         result["affixes"] = {
@@ -630,6 +787,75 @@ class MinimalCLI:
             if not word or len(word) < 2:
                 continue
 
+            # حرف جر/أداة أولاً (عَلَى، مِنْ، إلخ) قبل المبنيات
+            classification = classifier.classify(word)
+            if classification.kind == WordKind.OPERATOR and classification.operator:
+                op_base = (classification.operator.get("operator") or "").strip()
+                if op_base in genitive_governors:
+                    prev_governs_genitive = True
+                words_analysis.append({
+                    "word": word,
+                    "span": {"start": sp.start, "end": sp.end},
+                    "kind": "operator",
+                    "operator": classification.operator,
+                    "root": None,
+                    "pattern": None,
+                })
+                continue
+            if classification.kind in {WordKind.DEMONSTRATIVE, WordKind.PARTICLE}:
+                if classification.kind == WordKind.PARTICLE:
+                    base = ((classification.special or {}).get("base") or "").strip()
+                    if base in genitive_governors:
+                        prev_governs_genitive = True
+                bare = (classification.special or {}).get("token_bare") if classification.special else None
+                bare = bare or word
+                dummy_suffix = None
+                if classification.kind == WordKind.PARTICLE:
+                    dummy_suffix = ((classification.special or {}).get("attached_pronoun") or {}).get("suffix")
+                dummy = RootExtractionResult(
+                    root=None,
+                    normalized_word=bare,
+                    stripped_word=bare,
+                    prefix="",
+                    suffix=dummy_suffix or "",
+                )
+                payload_key = "special"
+                kind_value = classification.kind.value
+                if classification.kind == WordKind.DEMONSTRATIVE:
+                    payload_key = "demonstrative"
+                elif classification.kind == WordKind.PARTICLE:
+                    payload_key = "particle"
+                words_analysis.append({
+                    "word": word,
+                    "span": {"start": sp.start, "end": sp.end},
+                    "kind": kind_value,
+                    payload_key: classification.special,
+                    "root": None,
+                    "pattern": None,
+                    "features": extract_features(word, dummy, None, classification.kind, mabni_result=classify_mabni(word)),
+                })
+                continue
+            if classification.kind == WordKind.PRONOUN:
+                bare = (classification.pronoun or {}).get("bare") if classification.pronoun else None
+                bare = bare or word
+                dummy = RootExtractionResult(
+                    root=None,
+                    normalized_word=bare,
+                    stripped_word=bare,
+                    prefix="",
+                    suffix="",
+                )
+                words_analysis.append({
+                    "word": word,
+                    "span": {"start": sp.start, "end": sp.end},
+                    "kind": "pronoun",
+                    "pronoun": classification.pronoun,
+                    "root": None,
+                    "pattern": None,
+                    "features": extract_features(word, dummy, None, WordKind.PRONOUN, mabni_result=classify_mabni(word)),
+                })
+                continue
+
             mabni_result = classify_mabni(word)
             if mabni_result.is_mabni:
                 bare = "".join(c for c in word if not (ord(c) in range(0x064B, 0x0653) or c == "\u0670"))
@@ -651,90 +877,32 @@ class MinimalCLI:
                 })
                 continue
 
-            classification = classifier.classify(word)
-            # Simple context: after a preposition/operator that governs genitive,
-            # force the next content word to be treated as noun (not verb).
             force_noun_genitive = prev_governs_genitive
             prev_governs_genitive = False
-            if classification.kind == WordKind.OPERATOR and classification.operator:
-                op_base = (classification.operator.get("operator") or "").strip()
-                if op_base in genitive_governors:
-                    prev_governs_genitive = True
-                words_analysis.append(
-                    {
-                        "word": word,
-                        "span": {"start": sp.start, "end": sp.end},
-                        "kind": "operator",
-                        "operator": classification.operator,
-                        "root": None,
-                        "pattern": None,
-                    }
-                )
-                continue
-            if classification.kind in {WordKind.DEMONSTRATIVE, WordKind.NAME, WordKind.PARTICLE}:
-                if classification.kind == WordKind.PARTICLE:
-                    base = ((classification.special or {}).get("base") or "").strip()
-                    if base in genitive_governors:
-                        prev_governs_genitive = True
-                bare = (classification.special or {}).get("token_bare") if classification.special else None
-                bare = bare or word
-                dummy_suffix = None
-                if classification.kind == WordKind.PARTICLE:
-                    dummy_suffix = ((classification.special or {}).get("attached_pronoun") or {}).get("suffix")
-                dummy = RootExtractionResult(
-                    root=None,
-                    normalized_word=bare,
-                    stripped_word=bare,
-                    prefix="",
-                    suffix=dummy_suffix or "",
-                )
-                payload_key = "special"
-                kind_value = classification.kind.value
-                if classification.kind == WordKind.NAME:
-                    payload_key = "name"
-                elif classification.kind == WordKind.DEMONSTRATIVE:
-                    payload_key = "demonstrative"
-                elif classification.kind == WordKind.PARTICLE:
-                    payload_key = "particle"
-                words_analysis.append(
-                    {
-                        "word": word,
-                        "span": {"start": sp.start, "end": sp.end},
-                        "kind": kind_value,
-                        payload_key: classification.special,
-                        "root": None,
-                        "pattern": None,
-                        "features": extract_features(word, dummy, None, classification.kind, mabni_result=mabni_result),
-                    }
-                )
-                continue
 
-            if classification.kind == WordKind.PRONOUN:
-                bare = (classification.pronoun or {}).get("bare") if classification.pronoun else None
-                bare = bare or word
+            # لفظ الجلالة: لا جذر (تطبيع ٱ→ا)
+            if self._is_jalala(word):
+                bare_j = self._bare_for_jalala(word)
                 dummy = RootExtractionResult(
                     root=None,
-                    normalized_word=bare,
-                    stripped_word=bare,
+                    normalized_word=bare_j,
+                    stripped_word=bare_j,
                     prefix="",
                     suffix="",
                 )
-                words_analysis.append(
-                    {
-                        "word": word,
-                        "span": {"start": sp.start, "end": sp.end},
-                        "kind": "pronoun",
-                        "pronoun": classification.pronoun,
-                        "root": None,
-                        "pattern": None,
-                        "features": extract_features(word, dummy, None, WordKind.PRONOUN, mabni_result=mabni_result),
-                    }
-                )
+                words_analysis.append({
+                    "word": word,
+                    "span": {"start": sp.start, "end": sp.end},
+                    "kind": "name",
+                    "root": None,
+                    "pattern": {"template": None, "type": "unknown", "category": "noun"},
+                    "features": extract_features(word, dummy, None, WordKind.NAME, mabni_result=mabni_result),
+                })
                 continue
-                
+
             extraction = root_extractor.extract_with_affixes(word)
             root = extraction.root
-            
+
             if not root:
                 words_analysis.append({
                     "word": word,
@@ -749,6 +917,12 @@ class MinimalCLI:
             
             letters = list(root.letters)
             root_type = root.root_type
+            # تصحيح كُفَّار: جذر ف-ف-ر الخاطئ → ك-ف-ر (وزن فُعَال في الأوزان)
+            word_core = (word or "").replace("\u0651", "")
+            pref = extraction.prefix or ""
+            stripped_core = (extraction.stripped_word or word) or ""
+            if letters == ["ف", "ف", "ر"] and ("ك" in word_core or "ك" in pref) and "ف" in stripped_core and "ر" in stripped_core:
+                letters = ["ك", "ف", "ر"]
 
             def _is_plural_aa_form(stem: str) -> bool:
                 s = (stem or "").strip()
@@ -943,6 +1117,15 @@ class MinimalCLI:
                     "type": "unknown",
                     "category": cat,
                 }
+                # Fallback: fill template from awzan (فَعَلَ، يَفْعُلُ، فَاعِل) when root exists
+                root_fmt = word_result["root"].get("formatted") or "-".join(word_result["root"].get("letters") or [])
+                if root_fmt:
+                    adapter = self._get_wazn_adapter()
+                    wazn = adapter.get_pattern_for_word_root(word, root_fmt) if adapter else None
+                    if not wazn and root_fmt == "ك-ف-ر" and "فار" in (extraction.stripped_word or ""):
+                        wazn = "فُعَال"
+                    if wazn:
+                        word_result["pattern"]["template"] = wazn
             word_result["features"] = features
             
             words_analysis.append(word_result)
@@ -982,6 +1165,134 @@ class MinimalCLI:
             if seg.kind == SegmentKind.VOWEL:
                 count += 1
         return count
+
+    def _compute_syllables_list(self, text: str) -> Optional[List[str]]:
+        """استدعاء ArabicSyllabifier لملء قائمة المقاطع (c2a.syllables.syllables)."""
+        try:
+            from fvafk.c2b.word_boundary import WordBoundaryDetector
+            from fvafk.c2b.syllabifier import syllabify
+
+            out: List[str] = []
+            for sp in WordBoundaryDetector().detect(text or ""):
+                tok = (sp.token or "").strip()
+                if not tok:
+                    continue
+                res = syllabify(tok)
+                if res.valid and res.syllables:
+                    out.extend([s.text for s in res.syllables])
+            return out if out else None
+        except Exception:
+            return None
+
+    # CSV schema aligned with out_with_sources.csv
+    _MORPHOLOGY_CSV_FIELDS = [
+        "sura", "aya", "word_index", "word", "cv", "cv_advanced", "root", "root_type",
+        "category", "is_mabni", "kind", "type", "word_wazn", "template", "prefix", "suffix",
+        "case", "number", "gender", "definiteness", "grammatical_status", "function", "word_type",
+        "stem", "normalized", "stripped",
+        "syntactic_analysis", "semantic_analysis", "examples", "compound_operator",
+        "operator_effect",
+        "isnadi_role", "isnadi_role_en", "isnadi_relation", "isnadi_confidence", "isnadi_reason",
+        "root_source", "root_wazn", "root_confidence", "heuristic_reason",
+    ]
+
+    def _morphology_rows(
+        self, result: Dict[str, Any], sura: str = "0", aya: str = "0", arabic_tags: bool = False
+    ) -> List[Dict[str, str]]:
+        """Build CSV row dicts from pipeline result (for one verse or one block). sura/aya for Quran format. If arabic_tags, translate tag values to Arabic."""
+        c2b = result.get("c2b") or {}
+        words = c2b.get("words")
+        if not words:
+            if "word" in c2b:
+                words = [c2b]
+            else:
+                return []
+        cv_words = (result.get("c1") or {}).get("cv_analysis") or {}
+        cv_list = cv_words.get("words") or []
+        syntax_links = (result.get("syntax") or {}).get("links") or {}
+        isnadi = syntax_links.get("isnadi") or []
+
+        rows: List[Dict[str, str]] = []
+        for i, w in enumerate(words):
+            word_str = w.get("word") or ""
+            root_obj = w.get("root") or {}
+            root_fmt = root_obj.get("formatted") if isinstance(root_obj, dict) else ""
+            root_type = root_obj.get("type", "") if isinstance(root_obj, dict) else ""
+            pat = w.get("pattern") or {}
+            template = pat.get("template") if isinstance(pat, dict) else None
+            aff = w.get("affixes") or {}
+            feats = w.get("features") or {}
+            cv_item = cv_list[i] if i < len(cv_list) else {}
+            cv_val = cv_item.get("cv", "") if isinstance(cv_item, dict) else ""
+            cv_adv = cv_item.get("cv_advanced", "") if isinstance(cv_item, dict) else ""
+
+            row = {
+                "sura": sura,
+                "aya": aya,
+                "word_index": str(i + 1),
+                "word": word_str,
+                "cv": cv_val,
+                "cv_advanced": cv_adv,
+                "root": root_fmt or "",
+                "root_type": root_type or "",
+                "category": (pat.get("category") if isinstance(pat, dict) else None) or feats.get("category") or "",
+                "is_mabni": "true" if (w.get("kind") == "mabni") else "",
+                "kind": w.get("kind") or "",
+                "type": (pat.get("type") if isinstance(pat, dict) else None) or feats.get("type") or "",
+                "word_wazn": template if template else "",
+                "template": template if template else "",
+                "prefix": aff.get("prefix") or "",
+                "suffix": aff.get("suffix") or "",
+                "case": feats.get("case") or "",
+                "number": feats.get("number") or "",
+                "gender": feats.get("gender") or "",
+                "definiteness": feats.get("definiteness") or "",
+                "grammatical_status": "",
+                "function": "",
+                "word_type": "",
+                "stem": aff.get("stripped") or feats.get("stripped") or "",
+                "normalized": aff.get("normalized") or "",
+                "stripped": aff.get("stripped") or feats.get("stripped") or "",
+                "syntactic_analysis": "",
+                "semantic_analysis": "",
+                "examples": "",
+                "compound_operator": "",
+                "operator_effect": (w.get("operator") or {}).get("operator_effect") or "",
+                "isnadi_role": "",
+                "isnadi_role_en": "",
+                "isnadi_relation": "",
+                "isnadi_confidence": "",
+                "isnadi_reason": "",
+                "root_source": "",
+                "root_wazn": "",
+                "root_confidence": "",
+                "heuristic_reason": "",
+            }
+            if i < len(isnadi) and isinstance(isnadi[i], dict):
+                link = isnadi[i]
+                row["isnadi_role"] = link.get("role") or row["isnadi_role"]
+                row["isnadi_role_en"] = link.get("role_en") or row["isnadi_role_en"]
+                row["isnadi_relation"] = link.get("relation") or row["isnadi_relation"]
+                row["isnadi_confidence"] = str(link.get("confidence", "")) or row["isnadi_confidence"]
+                row["isnadi_reason"] = link.get("reason") or row["isnadi_reason"]
+            if arabic_tags:
+                row = _translate_row_tags_to_arabic(row)
+            rows.append(row)
+        return rows
+
+    def _write_morphology_csv(
+        self, result: Dict[str, Any], path: str, sura: str = "0", aya: str = "0", arabic_tags: bool = False
+    ) -> None:
+        """Write morphology to CSV with same columns as out_with_sources.csv. If arabic_tags, tag values are in Arabic."""
+        rows = self._morphology_rows(result, sura=sura, aya=aya, arabic_tags=arabic_tags)
+        if not rows:
+            return
+        path_obj = Path(path)
+        path_obj.parent.mkdir(parents=True, exist_ok=True)
+        with open(path_obj, "w", encoding="utf-8", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=self._MORPHOLOGY_CSV_FIELDS)
+            writer.writeheader()
+            writer.writerows(rows)
 
     def _unit_to_dict(self, unit: Unit) -> Dict[str, Any]:
         return {
@@ -1066,12 +1377,14 @@ def main() -> None:
 Examples:
   python -m fvafk.cli "كِتَابٌ" --json
   python -m fvafk.cli "كَاتِبٌ" --morphology --json
-  python -m fvafk.cli "text" --verbose --json
+  python -m fvafk.cli -i quran.txt --morphology --multi-word --output-csv out.csv
   python -m fvafk.cli "مُحَمَّدٌ رَسُولُ اللَّهِ" --morphology --multi-word --json
         """
     )
 
-    parser.add_argument("text", help="Arabic text to analyze")
+    parser.add_argument("text", nargs="?", default="", help="Arabic text to analyze (or use -i/--input file)")
+    parser.add_argument("-i", "--input", metavar="FILE", default=None, help="Read input text from file (UTF-8). Example: -i data/quran-simple-clean.txt")
+    parser.add_argument("--limit-lines", type=int, default=0, metavar="N", help="When reading from file, process only first N lines (0 = all). Speeds up runs.")
     parser.add_argument("--verbose", action="store_true", help="Include detailed unit and segment information")
     parser.add_argument("--json", action="store_true", help="Output results as JSON (default: human-readable)")
     parser.add_argument("--morphology", action="store_true", help="Include morphological analysis (root extraction + pattern matching)")
@@ -1079,33 +1392,172 @@ Examples:
     parser.add_argument("--phonology-v2", action="store_true", help="Use Phonology V2 engine for CV analysis (Assumption A)")
     parser.add_argument("--phonology-v2-details", action="store_true", help="Include Phonology V2 syllabification details in output JSON")
     parser.add_argument("--phonology-v2-witnesses", action="store_true", help="Include Phonology V2 witnesses (large output; requires --phonology-v2-details)")
+    parser.add_argument("--output-csv", metavar="FILE", default=None, help="Write morphology to CSV (same columns as out_with_sources.csv; requires --morphology)")
+    parser.add_argument("--arabic-tags", action="store_true", help="Write CSV tag values in Arabic (root_type, kind, category, case, number, gender, root_source, etc.)")
 
     args = parser.parse_args()
 
-    # Guard against unreasonably large inputs (protects against accidental
-    # large-file pastes and potential DoS; 10 000 characters ≈ ~4 pages of text)
-    _MAX_INPUT_CHARS = 10_000
-    if len(args.text) > _MAX_INPUT_CHARS:
-        error_msg = (
-            f"Input too long: {len(args.text)} characters "
-            f"(maximum {_MAX_INPUT_CHARS}). Truncate your text and try again."
-        )
+    # النص: من سطر الأوامر أو من ملف
+    text = (args.text or "").strip()
+    if args.input:
+        input_path = Path(args.input)
+        if not input_path.is_file():
+            err = f"Input file not found: {args.input} (use an existing path, e.g. data/quran-simple-clean.txt)"
+            if args.json:
+                print(json.dumps({"success": False, "error": err}, ensure_ascii=False))
+            else:
+                print(f"Error: {err}", file=sys.stderr)
+            sys.exit(1)
+        try:
+            text = input_path.read_text(encoding="utf-8-sig").strip()
+        except Exception as e:
+            err = f"Could not read file {args.input}: {e}"
+            if args.json:
+                print(json.dumps({"success": False, "error": err}, ensure_ascii=False))
+            else:
+                print(f"Error: {err}", file=sys.stderr)
+            sys.exit(1)
+    if not text:
+        err = "No input text. Provide text as argument or use -i/--input FILE."
         if args.json:
-            print(json.dumps({"success": False, "error": error_msg}, ensure_ascii=False))
+            print(json.dumps({"success": False, "error": err}, ensure_ascii=False))
         else:
-            print(f"Error: {error_msg}", file=sys.stderr)
+            print(f"Error: {err}", file=sys.stderr)
         sys.exit(1)
+
+    def _parse_quran_lines(content: str):
+        """If content is sura|aya|text per line, return [(sura, aya, text), ...]. Else None."""
+        lines = [ln.strip() for ln in content.strip().splitlines() if ln.strip()]
+        if not lines:
+            return None
+        verses = []
+        for ln in lines:
+            parts = ln.split("|", 2)
+            if len(parts) < 3:
+                return None
+            try:
+                sura = int(parts[0])
+                aya = int(parts[1])
+            except ValueError:
+                return None
+            verses.append((sura, aya, parts[2].strip()))
+        return verses
+
+    verses = None
+    if args.input:
+        verses = _parse_quran_lines(text)
+    limit = max(0, getattr(args, "limit_lines", 0) or 0)
+    if verses and limit:
+        verses = verses[:limit]
 
     try:
         cli = MinimalCLI()
+
+        if verses and getattr(args, "output_csv", None):
+            # معالجة آية آية — أسرع من تحميل النص كاملاً
+            out_path = args.output_csv
+            path_obj = Path(out_path)
+            path_obj.parent.mkdir(parents=True, exist_ok=True)
+            total_v = len(verses)
+            step = min(100, max(1, total_v // 10))  # every 100 lines or 1/10 of file
+            processed = 0
+            with open(path_obj, "w", encoding="utf-8", newline="") as f:
+                writer = csv.DictWriter(f, fieldnames=MinimalCLI._MORPHOLOGY_CSV_FIELDS)
+                writer.writeheader()
+                for sura, aya, verse_text in verses:
+                    if not verse_text:
+                        continue
+                    result = cli.run(
+                        text=verse_text,
+                        verbose=args.verbose,
+                        morphology=True,
+                        multi_word=True,
+                        phonology_v2=getattr(args, "phonology_v2", False),
+                        phonology_v2_details=getattr(args, "phonology_v2_details", False),
+                        phonology_v2_witnesses=getattr(args, "phonology_v2_witnesses", False),
+                        output_csv=None,
+                    )
+                    rows = cli._morphology_rows(
+                        result, sura=str(sura), aya=str(aya), arabic_tags=getattr(args, "arabic_tags", False)
+                    )
+                    writer.writerows(rows)
+                    processed += 1
+                    if processed % step == 0 or processed == total_v:
+                        print(f"Processed {processed}/{total_v} verses...", file=sys.stderr)
+            if not args.json:
+                print(f"Wrote {len(verses)} verses to {out_path}", file=sys.stderr)
+            sys.exit(0)
+        elif verses and args.json:
+            out_list = []
+            total_v = len(verses)
+            step = min(100, max(1, total_v // 10))
+            processed = 0
+            for sura, aya, verse_text in verses:
+                if not verse_text:
+                    continue
+                result = cli.run(
+                    text=verse_text,
+                    verbose=args.verbose,
+                    morphology=True,
+                    multi_word=True,
+                    phonology_v2=getattr(args, "phonology_v2", False),
+                    phonology_v2_details=getattr(args, "phonology_v2_details", False),
+                    phonology_v2_witnesses=getattr(args, "phonology_v2_witnesses", False),
+                    output_csv=None,
+                )
+                out_list.append({"sura": sura, "aya": aya, "c2b": result.get("c2b"), "c1": result.get("c1")})
+                processed += 1
+                if processed % step == 0 or processed == total_v:
+                    print(f"Processed {processed}/{total_v} verses...", file=sys.stderr)
+            print(json.dumps({"verses": out_list, "total_verses": len(out_list)}, ensure_ascii=False, indent=2))
+            sys.exit(0)
+        elif verses and not getattr(args, "output_csv", None) and not args.json:
+            total_v = len(verses)
+            step = min(100, max(1, total_v // 10))
+            processed = 0
+            for idx, (sura, aya, verse_text) in enumerate(verses):
+                if not verse_text:
+                    continue
+                result = cli.run(
+                    text=verse_text,
+                    verbose=args.verbose,
+                    morphology=True,
+                    multi_word=True,
+                    phonology_v2=getattr(args, "phonology_v2", False),
+                    phonology_v2_details=getattr(args, "phonology_v2_details", False),
+                    phonology_v2_witnesses=getattr(args, "phonology_v2_witnesses", False),
+                    output_csv=None,
+                )
+                print(f"Verse {sura}:{aya} — {len(result.get('c2b', {}).get('words', []))} words")
+                processed += 1
+                if processed % step == 0 or processed == total_v:
+                    print(f"Processed {processed}/{total_v} verses...", file=sys.stderr)
+            print(f"Processed {len(verses)} verses.", file=sys.stderr)
+            sys.exit(0)
+
+        # نص واحد (من سطر الأوامر أو ملف غير بصيغة القرآن)
+        _MAX_INPUT_CHARS = 1_500_000
+        if len(text) > _MAX_INPUT_CHARS:
+            error_msg = (
+                f"Input too long: {len(text)} characters "
+                f"(maximum {_MAX_INPUT_CHARS}). Use -i FILE with Quran format (sura|aya|text per line) for large files."
+            )
+            if args.json:
+                print(json.dumps({"success": False, "error": error_msg}, ensure_ascii=False))
+            else:
+                print(f"Error: {error_msg}", file=sys.stderr)
+            sys.exit(1)
+
         result = cli.run(
-            text=args.text,
+            text=text,
             verbose=args.verbose,
             morphology=args.morphology,
-            multi_word=getattr(args, 'multi_word', False),
+            multi_word=getattr(args, "multi_word", False),
             phonology_v2=getattr(args, "phonology_v2", False),
             phonology_v2_details=getattr(args, "phonology_v2_details", False),
             phonology_v2_witnesses=getattr(args, "phonology_v2_witnesses", False),
+            output_csv=getattr(args, "output_csv", None),
+            output_arabic_tags=getattr(args, "arabic_tags", False),
         )
 
         if args.json:
@@ -1119,7 +1571,7 @@ Examples:
         error_result = {
             "success": False,
             "error": str(e),
-            "input": args.text
+            "input": text[:200] + ("..." if len(text) > 200 else "")
         }
 
         if args.json:

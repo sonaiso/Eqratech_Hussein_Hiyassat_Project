@@ -27,6 +27,37 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass
 
+
+def _get_attr(obj: Any, name: str, default=None):
+    return getattr(obj, name, default) if obj is not None else default
+
+
+def _i3rab_type_ar(obj: Any) -> Optional[str]:
+    # Layer 3 (SyntaxFeatures) preferred; Layer 2 fallback
+    return _get_attr(obj, "i3rab_type_ar", _get_attr(obj, "i3rab_type", None))
+
+
+def _i3rab_type_en(obj: Any) -> Optional[str]:
+    # Layer 3 (SyntaxFeatures) preferred; Layer 2 has no guaranteed EN label
+    return _get_attr(obj, "i3rab_type_en", None)
+
+
+def _bridge_predict_sentence(bridge: Any, morphologies: List[Any]) -> List[Any]:
+    """
+    Compatibility adapter for MorphSyntaxBridge APIs:
+    - old: predict_sentence(list)
+    - current: predict_syntax(morph, context, position)
+    """
+    if hasattr(bridge, "predict_sentence"):
+        return bridge.predict_sentence(morphologies)
+    if hasattr(bridge, "predict_syntax"):
+        return [
+            bridge.predict_syntax(morph, morphologies, i)
+            for i, morph in enumerate(morphologies)
+        ]
+    raise AttributeError("MorphSyntaxBridge has no compatible prediction API")
+
+
 # ==================== CV Pattern Generation (from word-2-cv.py) ====================
 
 # Arabic diacritics
@@ -886,22 +917,29 @@ def demo_syntax_evaluator(verbose: bool = False) -> Dict[str, Any]:
     result = evaluator.evaluate(predictions, gold)
     
     if verbose:
-        print(f"Overall Accuracy: {result.overall_accuracy():.1%}", file=sys.stderr)
-        print(f"Overall F1: {result.overall_f1():.1%}", file=sys.stderr)
+        print(f"Overall Accuracy: {result.i3rab_type_accuracy:.1%}", file=sys.stderr)
+        print(f"Overall F1: {result.overall_f1:.1%}", file=sys.stderr)
         print(f"Coverage: {result.coverage:.1%}", file=sys.stderr)
     
-    summary = result.summary()
-    i3rab_metrics = result.i3rab_type_metrics.to_dict()
-    case_metrics = result.case_metrics.to_dict()
-    marker_metrics = result.case_marker_metrics.to_dict()
+    summary = result.to_dict()
+    i3rab_metrics = {
+        "accuracy": result.i3rab_type_accuracy,
+        "macro_f1": result.overall_f1,
+        "per_class_precision": result.per_class_precision,
+        "per_class_recall": result.per_class_recall,
+    }
+    case_metrics = {
+        "accuracy": result.case_accuracy,
+    }
+    marker_metrics = {}
     
     return {
         "component": "Syntax Evaluator",
         "task": "4.3",
-        "words_evaluated": result.words_evaluated,
+        "words_evaluated": result.total_words,
         "total_words": result.total_words,
-        "overall_accuracy": result.overall_accuracy(),
-        "overall_f1": result.overall_f1(),
+        "overall_accuracy": result.i3rab_type_accuracy,
+        "overall_f1": result.overall_f1,
         "coverage": result.coverage,
         "per_feature": {
             "i3rab_type": i3rab_metrics,
@@ -933,7 +971,7 @@ def demo_morph_syntax_bridge(verbose: bool = False) -> Dict[str, Any]:
     ]
     
     morphologies = [m for _, m in sentence]
-    predictions = bridge.predict_sentence(morphologies)
+    predictions = _bridge_predict_sentence(bridge, morphologies)
     
     results = []
     for (word, morph), syntax in zip(sentence, predictions):
@@ -944,8 +982,8 @@ def demo_morph_syntax_bridge(verbose: bool = False) -> Dict[str, Any]:
                 "definiteness": morph.definiteness,
             },
             "syntax": {
-                "i3rab_type_ar": syntax.i3rab_type_ar,
-                "i3rab_type_en": syntax.i3rab_type_en,
+                "i3rab_type_ar": _i3rab_type_ar(syntax),
+                "i3rab_type_en": _i3rab_type_en(syntax),
                 "syntactic_role": syntax.syntactic_role,
                 "case": syntax.case,
                 "confidence": syntax.confidence,
@@ -953,7 +991,8 @@ def demo_morph_syntax_bridge(verbose: bool = False) -> Dict[str, Any]:
         })
         
         if verbose:
-            print(f"{word}: {syntax.i3rab_type_en} ({syntax.syntactic_role}) - {syntax.confidence:.2f}", file=sys.stderr)
+            i3_type_en = _i3rab_type_en(syntax) or "unknown"
+            print(f"{word}: {i3_type_en} ({syntax.syntactic_role}) - {syntax.confidence:.2f}", file=sys.stderr)
     
     return {
         "component": "Morph-Syntax Bridge",
@@ -1103,11 +1142,11 @@ def predict_syntax(morphology_data: List[Dict[str, Any]], verbose: bool = False)
         morphologies.append(morph)
     
     bridge = MorphSyntaxBridge()
-    predictions = bridge.predict_sentence(morphologies)
+    predictions = _bridge_predict_sentence(bridge, morphologies)
     
     i3rab_dist = {}
     for pred in predictions:
-        i3rab_type = pred.i3rab_type_en
+        i3rab_type = _i3rab_type_en(pred) or "unknown"
         i3rab_dist[i3rab_type] = i3rab_dist.get(i3rab_type, 0) + 1
     
     if verbose:
@@ -1119,8 +1158,8 @@ def predict_syntax(morphology_data: List[Dict[str, Any]], verbose: bool = False)
             "word": data["word"],
             "morphology": data["morphology"],
             "syntax": {
-                "i3rab_type_ar": syntax.i3rab_type_ar,
-                "i3rab_type_en": syntax.i3rab_type_en,
+                "i3rab_type_ar": _i3rab_type_ar(syntax),
+                "i3rab_type_en": _i3rab_type_en(syntax),
                 "syntactic_role": syntax.syntactic_role,
                 "case": syntax.case,
                 "confidence": syntax.confidence,

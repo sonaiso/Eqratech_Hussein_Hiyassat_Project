@@ -310,7 +310,7 @@ def main() -> int:
     try:
         from fvafk.cli.main import MinimalCLI
         from fvafk.c2b.operators_particles_db import get_special_words_db
-        from fvafk.c1.cv_pattern import cv_pattern, advanced_cv_pattern
+        from fvafk.c2b.syllabifier import syllabify_to_syllable_pattern
     except ImportError as e:
         print(
             "Run from repo root with: PYTHONPATH=src python3 scripts/run_full_quran_analysis.py",
@@ -372,8 +372,8 @@ def main() -> int:
                     idx + 1,
                     w,
                     db,
-                    cv_pattern,
-                    advanced_cv_pattern,
+                    syllabify_to_syllable_pattern,
+                    syllabify_to_syllable_pattern,
                     word_forms=word_forms,
                     isnadi_by_head=isnadi_by_head,
                     isnadi_by_dep=isnadi_by_dep,

@@ -45,6 +45,15 @@ WASL_NOUNS = {
 }
 
 EXCLUDE_EXACT = {"حم", "دمت", "ص", "طس", "طسم", "طه", "عسق", "على", "ق"}
+
+# حروف وضمائر لا تمرّ على بوابة الوزن/CV — تُرجع cv/cv_advanced فارغين (particles/pronouns)
+# إِذْ، هَلْ، هَبْ مُعرّفة في operators_catalog (operators_particles_db) ولا تُكرَّر هنا
+NO_CV_PARTICLES_PRONOUNS = frozenset({
+    "هم", "هن", "أم", "أو", "ام", "او", "قد", "قل",
+    "هو", "هي", "أنت", "أنا", "نحن", "أنتم", "أنتن",
+    "لا", "ما", "لم", "لن", "إن", "أن", "بل", "ثم",
+})
+
 MUQATTAAT = {
     "الم",
     "المص",
@@ -162,6 +171,13 @@ def should_exclude(token: str) -> bool:
     if bare_nospace in MUQATTAAT_NOSPACE:
         return True
     return False
+
+
+def _skip_cv_particle_or_pronoun(token: str) -> bool:
+    """True if token is a particle/pronoun that must not go through wazn/CV gate (cv/cv_advanced empty)."""
+    w = normalize_word(token)
+    bare = strip_marks(w)
+    return bare in NO_CV_PARTICLES_PRONOUNS
 
 
 def cv_pattern(word: str) -> str:
@@ -527,16 +543,28 @@ def analyze_text_for_cv_after_phonology(text: str, engine: str = "c2a") -> Dict[
     )
 
     catalog = get_special_words_catalog()
+    from fvafk.c2b.operators_catalog import get_operators_catalog
+    operators_catalog = get_operators_catalog()
     excluded_names = 0
     computed = []
+    _empty_cv = {"cv": "", "cv_advanced": ""}
 
     for sp in spans:
         tok = sp.token
+        # أولاً: أدوات/حروف جر (operators_particles) — لا نحسب CV ولا نمرر بوابة الوزن
+        if operators_catalog.classify(tok) is not None:
+            computed.append(_empty_cv)
+            continue
+        if _skip_cv_particle_or_pronoun(tok):
+            computed.append(_empty_cv)
+            continue
         if should_exclude(tok):
+            computed.append(_empty_cv)
             continue
         special = catalog.classify(tok)
         if special and special.get("kind") == "excluded_name":
             excluded_names += 1
+            computed.append(_empty_cv)
             continue
         segs = encoder.encode(tok)
         final_segs, _gate_results = orchestrator.run(segs)
@@ -553,31 +581,50 @@ def analyze_text_for_cv_after_phonology(text: str, engine: str = "c2a") -> Dict[
 
 def _analyze_text_for_cv_phonology_v2(text: str) -> Dict[str, object]:
     """
-    CV analysis using the phonology_v2 path (cv_pattern/advanced_cv_pattern directly).
-
-    This treats shadda as a geminate (CC) rather than processing it through C2a gates.
+    CV analysis using the reference syllabifier (c2b) so output is syllable-valid
+    and always starts with CV (no leading CC from shadda). Falls back to c1 cv_pattern
+    if syllabifier returns empty.
     """
     from fvafk.c2b.word_boundary import WordBoundaryDetector
     from fvafk.c2b.special_words_catalog import get_special_words_catalog
+    from fvafk.c2b.syllabifier import syllabify_to_syllable_pattern, word_to_cv_advanced_pattern
 
     spans = WordBoundaryDetector().detect(text)
     catalog = get_special_words_catalog()
+    from fvafk.c2b.operators_catalog import get_operators_catalog
+    operators_catalog = get_operators_catalog()
     excluded_names = 0
     computed = []
+    _empty_cv = {"cv": "", "cv_advanced": ""}
 
     for sp in spans:
         tok = sp.token
+        # أولاً: أدوات/حروف جر (operators_particles) — لا نحسب CV ولا نمرر بوابة الوزن
+        if operators_catalog.classify(tok) is not None:
+            computed.append(_empty_cv)
+            continue
+        if _skip_cv_particle_or_pronoun(tok):
+            computed.append(_empty_cv)
+            continue
         if should_exclude(tok):
+            computed.append(_empty_cv)
             continue
         special = catalog.classify(tok)
         if special and special.get("kind") == "excluded_name":
             excluded_names += 1
+            computed.append(_empty_cv)
             continue
         normalized = normalize_initial_hamza(tok)
         normalized = normalize_missing_harakat(normalized)
+        cv = syllabify_to_syllable_pattern(normalized)
+        cv_adv = word_to_cv_advanced_pattern(normalized)
+        if not cv:
+            cv = cv_pattern(normalized)
+        if not cv_adv:
+            cv_adv = advanced_cv_pattern(normalized)
         computed.append({
-            "cv": cv_pattern(normalized),
-            "cv_advanced": advanced_cv_pattern(normalized),
+            "cv": cv,
+            "cv_advanced": cv_adv,
         })
 
     return {

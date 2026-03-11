@@ -17,6 +17,39 @@ def _strip_diacritics(text: str) -> str:
     ).replace("ـ", "").strip()
 
 
+# دَمَّة \u064F — للتمييز بين رُبَّ (حرف جر) و رَبِّ (ربّ = اسم)
+_DAMMA = "\u064F"
+
+
+def _first_base_letter_vowel(nfd: str, base_index: int) -> Optional[str]:
+    """Return the combining vowel (e.g. damma) after the base letter at base_index in NFD string."""
+    if base_index < 0 or base_index >= len(nfd):
+        return None
+    j = base_index + 1
+    while j < len(nfd) and unicodedata.category(nfd[j]) == "Mn":
+        return nfd[j]
+    return None
+
+
+def _is_rabb_particle(token: str) -> bool:
+    """
+    رُبَّ (حرف جر للتقليل) يبدأ بضمة على الراء؛ رَبِّ (ربّ = الاسم) بفتحة أو كسرة.
+    لا تُصنّف ربّ (الاسم) كأداة.
+    """
+    if not token or _strip_diacritics(token) != "رب":
+        return True
+    nfd = unicodedata.normalize("NFD", token.strip())
+    first_letter_idx = -1
+    for i, c in enumerate(nfd):
+        if unicodedata.category(c) != "Mn" and c not in " \t":
+            first_letter_idx = i
+            break
+    if first_letter_idx < 0:
+        return True
+    v = _first_base_letter_vowel(nfd, first_letter_idx)
+    return v == _DAMMA
+
+
 @dataclass(frozen=True)
 class OperatorEntry:
     group_number: str
@@ -26,6 +59,10 @@ class OperatorEntry:
     purpose: str
     example: str
     note: str
+    # أثر الأداة من operators_catalog_split_project_enriched / with_evidence
+    effect_signature: str = ""
+    usage_ar: str = ""
+    i3rab_template: str = ""
 
     @property
     def operator_bare(self) -> str:
@@ -80,6 +117,9 @@ class OperatorsCatalog:
                     purpose=(row.get("Purpose/Usage") or "").strip(),
                     example=(row.get("Example") or "").strip(),
                     note=(row.get("Note") or "").strip(),
+                    effect_signature=(row.get("project_effect_signature") or "").strip(),
+                    usage_ar=(row.get("project_usage_universal_ar") or "").strip(),
+                    i3rab_template=(row.get("project_i3rab_template") or "").strip(),
                 )
                 bare = entry.operator_bare
                 self._by_bare.setdefault(bare, []).append(entry)
@@ -96,7 +136,11 @@ class OperatorsCatalog:
         # First: direct match
         direct = self._best_entry(bare)
         if direct:
-            return self._format_result(token_bare=bare, prefixes="", parts=[direct])
+            # رَبِّ (ربّ = الاسم) لا تُصنّف كأداة رُبَّ (حرف جر)
+            if bare == "رب" and not _is_rabb_particle(token):
+                direct = None
+            if direct:
+                return self._format_result(token_bare=bare, prefixes="", parts=[direct])
 
         # Second: peel single-letter prefixes (و/ف/ب/ك/ل/س) and retry
         prefixes, remainder = self._peel_prefixes(bare)
@@ -143,7 +187,7 @@ class OperatorsCatalog:
 
     def _format_result(self, token_bare: str, prefixes: str, parts: List[OperatorEntry]) -> Dict[str, object]:
         primary = parts[0]
-        return {
+        out = {
             "token_bare": token_bare,
             "prefixes": prefixes or None,
             "operator": primary.operator_bare,
@@ -158,6 +202,13 @@ class OperatorsCatalog:
             "compound": [p.operator_bare for p in parts] if len(parts) > 1 else None,
             "source_path": str(self.csv_path) if self.csv_path else None,
         }
+        if primary.usage_ar:
+            out["operator_effect"] = primary.usage_ar
+        if primary.effect_signature:
+            out["effect_signature"] = primary.effect_signature
+        if primary.i3rab_template:
+            out["i3rab_template"] = primary.i3rab_template
+        return out
 
 
 @lru_cache(maxsize=1)

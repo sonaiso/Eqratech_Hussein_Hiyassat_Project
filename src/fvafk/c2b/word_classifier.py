@@ -121,6 +121,12 @@ class WordClassifier:
         if op:
             return Classification(kind=WordKind.OPERATOR, operator=op)
 
+        bare = _strip_diacritics(token)
+
+        # يوم، مستقيم: تصنيف صريح كاسم (دقة التصنيف — راجع docs/TODO_SPECIAL_WORDS_CATALOG.md)
+        if bare in ("يوم", "مستقيم"):
+            return Classification(kind=WordKind.NOUN)
+
         # 2) special closed-class / excluded names / demonstratives from external lexicons
         sp = self._special.classify(token)
         if sp:
@@ -131,17 +137,18 @@ class WordClassifier:
                 return Classification(kind=WordKind.NAME, special=sp)
             if sp_kind in {"particle", "special"}:
                 return Classification(kind=WordKind.PARTICLE, special=sp)
-
-        bare = _strip_diacritics(token)
         if not bare:
             return Classification(kind=WordKind.UNKNOWN)
 
+        # تطبيع رموز قرآنية (ۥ U+06E5) ليتطابق ضمير المتصل: مَعَهُۥٓ → معه
+        bare_prep = (bare or "").replace("\u06E5", "").strip() or bare
+
         # 3) preposition/particle + attached pronoun clitics (generic closed pattern)
         # Examples: بهم، به، معه، عليهم، منهم ...
-        clitic = self.detect_attached_pronoun_suffix(bare)
+        clitic = self.detect_attached_pronoun_suffix(bare_prep)
         if clitic:
             suf, suf_feats = clitic
-            base = bare[: -len(suf)]
+            base = bare_prep[: -len(suf)]
             # Common prepositions/particles that take a clitic object
             prep_bases = {
                 "ب",
@@ -154,6 +161,7 @@ class WordClassifier:
                 "إلى",
                 "الي",
                 "مع",
+                "حتى",
                 "لدى",
                 "عند",
                 "بين",

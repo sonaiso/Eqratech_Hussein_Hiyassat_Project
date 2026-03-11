@@ -15,6 +15,8 @@ from fvafk.c2b.syllabifier import (
     ArabicSyllabifier,
     syllabify,
     syllabify_to_pattern,
+    syllabify_to_syllable_pattern,
+    word_to_cv_advanced_pattern,
     SyllableType,
     normalize_word,
     normalize_initial_hamza,
@@ -48,6 +50,7 @@ class TestUtilities:
         """Test word normalization."""
         assert normalize_word("  كتب  ") == "كتب"
         assert normalize_word("كـتـب") == "كتب"  # Remove tatweel
+        assert normalize_word("هَٰذَا") == "هَاذَا"  # Normalize dagger alif
     
     def test_split_letters_and_marks(self):
         """Test splitting letters and diacritics."""
@@ -117,6 +120,17 @@ class TestCVPattern:
         # أَ -> CV (forced)
         result = syllabify_to_pattern("أَكْتُبُ")
         assert result.startswith("CV")
+
+    def test_syllable_pattern_export(self):
+        """User-facing CV export should follow syllable segmentation without separators."""
+        assert syllabify_to_syllable_pattern("الرَّحِيمِ") == "CVCCCVCVVCV"
+        assert syllabify_to_syllable_pattern("الْحَمْدُ") == "CVCCVCCV"
+
+    def test_word_to_cv_advanced_pattern(self):
+        """cv_advanced annotates each V with vowel quality: a (fatha), o (damma), i (kasra)."""
+        assert word_to_cv_advanced_pattern("نَعْبُدُ") == "CVaCCVoCVo"
+        assert word_to_cv_advanced_pattern("يَوْمِ") == "CVaCCVi"
+        assert word_to_cv_advanced_pattern("كَتَبَ") == "CVaCVaCVa"
 
 
 # =============================================================================

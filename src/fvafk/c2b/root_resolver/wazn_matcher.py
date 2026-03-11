@@ -33,6 +33,7 @@ TANWIN = {FATHATAN, DAMMATAN, KASRATAN}
 VOWELS = {FATHA, DAMMA, KASRA, SUKUN}
 DIACRITICS = set().union(TANWIN, VOWELS, {SHADDA, DAGGER_ALIF})
 PLACEHOLDERS = {"ف", "ع", "ل"}
+WEAK_TEMPLATE_LETTERS = {"ا", "و", "ي", "ى"}
 
 
 @dataclass(frozen=True)
@@ -112,8 +113,12 @@ def pattern_effective_len(units: List[Unit]) -> int:
     return len(units) + shadda_count
 
 
-def count_fixed_letters(units: List[Unit]) -> int:
-    return sum(1 for u in units if u.base not in PLACEHOLDERS)
+def count_fixed_template_letters(units: List[Unit]) -> int:
+    return sum(
+        1
+        for u in units
+        if u.base not in PLACEHOLDERS and u.base not in WEAK_TEMPLATE_LETTERS
+    )
 
 
 def count_specified_diacritics(units: List[Unit]) -> int:
@@ -199,13 +204,13 @@ def try_match_pattern_to_word(pattern: str, word: str) -> List[MatchHit]:
         return []
 
     lp, lw = len(p_units), len(w_units)
-    fixed = count_fixed_letters(p_units)
+    fixed = count_fixed_template_letters(p_units)
     diac_spec = count_specified_diacritics(p_units)
     eff_len = pattern_effective_len(p_units)
 
     def make_score(reason: str) -> Tuple[int, int, int, int]:
         reason_rank = 2 if reason == "FULLMATCH" else 1
-        return (reason_rank, eff_len, fixed, diac_spec)
+        return (reason_rank, eff_len, -fixed, diac_spec)
 
     if lp > lw:
         return []

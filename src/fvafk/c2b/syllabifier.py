@@ -58,6 +58,8 @@ __all__ = [
     "expand_shadda",
     "syllabify",
     "syllabify_to_pattern",
+    "syllabify_to_syllable_pattern",
+    "word_to_cv_advanced_pattern",
 ]
 
 
@@ -171,10 +173,12 @@ def normalize_word(word: str) -> str:
     Normalize Arabic word:
     - NFC Unicode normalization
     - Remove tatweel (ـ)
+    - Normalize dagger alif (U+0670) to plain alif
     - Strip whitespace
     """
     word = unicodedata.normalize("NFC", str(word))
     word = word.replace("\u0640", "")  # Remove tatweel
+    word = word.replace("\u0670", "\u0627")  # Normalize dagger alif
     return word.strip()
 
 
@@ -355,8 +359,86 @@ def word_to_cv_pattern(word: str) -> str:
                 cv.append("V")
         
         prev_marks = marks
-    
-    return "".join(cv)
+
+    # قانون العربية: الكلمة تبدأ بمقطع CV. إذا بدأت بـ CC (شدة على أول حرف) أدرج V بعد أول C.
+    cv_str = "".join(cv)
+    if len(cv_str) >= 2 and cv_str[0] == "C" and cv_str[1] == "C":
+        cv_str = "C" + "V" + cv_str[1:]
+    return cv_str
+
+
+def _haraka_to_vowel_code(marks: list) -> str:
+    """Return 'a' (fatha), 'o' (damma), 'i' (kasra), or '' if none."""
+    if not marks:
+        return ""
+    for m in marks:
+        if m in (Haraka.FATHA, Haraka.TANWIN_FATH):
+            return "a"
+        if m in (Haraka.DAMMA, Haraka.TANWIN_DAMM):
+            return "o"
+        if m in (Haraka.KASRA, Haraka.TANWIN_KASR):
+            return "i"
+    return ""
+
+
+def word_to_cv_advanced_pattern(word: str) -> str:
+    """
+    Like word_to_cv_pattern but annotates each V with vowel quality: a (fatha), o (damma), i (kasra).
+    Example: نَعْبُدُ -> CVaCCVoCVo (not raw CVCCVCV).
+    """
+    word = normalize_word(word)
+    units = expand_shadda(split_letters_and_marks(word))
+    cv = []
+    prev_marks = []
+
+    first_idx = None
+    for i, (ch, _) in enumerate(units):
+        if is_arabic_letter(ch):
+            first_idx = i
+            break
+
+    if first_idx is not None:
+        first_letter = units[first_idx][0]
+        if first_letter in {MaddLetter.ALIF_WASLA, "أ", "إ", "آ"}:
+            cv.extend(["C", "V"])
+            units = units[:first_idx] + units[first_idx + 1:]
+
+    for letter, marks in units:
+        if not is_arabic_letter(letter):
+            prev_marks = marks
+            continue
+
+        is_madd = False
+        if letter == MaddLetter.ALIF:
+            is_madd = has_any(prev_marks, {Haraka.FATHA, Haraka.TANWIN_FATH})
+        elif letter == MaddLetter.WAW:
+            is_madd = has_any(prev_marks, {Haraka.DAMMA, Haraka.TANWIN_DAMM})
+        elif letter in {MaddLetter.YA, MaddLetter.ALIF_MAQSURA}:
+            is_madd = has_any(prev_marks, {Haraka.KASRA, Haraka.TANWIN_KASR})
+
+        if letter == MaddLetter.ALIF_MADDA:
+            cv.append("C")
+        elif is_madd:
+            code = _haraka_to_vowel_code(prev_marks)
+            cv.append("V" + code if code else "V")
+        else:
+            cv.append("C")
+            if has_any(marks, Haraka.SHORT_VOWELS):
+                code = _haraka_to_vowel_code(marks)
+                cv.append("V" + code if code else "V")
+        prev_marks = marks
+
+    s = "".join(cv)
+    # بداية CC (شدة على أول حرف): أدرج V بعد أول C لاحترام قانون CV
+    if len(s) >= 2 and s[0] == "C" and s[1] == "C":
+        v_start = 2
+        v_end = v_start
+        if v_end < len(s) and s[v_end] == "V":
+            v_end += 1
+            if v_end < len(s) and s[v_end] in "aoi":
+                v_end += 1
+        s = "C" + s[v_start:v_end] + "C" + s[v_end:]
+    return s
 
 
 # =============================================================================
@@ -652,6 +734,20 @@ def syllabify_to_pattern(word: str) -> str:
     """Quick conversion to CV pattern string."""
     normalized = normalize_initial_hamza(normalize_word(word))
     return word_to_cv_pattern(normalized)
+
+
+def syllabify_to_syllable_pattern(word: str, separator: str = "") -> str:
+    """
+    Return a syllable-valid CV pattern such as ``CVCCCVCVVCV``.
+
+    This is the user-facing/export representation and should be preferred over
+    the raw CV stream when the goal is Arabic syllabification rather than
+    low-level C/V matching.
+    """
+    result = syllabify(word)
+    if not result.valid or not result.syllables:
+        return ""
+    return separator.join(s.pattern for s in result.syllables)
 
 
 # =============================================================================

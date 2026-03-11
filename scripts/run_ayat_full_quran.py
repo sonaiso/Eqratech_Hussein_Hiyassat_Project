@@ -22,7 +22,7 @@ from pathlib import Path
 
 DEFAULT_INPUT = Path("data/quran-simple-clean.txt")
 DEFAULT_PATTERNS = Path("data/awzan_merged_final.csv")
-DEFAULT_ROOTS = Path("data/arabic_roots.csv")
+DEFAULT_ROOTS = Path("data/all_roots.csv")
 
 
 def parse_quran_line(line: str):
@@ -102,7 +102,9 @@ def main() -> int:
         from fvafk.cli.main import MinimalCLI
         from fvafk.c2b.operators_particles_db import get_special_words_db
         from fvafk.c2b.special_words_catalog import get_special_words_catalog
-        from fvafk.c1.cv_pattern import cv_pattern, advanced_cv_pattern
+        from fvafk.c2b.syllabifier import syllabify_to_syllable_pattern, word_to_cv_advanced_pattern
+        from fvafk.c2b.pattern_matcher import PatternMatcher
+        from fvafk.c2b.morpheme import Root, RootType
     except ImportError as e:
         print(
             "Run from repo root with: PYTHONPATH=src python3 scripts/run_ayat_full_quran.py ...",
@@ -134,6 +136,15 @@ def main() -> int:
     cli = MinimalCLI(verbose=False, json_output=True)
     db = get_special_words_db()
     catalog = get_special_words_catalog()
+    pattern_matcher = PatternMatcher()
+
+    def _root_from_str(s: str):
+        """Build Root from 'ر-ح-م' or 'رحم'. Returns None if invalid."""
+        letters = tuple((s or "").replace("-", "").strip())
+        if len(letters) not in (3, 4):
+            return None
+        rt = RootType.TRILATERAL if len(letters) == 3 else RootType.QUADRILATERAL
+        return Root(letters=letters, root_type=rt)
 
     # تصحيح stripped الناقص من CLI لأفعال شائعة (نزّلنا→نزل، قلنا→قول)
     def _bare(t):
@@ -170,6 +181,7 @@ def main() -> int:
         "is_mabni",
         "kind",
         "type",
+        "word_wazn",
         "template",
         "prefix",
         "suffix",
@@ -194,7 +206,7 @@ def main() -> int:
         "isnadi_reason",
     ]
     if args.show_root_source:
-        fieldnames += ["root_source", "root_wazn", "root_confidence"]
+        fieldnames += ["root_source", "root_wazn", "root_confidence", "heuristic_reason"]
 
     rows = []
     for sura, aya, text in verses:
@@ -263,6 +275,8 @@ def main() -> int:
                 template = pattern.template or ""
             else:
                 template = ""
+            # وزن الكلمة من c2b قبل مرحلة resolver/root extraction.
+            word_wazn = template
 
             features = w.get("features") or {}
             case = features.get("case", "")
@@ -341,10 +355,10 @@ def main() -> int:
             if not word_type:
                 word_type = pat_type or kind or ""
 
-            # CV patterns
+            # CV patterns: cv = syllable pattern (CVCCVCV); cv_advanced = with vowel quality (CVaCCVoCVo)
             try:
-                cv = cv_pattern(word) if word else ""
-                cv_adv = advanced_cv_pattern(word) if word else ""
+                cv = syllabify_to_syllable_pattern(word) if word else ""
+                cv_adv = word_to_cv_advanced_pattern(word) if word else ""
             except Exception:
                 cv = ""
                 cv_adv = ""
@@ -365,17 +379,15 @@ def main() -> int:
             prefix = prefix or ""
             suffix = suffix or ""
 
-            # أسماء golden_name (لا جذر) — لا نمرّر للـ resolver
+            # دع الـ resolver يحسم: special_jalala / proper_names / cli / wazn / heuristic
+            # catalog_info يبقى للاستخدامات الوصفية فقط، ولا يجب أن يحجب resolver.
             root_source = ""
             root_wazn = ""
             root_confidence = ""
+            heuristic_reason = ""
+            wazn_from_resolver = ""  # وزن من resolver (للملء في word_wazn حتى بدون --show-root-source)
             catalog_info = catalog.classify(word) if word else None
-            if catalog_info and catalog_info.get("kind") == "excluded_name":
-                root_str = ""
-                if args.show_root_source:
-                    root_source = "no_root"
-                    root_confidence = "1.00"
-            elif resolver is not None:
+            if resolver is not None:
                 # تصحيح stripped المعروف ناقصاً من CLI
                 word_bare = _bare(word)
                 use_stripped = STRIPPED_CORRECTIONS.get(word_bare, stripped)
@@ -388,10 +400,32 @@ def main() -> int:
                 )
                 # resolve() always returns canonicalized root; use as-is for CSV
                 root_str = resolved.root_formatted or resolved.root or ""
+                wazn_from_resolver = getattr(resolved, "wazn", "") or ""
                 if args.show_root_source:
                     root_source = resolved.source
                     root_wazn = resolved.wazn
                     root_confidence = f"{resolved.confidence:.2f}" if resolved.confidence else ""
+                    heuristic_reason = getattr(resolved, "heuristic_reason", "") or ""
+
+            # مقابل كل كلمة لها جذر: عرض الوزن (فَعَلَ، فَاعِل، مَفَاعِل...)
+            if root_str and not word_wazn:
+                if wazn_from_resolver:
+                    word_wazn = wazn_from_resolver
+                    template = wazn_from_resolver
+                else:
+                    root_obj = _root_from_str(root_str)
+                    if root_obj:
+                        pat = pattern_matcher.match(word, root_obj)
+                        if pat and getattr(pat, "template", None):
+                            word_wazn = pat.template
+                            template = pat.template
+                    if not word_wazn and resolver is not None:
+                        wazn_from_doors = getattr(resolver, "_wazn", None)
+                        if wazn_from_doors is not None and hasattr(wazn_from_doors, "get_pattern_for_word_root"):
+                            found = wazn_from_doors.get_pattern_for_word_root(word, root_str)
+                            if found:
+                                word_wazn = found
+                                template = found
 
             # Isnadi for this word index
             head_links = isnadi_by_head.get(i, [])
@@ -429,6 +463,7 @@ def main() -> int:
                 "is_mabni": is_mabni,
                 "kind": kind,
                 "type": kind,
+                "word_wazn": word_wazn,
                 "template": template,
                 "prefix": prefix,
                 "suffix": suffix,
@@ -456,6 +491,7 @@ def main() -> int:
                 row["root_source"] = root_source
                 row["root_wazn"] = root_wazn
                 row["root_confidence"] = root_confidence
+                row["heuristic_reason"] = heuristic_reason
             rows.append(row)
 
     if not rows:

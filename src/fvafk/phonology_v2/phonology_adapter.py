@@ -32,6 +32,8 @@ class PhonologyV2Adapter:
         - `cv_pattern`, `syllabification`, `syllable_count`
         - `witnesses`: list of witness dicts (always computed here; callers may drop it)
         """
+        # تطبيع ألف الوصل ٱ (U+0671) → ا (U+0627) لتفادي no_valid_syllabification (ٱللَّهِ، ٱلْكُفَّارِ)
+        word = (word or "").replace("\u0671", "\u0627")
         try:
             wa = _analyze_word(word, verbose=False)
             best = wa.best_syllabification

@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 WaznAdapter: bridges WaznMatcher with RootResolver.
-Builds candidates (stripped, word_no_al if shadda, word_cleaned), tries patterns, extracts root on FULLMATCH only.
+Builds candidates (stripped, word_no_al if shadda, word_cleaned), evaluates all
+matching patterns, then picks the best hit instead of stopping at the first one.
 """
 from __future__ import annotations
 
@@ -11,6 +12,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from .wazn_matcher import (
+    best_hit,
     get_fal_indices,
     load_patterns,
     MatchHit,
@@ -20,6 +22,11 @@ from .wazn_matcher import (
 )
 
 SHADDA = "\u0651"
+DAGGER_ALIF = "\u0670"
+
+
+def _normalize_wazn_candidate(text: str) -> str:
+    return (text or "").replace(DAGGER_ALIF, "ا").strip()
 
 
 def extract_root_from_hit(word_processed: str, hit: MatchHit) -> Optional[str]:
@@ -60,13 +67,18 @@ class WaznAdapter:
 
     def resolve(self, word: str, stripped: str = "") -> Optional[WaznResult]:
         candidates: List[str] = []
+        word_normalized = _normalize_wazn_candidate(word)
+        if word_normalized:
+            candidates.append(word_normalized)
         if stripped and stripped.strip():
-            candidates.append(stripped.strip())
+            stripped_normalized = _normalize_wazn_candidate(stripped)
+            if stripped_normalized and stripped_normalized not in candidates:
+                candidates.append(stripped_normalized)
         if SHADDA in word:
-            word_no_al = re.sub(r"^[وفبكل]?ال", "", word).strip()
+            word_no_al = _normalize_wazn_candidate(re.sub(r"^[وفبكل]?ال", "", word))
             if word_no_al and word_no_al not in candidates:
                 candidates.append(word_no_al)
-        word_cleaned = remove_al_and_shadda(word)
+        word_cleaned = _normalize_wazn_candidate(remove_al_and_shadda(word))
         if word_cleaned not in candidates:
             candidates.append(word_cleaned)
 
@@ -77,15 +89,13 @@ class WaznAdapter:
         return None
 
     def _try_resolve(self, word_processed: str, original_word: str) -> Optional[WaznResult]:
-        hit: Optional[MatchHit] = None
+        hits_all: List[MatchHit] = []
         for pattern in self._patterns:
             hits = try_match_pattern_to_word(pattern, word_processed)
             if hits:
-                hit = hits[0]
-                break
+                hits_all.extend(hits)
+        hit = best_hit(hits_all)
         if hit is None:
-            return None
-        if hit.reason != "FULLMATCH":
             return None
         fal_indices = get_fal_indices(hit.pattern)
         if not fal_indices:
@@ -99,3 +109,43 @@ class WaznAdapter:
             match_type=hit.reason,
             window_start=hit.window_start,
         )
+
+    def get_pattern_for_word_root(self, word: str, root_str: str) -> Optional[str]:
+        """
+        Given (word, root), return the pattern (wazn) that matches, if any.
+        Used to fill word_wazn when root came from CLI/heuristic and resolver did not return a wazn.
+        """
+        root_bare = (root_str or "").replace("-", "").strip()
+        if not root_bare or len(root_bare) not in (3, 4):
+            return None
+        word_norm = _normalize_wazn_candidate(word)
+        if not word_norm:
+            return None
+        for pattern in self._patterns:
+            hits = try_match_pattern_to_word(pattern, word_norm)
+            if not hits:
+                continue
+            hit = best_hit(hits)
+            if hit is None:
+                continue
+            extracted = extract_root_from_hit(word_norm, hit)
+            if not extracted:
+                continue
+            if extracted.replace("-", "").strip() == root_bare:
+                return hit.pattern
+        # try without al/sun letters for prefixed words
+        word_cleaned = _normalize_wazn_candidate(remove_al_and_shadda(word))
+        if word_cleaned != word_norm:
+            for pattern in self._patterns:
+                hits = try_match_pattern_to_word(pattern, word_cleaned)
+                if not hits:
+                    continue
+                hit = best_hit(hits)
+                if hit is None:
+                    continue
+                extracted = extract_root_from_hit(word_cleaned, hit)
+                if not extracted:
+                    continue
+                if extracted.replace("-", "").strip() == root_bare:
+                    return hit.pattern
+        return None

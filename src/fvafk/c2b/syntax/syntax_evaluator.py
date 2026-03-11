@@ -18,6 +18,27 @@ from .i3rab_components import I3rabComponents
 from .syntax_features import SyntaxFeatures
 
 
+def _get_attr(obj, name: str, default=None):
+    return getattr(obj, name, default) if obj is not None else default
+
+
+def _pred_i3rab_type_ar(pred) -> Optional[str]:
+    # Layer 3: i3rab_type_ar; Layer 2 fallback: i3rab_type
+    return _get_attr(pred, "i3rab_type_ar", _get_attr(pred, "i3rab_type", None))
+
+
+def _pred_i3rab_type_en(pred) -> Optional[str]:
+    # Layer 3 / some Layer 2 variants
+    return _get_attr(pred, "i3rab_type_en", None)
+
+
+def _is_unknown_label(value: Optional[str]) -> bool:
+    if value is None:
+        return True
+    v = str(value).strip().lower()
+    return v in {"", "unknown", "none", "غير معروف"}
+
+
 @dataclass
 class SyntaxMetrics:
     """
@@ -137,18 +158,21 @@ class SyntaxEvaluator:
 
         for pred, g in zip(predictions, gold):
             # Coverage: prediction made (non-unknown i3rab type)
-            if pred.i3rab_type_en != "unknown":
+            pred_type_en = _pred_i3rab_type_en(pred)
+            pred_type_ar = _pred_i3rab_type_ar(pred)
+            if not (_is_unknown_label(pred_type_en) and _is_unknown_label(pred_type_ar)):
                 covered += 1
 
             # I3rab type comparison (use Arabic label)
-            pred_type = pred.i3rab_type_ar
+            pred_type = pred_type_ar
             gold_type = g.i3rab_type
             i3rab_cm.add_prediction(pred_type, gold_type)
             if pred_type == gold_type:
                 i3rab_correct += 1
 
             # Case comparison
-            pred_case = pred.case if pred.case != "unknown" else None
+            pred_case_raw = _get_attr(pred, "case", None)
+            pred_case = pred_case_raw if pred_case_raw != "unknown" else None
             gold_case = g.case
             case_cm.add_prediction(pred_case, gold_case)
             if pred_case == gold_case:

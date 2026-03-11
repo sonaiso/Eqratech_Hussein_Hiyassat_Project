@@ -9,12 +9,23 @@ import csv
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+import unicodedata
 
 
 def _normalize_root(r: Optional[str]) -> str:
     if r is None:
         return ""
-    return (r or "").strip().replace(" ", "")
+    s = (r or "").strip().replace(" ", "").replace("-", "")
+    s = "".join(ch for ch in s if not (0x064B <= ord(ch) <= 0x0652 or ord(ch) == 0x0670))
+    return s
+
+
+def _normalize_word(w: Optional[str]) -> str:
+    if w is None:
+        return ""
+    text = unicodedata.normalize("NFC", (w or "").strip()).replace("ـ", "")
+    text = "".join(ch for ch in text if unicodedata.combining(ch) == 0)
+    return text
 
 
 def load_csv(path: Path) -> List[Dict[str, str]]:
@@ -35,10 +46,10 @@ def align_rows(
     word_key: str = "word",
 ) -> List[Tuple[Dict[str, str], Optional[Dict[str, str]]]]:
     """Align by word; returns list of (pred_row, gold_row or None)."""
-    gold_by_word = {_normalize_root(r.get(word_key)): r for r in gold_rows}
+    gold_by_word = {_normalize_word(r.get(word_key)): r for r in gold_rows}
     paired = []
     for p in pred_rows:
-        w = _normalize_root(p.get(word_key))
+        w = _normalize_word(p.get(word_key))
         paired.append((p, gold_by_word.get(w)))
     return paired
 

@@ -80,7 +80,11 @@ class RootExtractor:
     # Keep this conservative: multi-letter pronouns only.
     # Single-letter endings like (ي/ك/ه) are too ambiguous and can be true radicals
     # or orthographic endings (e.g., رمى -> رمي after ى->ي).
-    PRONOUN_SUFFIXES = {'ها', 'هم', 'هما', 'هن', 'كم', 'كن', 'كما', 'ني', 'نا'}
+    PRONOUN_SUFFIXES = {
+        'ها', 'هم', 'هما', 'هن', 'كم', 'كن', 'كما', 'ني', 'نا',
+        # Dual/construct + attached pronouns (e.g., أبويه، يديهما)
+        'يهم', 'يهن', 'يهما', 'يه', 'يها', 'يك',
+    }
     VERB_NUMBER_SUFFIXES = {'وا', 'ون', 'ين', 'ان', 'ات', 'تم', 'تن', 'ن'}
 
     # Quran-oriented "do not split" stems (only peel attached pronouns after them)
@@ -284,6 +288,20 @@ class RootExtractor:
             if (not no_split_mode) and len(text) >= 2 and text.startswith("ل") and text[1] in {"ي", "ت", "ن", "أ"}:
                 return True
             return False
+        def _strip_lam_genitive():
+            # Strip genitive lam only when original word explicitly starts with kasra on lam.
+            # Covers forms like: لِأبيه, وَلِ..., فَلِ...
+            if no_split_mode or len(text) < 2 or not text.startswith("ل") or not original_word:
+                return False
+            ow = unicodedata.normalize("NFC", original_word)
+            return (
+                ow.startswith("لِ")
+                or ow.startswith("وَلِ")
+                or ow.startswith("فَلِ")
+            )
+        if _strip_lam_genitive():
+            text = text[1:]
+            prefix_parts.append("ل")
         if _strip_lam_if_imperfect():
             text = text[1:]
             prefix_parts.append("ل")
@@ -332,6 +350,9 @@ class RootExtractor:
                 break
 
         # 2a) After و/ف, strip لام الأمر/التعليل when ل + ي/ت/ن/أ (وَلْيَتَّقِ → ل then يتقي).
+        if _strip_lam_genitive():
+            text = text[1:]
+            prefix_parts.append("ل")
         if _strip_lam_if_imperfect():
             text = text[1:]
             prefix_parts.append("ل")
@@ -411,6 +432,16 @@ class RootExtractor:
                     break
             if not removed:
                 break
+
+        # 4a.1) Feminine plural nun in verbal form (…ْنَ): strip terminal ن conservatively.
+        if (
+            original_word
+            and unicodedata.normalize("NFC", original_word).endswith("ْنَ")
+            and text.endswith("ن")
+            and len(text) - 1 >= 3
+        ):
+            text = text[:-1]
+            suffix_parts.append("ن")
 
         # 4b) peel inflectional suffixes (require 3 letters remain)
         for _ in range(2):  # حد أقصى لاحقتان
