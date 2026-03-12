@@ -15,10 +15,11 @@ import json
 import sys
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Run pipeline orchestrator skeleton (Stage 3)")
+    ap = argparse.ArgumentParser(description="Run pipeline orchestrator (Stages 3–7)")
     ap.add_argument("text", nargs="?", default="", help="Raw Arabic text to process")
     ap.add_argument("--json", action="store_true", help="Output full pipeline as JSON")
     ap.add_argument("--summary", action="store_true", help="Output only layer status summary")
+    ap.add_argument("--render", choices=["compact", "detailed", "debug"], metavar="MODE", help="L14 render mode: compact, detailed, or debug")
     args = ap.parse_args()
     text = (args.text or "").strip()
     if not text and not sys.stdin.isatty():
@@ -31,7 +32,8 @@ def main() -> int:
     from orchestrator import run
     from orchestrator.validation import validate_pipeline_shape
 
-    pipeline = run(text, source={"entrypoint": "run_orchestrator_skeleton"})
+    render_mode = args.render if args.render else None
+    pipeline = run(text, source={"entrypoint": "run_orchestrator_skeleton"}, render_mode=render_mode)
     ok, issues = validate_pipeline_shape(pipeline)
     if not ok:
         print("Validation issues:", issues, file=sys.stderr)
@@ -46,6 +48,17 @@ def main() -> int:
             "layer_status": {k: v.get("status") for k, v in (pipeline.get("layer_outputs") or {}).items()},
         }
         print(json.dumps(summary, indent=2, ensure_ascii=False))
+    elif args.render:
+        # Print L14 rendered output
+        ro = pipeline.get("rendered_output") or {}
+        print(ro.get("summary", ""))
+        if args.render == "detailed":
+            for sec in ro.get("sections") or []:
+                print("\n---", sec.get("title", sec.get("id", "")), "---")
+                print(sec.get("content", ""))
+        elif args.render == "debug":
+            for sec in ro.get("sections") or []:
+                print(sec.get("content", ""))
     else:
         print("request_id:", pipeline.get("request_id"))
         print("original_text:", (pipeline.get("original_text") or "")[:60], "...")

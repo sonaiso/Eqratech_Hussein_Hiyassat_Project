@@ -45,6 +45,7 @@ def run_pipeline(
     source: Optional[Dict[str, Any]] = None,
     metadata: Optional[Dict[str, Any]] = None,
     run_mode: Optional[str] = None,
+    render_mode: Optional[str] = None,
     stages: Optional[List[BaseStage]] = None,
 ) -> PipelineDict:
     """
@@ -53,7 +54,8 @@ def run_pipeline(
     - text: raw input (required)
     - request_id, source, metadata: optional pipeline metadata
     - run_mode: optional (e.g. "full", "skeleton"); currently unused, for future use
-    - stages: optional list of stages; if None, uses default registry (placeholders)
+    - render_mode: optional (compact | detailed | debug); L14 uses this for presentation
+    - stages: optional list of stages; if None, uses default registry
     """
     pipeline = build_empty_pipeline(
         text,
@@ -61,6 +63,8 @@ def run_pipeline(
         source=source or ({"run_mode": run_mode} if run_mode else None),
         metadata=metadata,
     )
+    if render_mode is not None:
+        pipeline["_render_mode"] = render_mode  # type: ignore[typeddict-unknown-key]
     # Stage 4: run FVAFK once so real adapters can read from pipeline
     try:
         fvafk_result = run_fvafk_once(text)
@@ -99,6 +103,14 @@ def run_pipeline(
                     "validated_layers_summary": tr.get("validated_layers_summary", {}),
                     "final_confidence": tr.get("final_confidence"),
                 }
+            if layer_id == "L14_PRESENTATION":
+                tr = layer_output.get("transformation_result") or {}
+                pipeline["rendered_output"] = {  # type: ignore[typeddict-unknown-key]
+                    "mode": tr.get("mode"),
+                    "summary": tr.get("summary"),
+                    "sections": tr.get("sections", []),
+                    "artifacts": tr.get("artifacts", {}),
+                }
         except Exception as e:
             logger.warning("stage_failed layer_id=%s error=%s", layer_id, e, exc_info=True)
             failed_output: LayerOutputDict = {
@@ -111,8 +123,9 @@ def run_pipeline(
             }
             insert_layer_output(pipeline, layer_id, failed_output)
 
-    # Remove internal FVAFK cache so output matches Stage 2 contract
+    # Remove internal keys so output matches Stage 2 contract
     pipeline.pop(FVAFK_RESULT_KEY, None)
+    pipeline.pop("_render_mode", None)
     return pipeline
 
 
@@ -123,9 +136,10 @@ def run(
     source: Optional[Dict[str, Any]] = None,
     metadata: Optional[Dict[str, Any]] = None,
     output_mode: Optional[str] = None,
+    render_mode: Optional[str] = None,
 ) -> PipelineDict:
     """
-    Convenience entry point: run_pipeline with output_mode passed as run_mode.
+    Convenience entry point: run_pipeline with output_mode and render_mode.
     """
     return run_pipeline(
         text,
@@ -133,4 +147,5 @@ def run(
         source=source,
         metadata=metadata,
         run_mode=output_mode,
+        render_mode=render_mode,
     )
