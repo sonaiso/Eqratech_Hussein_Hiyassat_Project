@@ -12,6 +12,7 @@ from __future__ import annotations
 from typing import Any, Dict, List
 
 from .builders import build_layer_output
+from .explainability import build_evidence_trace
 from .stages.base_stage import BaseStage
 from .stages.placeholders import STAGE_NAMES
 from .types import STAGE_ORDER
@@ -47,6 +48,17 @@ def _render_compact(pipeline: Dict[str, Any]) -> Dict[str, Any]:
     roots = [f"{w.get('word')}: {w.get('root') or '—'}" for w in words8[:5]]
     roots_line = "; ".join(roots) if roots else "—"
     validation_note = f"{len(issues)} issue(s)" if issues else "No issues."
+    # Stage 8: short "why" lines from evidence trace
+    trace = build_evidence_trace(pipeline)
+    why_lines: List[str] = []
+    for e in trace:
+        if e.get("status") == "skipped" and e.get("supporting_stage") in ("L8_ROOT_EXTRACTION", "L9_WAZN_MATCHING"):
+            why_lines.append(f"Why: {e.get('claim', '')[:60]}…" if len(e.get("claim", "")) > 60 else f"Why: {e.get('claim', '')}")
+            break
+    if not why_lines and trace:
+        v = next((e for e in trace if e.get("supporting_stage") == "L13_VALIDATION"), None)
+        if v and v.get("limitation"):
+            why_lines.append(f"Validation: {v.get('limitation', '')[:70]}")
     summary = (
         f"Input: {text[:80]}{'…' if len(text) > 80 else ''}\n"
         f"Validity: {validity}" + (f" (confidence: {confidence})" if confidence is not None else "") + "\n"
@@ -54,12 +66,14 @@ def _render_compact(pipeline: Dict[str, Any]) -> Dict[str, Any]:
         f"Roots: {roots_line}\n"
         f"I3rab: {i3rab_block if i3rab_lines else '—'}\n"
         f"Validation: {validation_note}"
+        + ("\n" + "\n".join(why_lines) if why_lines else "")
     )
+    artifacts: Dict[str, Any] = {"evidence_trace": trace}
     return {
         "mode": "compact",
         "summary": summary,
         "sections": [_section("compact_summary", "Summary", summary)],
-        "artifacts": {},
+        "artifacts": artifacts,
     }
 
 
@@ -170,17 +184,74 @@ def _render_detailed(pipeline: Dict[str, Any]) -> Dict[str, Any]:
     val = f"Global validity: {validity}\nFinal confidence: {confidence}\n\nIssues:\n" + ("\n".join(issue_lines) if issue_lines else "  (none)")
     sections.append(_section("validation", "Validation", val))
 
+    # Stage 8: evidence-aware explanation sections
+    trace = build_evidence_trace(pipeline)
+    artifacts_detail: Dict[str, Any] = {"evidence_trace": trace}
+
+    # 10. Evidence Trace Overview
+    supported_stages = list({e["supporting_stage"] for e in trace if e.get("status") == "supported"})
+    skipped_stages = list({e["supporting_stage"] for e in trace if e.get("status") == "skipped"})
+    overview_ev = "Stages with decisive evidence: " + (", ".join(sorted(supported_stages)) if supported_stages else "none")
+    overview_ev += "\nStages skipped (gate/eligibility): " + (", ".join(sorted(skipped_stages)) if skipped_stages else "none")
+    sections.append(_section("evidence_trace_overview", "Evidence Trace Overview", overview_ev))
+
+    # 11. Morphology Evidence
+    morph_ev = []
+    for e in trace:
+        if e.get("supporting_stage") in ("L8_ROOT_EXTRACTION", "L9_WAZN_MATCHING"):
+            morph_ev.append(f"  [{e.get('supporting_stage')}] {e.get('claim', '')}")
+            for ev in (e.get("evidence") or [])[:5]:
+                morph_ev.append(f"    {ev}")
+            if e.get("limitation"):
+                morph_ev.append(f"    Limitation: {e['limitation']}")
+    sections.append(_section("morphology_evidence", "Morphology Evidence", "\n".join(morph_ev) if morph_ev else "  (no morphology evidence)"))
+
+    # 12. I3rab Evidence
+    i3rab_ev = []
+    for e in trace:
+        if e.get("supporting_stage") == "L11_I3RAB":
+            i3rab_ev.append(f"  {e.get('claim', '')}")
+            for ev in (e.get("evidence") or [])[:6]:
+                i3rab_ev.append(f"    {ev}")
+            if e.get("confidence_hint"):
+                i3rab_ev.append(f"    Source: {e['confidence_hint']}")
+            if e.get("limitation"):
+                i3rab_ev.append(f"    Limitation: {e['limitation']}")
+    sections.append(_section("i3rab_evidence", "I3rab Evidence", "\n".join(i3rab_ev) if i3rab_ev else "  (no i3rab evidence)"))
+
+    # 13. Validation Reasoning
+    val_ev = []
+    for e in trace:
+        if e.get("supporting_stage") == "L13_VALIDATION":
+            val_ev.append(f"  {e.get('claim', '')}")
+            for ev in (e.get("evidence") or [])[:8]:
+                val_ev.append(f"    {ev}")
+            if e.get("limitation"):
+                val_ev.append(f"  Why validity: {e['limitation']}")
+    sections.append(_section("validation_reasoning", "Validation Reasoning", "\n".join(val_ev) if val_ev else "  (no validation evidence)"))
+
+    # 14. Skipped/Partial Reasoning
+    skip_ev = []
+    for e in trace:
+        if e.get("status") in ("skipped", "limited", "absent"):
+            skip_ev.append(f"  [{e.get('supporting_stage')}] {e.get('claim', '')}")
+            if e.get("limitation"):
+                skip_ev.append(f"    Reason: {e['limitation']}")
+            for g in (e.get("evidence") or [])[:3]:
+                skip_ev.append(f"    {g}")
+    sections.append(_section("skipped_partial_reasoning", "Skipped/Partial Reasoning", "\n".join(skip_ev) if skip_ev else "  (no skipped/partial stages)"))
+
     summary = f"Pipeline rendered (detailed). Validity: {validity}. Sections: {len(sections)}."
     return {
         "mode": "detailed",
         "summary": summary,
         "sections": sections,
-        "artifacts": {},
+        "artifacts": artifacts_detail,
     }
 
 
 def _render_debug(pipeline: Dict[str, Any]) -> Dict[str, Any]:
-    """Structural summary for developers."""
+    """Structural summary for developers; includes stage-to-evidence trace."""
     lo = pipeline.get("layer_outputs") or {}
     fv = pipeline.get("final_validation") or {}
     request_id = pipeline.get("request_id") or ""
@@ -202,12 +273,19 @@ def _render_debug(pipeline: Dict[str, Any]) -> Dict[str, Any]:
     lines.append(f"  issue_count: {len(fv.get('issues') or [])}")
     for i in (fv.get("issues") or [])[:15]:
         lines.append(f"    {i.get('code')} [{i.get('severity')}] {i.get('layer_id')}")
+    # Stage 8: stage-to-evidence trace summary
+    trace = build_evidence_trace(pipeline)
+    lines.append("")
+    lines.append("Evidence trace (stage -> status):")
+    for e in trace[:20]:
+        c = e.get("claim", "")
+        lines.append(f"  {e.get('supporting_stage')}: {e.get('status')} | {c[:50]}{'…' if len(c) > 50 else ''}")
     content = "\n".join(lines)
     return {
         "mode": "debug",
         "summary": f"Debug view. Validity: {fv.get('global_validity')}. Issues: {len(fv.get('issues') or [])}.",
         "sections": [_section("debug", "Debug", content)],
-        "artifacts": {"stage_ids": list(lo.keys())},
+        "artifacts": {"stage_ids": list(lo.keys()), "evidence_trace": trace},
     }
 
 
