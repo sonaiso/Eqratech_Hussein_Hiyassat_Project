@@ -1,5 +1,7 @@
 """Rhetoric-related engines."""
 
+from .extractor import RhetoricSignalsExtractor
+from .types import RhetoricSignal
 from .istiara_engine import IstiaraEngine
 from .kinaya_engine import KinayaEngine
 from .jinass_engine import JinassEngine
@@ -13,6 +15,8 @@ from .tashbih_engine import TashbihEngine
 from .tibaq_muqabala_engine import TibaqMuqabalaEngine
 
 __all__ = [
+    "RhetoricSignalsExtractor",
+    "RhetoricSignal",
     "IstiaraEngine",
     "KinayaEngine",
     "JinassEngine",

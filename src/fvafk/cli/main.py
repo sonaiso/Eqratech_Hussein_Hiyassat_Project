@@ -416,6 +416,18 @@ class MinimalCLI:
                     "sentence_type": c2d_result.sentence_type.value,
                     "confidence": round(c2d_result.confidence, 2),
                 }
+                # Rhetoric Signals V1 (on top of sentence type)
+                try:
+                    from engines.rhetoric.extractor import RhetoricSignalsExtractor
+                    from dataclasses import asdict
+                    rse = RhetoricSignalsExtractor()
+                    rhetoric_signals = rse.extract(tokens, sentence_type=c2d_result.sentence_type.value)
+                    result["rhetoric_signals"] = [
+                        {k: v for k, v in asdict(s).items()}
+                        for s in rhetoric_signals
+                    ]
+                except Exception:
+                    result["rhetoric_signals"] = []
             except Exception as e:
                 result["c2d"] = {"error": str(e)}
 

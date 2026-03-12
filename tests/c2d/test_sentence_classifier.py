@@ -30,9 +30,10 @@ def test_qasam():
     r = sc.classify(["والله", "لأجتهدن"])
     assert r.sentence_type == SentenceType.QASAM
 
-def test_shart_in():
+def test_tawkid_in():
+    """إن is classified as توكيد (TAWKID), not شرط (SHART)."""
     r = sc.classify(["إن", "تجتهد", "تنجح"])
-    assert r.sentence_type == SentenceType.SHART
+    assert r.sentence_type == SentenceType.TAWKID
 
 def test_shart_law():
     r = sc.classify(["لو", "اجتهدت", "لنجحت"])
