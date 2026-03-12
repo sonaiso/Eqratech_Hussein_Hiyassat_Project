@@ -79,6 +79,13 @@ class WordFormBuilder:
             metadata=self._extract_metadata(c2b_word)
         )
     
+    def from_multi_word_item(self, item: Dict[str, Any], word_id: Optional[int] = None) -> WordForm:
+        """
+        Build a WordForm from a single word's C2B output (one item from multi-word analysis).
+        Same contract as from_c2b; provided for CLI/syntax callers that use this name.
+        """
+        return self.from_c2b(item, word_id=word_id)
+
     def from_c2b_batch(self, c2b_words: List[Dict[str, Any]]) -> List[WordForm]:
         """
         Convert multiple C2B outputs to WordForm instances

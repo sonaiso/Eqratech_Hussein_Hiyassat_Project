@@ -102,6 +102,13 @@ def _type_with_kind_fallback(type_val: str, kind: str) -> str:
     return kind_fallback.get((kind or "").strip().lower(), "")
 
 
+def _word_form_to_syntax_dict(wf: Any, index: int) -> Dict[str, Any]:
+    """Convert a WordForm to a dict for syntax layer output (word_forms schema)."""
+    d = wf.to_dict() if hasattr(wf, "to_dict") else {}
+    d["id"] = getattr(wf, "word_id", None) or index
+    return d
+
+
 class MinimalCLI:
     """
     Minimal command-line interface for FVAFK.

@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional
 
 from ..adapters.fvafk_runner import FVAFK_RESULT_KEY
 from ..builders import build_layer_output, get_previous_output
+from ..gates import compute_gates, gate_entry
 from ..types import LayerOutputDict, PipelineDict, STAGE_ORDER
 from .base_stage import BaseStage
 from .placeholders import STAGE_NAMES
@@ -245,7 +246,7 @@ class RealL7Syllabification(BaseStage):
 
 
 class RealL8RootExtraction(BaseStage):
-    """L8: Root extraction — from c2b.words (root)."""
+    """L8: Root extraction — from c2b.words (root). Eligibility: has_morphology_candidate."""
 
     def __init__(self) -> None:
         super().__init__("L8_ROOT_EXTRACTION", STAGE_NAMES["L8_ROOT_EXTRACTION"], 8)
@@ -253,6 +254,27 @@ class RealL8RootExtraction(BaseStage):
     def run(self, pipeline: PipelineDict) -> LayerOutputDict:
         fvafk = _get_fvafk(pipeline)
         received = get_previous_output(pipeline, 8)
+        gates = compute_gates(pipeline)
+        gates_applied_list: List[Dict[str, Any]] = [
+            gate_entry("has_tokens", gates["has_tokens"]),
+            gate_entry("has_morphology_candidate", gates["has_morphology_candidate"]),
+        ]
+        if not gates["has_tokens"]:
+            return build_layer_output(
+                self.layer_id, self.layer_name, self.stage_index, "skipped",
+                received_input=received, transformation_result={"words": [], "count": 0},
+                raw_module_output={}, next_input=received or {},
+                gates_applied=gates_applied_list,
+                warnings=["No tokens; root extraction skipped."],
+            )
+        if not gates["has_morphology_candidate"]:
+            return build_layer_output(
+                self.layer_id, self.layer_name, self.stage_index, "skipped",
+                received_input=received, transformation_result={"words": [], "count": 0},
+                raw_module_output={}, next_input=received or {},
+                gates_applied=gates_applied_list,
+                warnings=["No morphology candidate (all operator/particle/pronoun); root extraction skipped."],
+            )
         if fvafk and isinstance(fvafk.get("c2b"), dict):
             words_list = fvafk["c2b"].get("words") or []
             items = []
@@ -263,7 +285,8 @@ class RealL8RootExtraction(BaseStage):
                     root_str = "-".join(r["letters"]) if isinstance(r["letters"], list) else str(r["letters"])
                 items.append({"word": w.get("word"), "root": root_str or None})
             result = {"words": items, "count": len(items)}
-            status = "success"
+            has_any_root = any(it.get("root") for it in items)
+            status = "success" if has_any_root else "partial"
             next_input = {"words": items}
             raw = result
             reused = {"file": "fvafk/c2b/root_extractor, root_resolver", "symbol": "RootExtractor, RootResolver", "mode": "adapter"}
@@ -274,11 +297,12 @@ class RealL8RootExtraction(BaseStage):
             self.layer_id, self.layer_name, self.stage_index, status,
             received_input=received, transformation_result=result, raw_module_output=raw,
             next_input=next_input, reused_module=reused,
+            gates_applied=gates_applied_list,
         )
 
 
 class RealL9WaznMatching(BaseStage):
-    """L9: Wazn matching — from c2b.words (pattern.template, word_wazn)."""
+    """L9: Wazn matching — from c2b.words (pattern.template, word_wazn). Eligibility: has_root_candidate."""
 
     def __init__(self) -> None:
         super().__init__("L9_WAZN_MATCHING", STAGE_NAMES["L9_WAZN_MATCHING"], 9)
@@ -286,6 +310,19 @@ class RealL9WaznMatching(BaseStage):
     def run(self, pipeline: PipelineDict) -> LayerOutputDict:
         fvafk = _get_fvafk(pipeline)
         received = get_previous_output(pipeline, 9)
+        gates = compute_gates(pipeline)
+        gates_applied_list: List[Dict[str, Any]] = [
+            gate_entry("has_tokens", gates["has_tokens"]),
+            gate_entry("has_root_candidate", gates["has_root_candidate"]),
+        ]
+        if not gates["has_root_candidate"]:
+            return build_layer_output(
+                self.layer_id, self.layer_name, self.stage_index, "skipped",
+                received_input=received, transformation_result={"words": [], "count": 0},
+                raw_module_output={}, next_input=received or {},
+                gates_applied=gates_applied_list,
+                warnings=["No root candidate; wazn matching skipped."],
+            )
         if fvafk and isinstance(fvafk.get("c2b"), dict):
             words_list = fvafk["c2b"].get("words") or []
             items = []
@@ -295,7 +332,8 @@ class RealL9WaznMatching(BaseStage):
                 wazn = w.get("word_wazn") or w.get("features", {}).get("word_wazn") or template
                 items.append({"word": w.get("word"), "template": template, "word_wazn": wazn})
             result = {"words": items, "count": len(items)}
-            status = "success"
+            has_any_wazn = any(it.get("template") or it.get("word_wazn") for it in items)
+            status = "success" if has_any_wazn else "partial"
             next_input = {"words": items}
             raw = result
             reused = {"file": "fvafk/c2b/root_resolver/wazn_adapter", "symbol": "WaznAdapter", "mode": "adapter"}
@@ -306,6 +344,7 @@ class RealL9WaznMatching(BaseStage):
             self.layer_id, self.layer_name, self.stage_index, status,
             received_input=received, transformation_result=result, raw_module_output=raw,
             next_input=next_input, reused_module=reused,
+            gates_applied=gates_applied_list,
         )
 
 
@@ -347,7 +386,7 @@ class RealL10Syntax(BaseStage):
 
 
 class RealL11I3rab(BaseStage):
-    """L11: i3rab — explicit layer; from c2b.words[].c2e.i3rab_text."""
+    """L11: i3rab — explicit layer; from c2b.words[].c2e.i3rab_text. Eligibility: has_i3rab_evidence for success."""
 
     def __init__(self) -> None:
         super().__init__("L11_I3RAB", STAGE_NAMES["L11_I3RAB"], 11)
@@ -355,6 +394,11 @@ class RealL11I3rab(BaseStage):
     def run(self, pipeline: PipelineDict) -> LayerOutputDict:
         fvafk = _get_fvafk(pipeline)
         received = get_previous_output(pipeline, 11)
+        gates = compute_gates(pipeline)
+        gates_applied_list: List[Dict[str, Any]] = [
+            gate_entry("has_tokens", gates["has_tokens"]),
+            gate_entry("has_i3rab_evidence", gates["has_i3rab_evidence"]),
+        ]
         if fvafk and isinstance(fvafk.get("c2b"), dict):
             words_list = fvafk["c2b"].get("words") or []
             token_results: List[Dict[str, Any]] = []
@@ -368,7 +412,7 @@ class RealL11I3rab(BaseStage):
                     "status": "success" if i3rab_text else "partial",
                 })
             result = {"token_results": token_results, "count": len(token_results)}
-            has_any = any(t.get("i3rab_text") for t in token_results)
+            has_any = gates["has_i3rab_evidence"] or any(t.get("i3rab_text") for t in token_results)
             status = "success" if has_any else "partial"
             next_input = result
             raw = {"token_results": token_results}
@@ -380,11 +424,12 @@ class RealL11I3rab(BaseStage):
             self.layer_id, self.layer_name, self.stage_index, status,
             received_input=received, transformation_result=result, raw_module_output=raw,
             next_input=next_input, reused_module=reused,
+            gates_applied=gates_applied_list,
         )
 
 
 class RealL12SemanticRhetorical(BaseStage):
-    """L12: Semantic / rhetorical — from c2d, rhetoric_signals."""
+    """L12: Semantic / rhetorical — from c2d, rhetoric_signals. Eligibility: has_sentence_level_evidence."""
 
     def __init__(self) -> None:
         super().__init__("L12_SEMANTIC_RHETORICAL", STAGE_NAMES["L12_SEMANTIC_RHETORICAL"], 12)
@@ -392,6 +437,11 @@ class RealL12SemanticRhetorical(BaseStage):
     def run(self, pipeline: PipelineDict) -> LayerOutputDict:
         fvafk = _get_fvafk(pipeline)
         received = get_previous_output(pipeline, 12)
+        gates = compute_gates(pipeline)
+        gates_applied_list: List[Dict[str, Any]] = [
+            gate_entry("has_tokens", gates["has_tokens"]),
+            gate_entry("has_sentence_level_evidence", gates["has_sentence_level_evidence"]),
+        ]
         if fvafk:
             c2d = fvafk.get("c2d") or {}
             rhetoric = fvafk.get("rhetoric_signals") or []
@@ -401,7 +451,7 @@ class RealL12SemanticRhetorical(BaseStage):
                 "rhetoric_signals": rhetoric,
                 "rhetoric_count": len(rhetoric),
             }
-            status = "success"
+            status = "success" if gates["has_sentence_level_evidence"] else "partial"
             next_input = result
             raw = {"c2d": c2d, "rhetoric_signals": rhetoric}
             reused = {"file": "fvafk/c2d, engines/rhetoric", "symbol": "SentenceClassifier, RhetoricSignalsExtractor", "mode": "adapter"}
@@ -411,6 +461,7 @@ class RealL12SemanticRhetorical(BaseStage):
             self.layer_id, self.layer_name, self.stage_index, status,
             received_input=received, transformation_result=result, raw_module_output=raw,
             next_input=next_input, reused_module=reused,
+            gates_applied=gates_applied_list,
         )
 
 

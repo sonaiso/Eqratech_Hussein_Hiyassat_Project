@@ -91,6 +91,14 @@ def run_pipeline(
                 reused.get("symbol") if isinstance(reused, dict) else None,
             )
             insert_layer_output(pipeline, layer_id, layer_output)
+            if layer_id == "L13_VALIDATION":
+                tr = layer_output.get("transformation_result") or {}
+                pipeline["final_validation"] = {  # type: ignore[typeddict-unknown-key]
+                    "global_validity": tr.get("global_validity"),
+                    "issues": tr.get("issues", []),
+                    "validated_layers_summary": tr.get("validated_layers_summary", {}),
+                    "final_confidence": tr.get("final_confidence"),
+                }
         except Exception as e:
             logger.warning("stage_failed layer_id=%s error=%s", layer_id, e, exc_info=True)
             failed_output: LayerOutputDict = {

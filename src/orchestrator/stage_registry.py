@@ -2,13 +2,14 @@
 """
 Stage registry — all 15 fixed stages in deterministic order.
 
-Stage 4: L1–L12 use real adapters (FVAFK/engines); L0, L13, L14 remain placeholder.
+Stage 4: L1–L12 real adapters. Stage 6: L13 real validation. L0, L14 placeholder.
 """
 
 from __future__ import annotations
 
 from typing import List, Optional
 
+from .l13_validation import RealL13Validation
 from .stages.base_stage import BaseStage
 from .stages.placeholders import (
     make_l0_input_stage,
@@ -21,13 +22,12 @@ from .types import STAGE_ORDER
 def get_default_registry() -> List[BaseStage]:
     """
     Return the list of stages in fixed order. Every stage ID appears exactly once.
-    L0: input (placeholder). L1–L12: real adapters. L13–L14: placeholder.
+    L0: placeholder. L1–L12: real adapters. L13: real validation. L14: placeholder.
     """
     stages: List[BaseStage] = []
     stages.append(make_l0_input_stage())
     stages.extend(get_real_stages_l1_l12())
-    # L13, L14: placeholder
-    stages.append(make_placeholder_stage("L13_VALIDATION", 13, status="pass_through"))
+    stages.append(RealL13Validation())
     stages.append(make_placeholder_stage("L14_PRESENTATION", 14, status="pass_through"))
     return stages
 
