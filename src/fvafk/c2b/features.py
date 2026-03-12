@@ -88,6 +88,13 @@ def _infer_number(bare: str, *, suffix: Optional[str] = None, pattern: Optional[
     return "singular"
 
 
+# Words that are feminine by convention (سماعي) despite lacking a تاء مربوطة.
+_FEMININE_SAMAIC: frozenset = frozenset({
+    "أرض", "شمس", "نار", "نفس", "روح", "يد", "عين", "أذن",
+    "دار", "حرب", "بئر", "ريح", "سماء", "أم",
+})
+
+
 def _infer_gender(bare: str, *, suffix: Optional[str] = None) -> Optional[str]:
     suf = _suffix_tail(suffix)
     # Feminine markers
@@ -98,7 +105,14 @@ def _infer_gender(bare: str, *, suffix: Optional[str] = None) -> Optional[str]:
     # Masculine plural endings
     if bare.endswith(("ون", "ين")) or suf in {"ون", "ين"}:
         return "masculine"
-    return "unknown"
+    # Feminine by convention (سماعي) — strip ال prefix before lookup
+    lookup = bare[2:] if bare.startswith("ال") else bare
+    if lookup in _FEMININE_SAMAIC:
+        return "feminine"
+    # Default for analysable content words with no feminine marker
+    if len(bare) < 2:
+        return None
+    return "masculine"
 
 
 def _infer_case(bare: str, *, token: str, suffix: Optional[str] = None) -> Optional[str]:
@@ -224,7 +238,16 @@ def extract_features(
     # V1 heuristics
     features["definite"] = _infer_definiteness(bare)
     features["number"] = _infer_number(bare, suffix=extraction.suffix or None, pattern=pattern)
-    features["gender"] = _infer_gender(bare, suffix=extraction.suffix or None)
+    _gender = _infer_gender(bare, suffix=extraction.suffix or None)
+    mabni_kind = getattr(WordKind, "MABNI", None)
+    if _gender is None:
+        if kind in {WordKind.NOUN, WordKind.VERB}:
+            _gender = "masculine"
+        elif kind in {WordKind.PARTICLE, WordKind.OPERATOR} or (mabni_kind is not None and kind == mabni_kind):
+            _gender = ""
+        else:
+            _gender = ""
+    features["gender"] = _gender
     features["case"] = _infer_case(bare, token=token, suffix=extraction.suffix or None)
 
     # Keep category consistent with POS decision at the CLI layer.

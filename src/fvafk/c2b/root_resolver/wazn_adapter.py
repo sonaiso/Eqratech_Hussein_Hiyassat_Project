@@ -97,6 +97,9 @@ class WaznAdapter:
         hit = best_hit(hits_all)
         if hit is None:
             return None
+        # Accept FULLMATCH (exact match) and WINDOW (substring/core match).
+        if hit.reason not in ("FULLMATCH", "WINDOW"):
+            return None
         fal_indices = get_fal_indices(hit.pattern)
         if not fal_indices:
             return None

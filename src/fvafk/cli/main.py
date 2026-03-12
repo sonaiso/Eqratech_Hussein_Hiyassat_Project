@@ -780,9 +780,15 @@ class MinimalCLI:
             cat = "unknown"
             if final_kind in {WordKind.VERB, WordKind.NOUN}:
                 cat = final_kind.value
+            # Phase 2 fix: use kind-based type label when no pattern matched.
+            fallback_type = "unknown"
+            if final_kind == WordKind.VERB:
+                fallback_type = "verb"
+            elif final_kind == WordKind.NOUN:
+                fallback_type = "noun"
             result["pattern"] = {
                 "template": None,
-                "type": "unknown",
+                "type": fallback_type,
                 "category": cat,
                 "error": "Could not match pattern"
             }
@@ -961,14 +967,30 @@ class MinimalCLI:
             root = extraction.root
 
             if not root:
+                # Phase 1 fix: use classifier even when no root is found.
+                fallback_cls = classifier.classify(
+                    word,
+                    prefix=extraction.prefix or None,
+                    suffix=extraction.suffix or None,
+                )
+                fallback_kind = fallback_cls.kind
+
+                if fallback_kind == WordKind.UNKNOWN:
+                    fallback_kind_str = "unknown"
+                else:
+                    fallback_kind_str = fallback_kind.value
+
                 words_analysis.append({
                     "word": word,
                     "span": {"start": sp.start, "end": sp.end},
-                    "kind": "unknown",
+                    "kind": fallback_kind_str,
                     "root": None,
-                    "pattern": None,
-                    "error": "Could not extract root",
-                    "features": extract_features(word, extraction, None, WordKind.UNKNOWN, mabni_result=mabni_result),
+                    "pattern": {
+                        "template": None,
+                        "type": fallback_kind.value if fallback_kind not in {WordKind.UNKNOWN} else "unknown",
+                        "category": fallback_kind.value if fallback_kind in {WordKind.NOUN, WordKind.VERB} else "unknown",
+                    },
+                    "features": extract_features(word, extraction, None, fallback_kind, mabni_result=mabni_result),
                 })
                 continue
             
@@ -1191,9 +1213,14 @@ class MinimalCLI:
                 cat = "unknown"
                 if final_kind in {WordKind.VERB, WordKind.NOUN}:
                     cat = final_kind.value
+                fallback_type = "unknown"
+                if final_kind == WordKind.VERB:
+                    fallback_type = "verb"
+                elif final_kind == WordKind.NOUN:
+                    fallback_type = "noun"
                 word_result["pattern"] = {
                     "template": None,
-                    "type": "unknown",
+                    "type": fallback_type,
                     "category": cat,
                 }
                 # Fallback: fill template from awzan (فَعَلَ، يَفْعُلُ، فَاعِل) when root exists

@@ -16,8 +16,8 @@ REQUIRE_FAL_ORDER_IN_PATTERN = True
 MIN_PATTERN_UNITS = 3
 SUBSTRING_MATCHING = True
 ALLOW_MISSING_WORD_VOWELS = True
-IGNORE_LAST_VOWEL = True
-IGNORE_TANWIN = False
+IGNORE_LAST_VOWEL = True   # ignore last vowel so case endings do not block match
+IGNORE_TANWIN = True       # ignore tanwin so nunation variants still match the same wazn
 
 # Diacritics
 FATHATAN = "\u064B"

@@ -14,6 +14,8 @@ class SentenceType(Enum):
     TAAJJUB    = "تعجب"
     QASAM      = "قسم"
     SHART      = "شرط"
+    TAWKID     = "توكيد"
+    TARAJI     = "ترجي"
     SABABIYYA  = "سببية"
     MADH       = "مدح"
     DHAMM      = "ذم"
@@ -78,7 +80,9 @@ _BARE_ISTIFHAM  = frozenset({"هل","من","ما","ماذا","كيف","أين","
 _BARE_NIDA      = frozenset({"يا","أيا","هيا","وا"})
 _BARE_TAMANNI   = frozenset({"ليت", "ليتما", "ليتني", "ليتنا"})
 _BARE_QASAM     = frozenset({"والله", "بالله", "تالله", "وربي"})
-_BARE_SHART     = frozenset({"إن", "لو", "لولا", "إذا", "مهما", "أينما", "حيثما", "أنى", "وإن"})
+_BARE_SHART     = frozenset({"لو", "لولا", "إذا", "مهما", "أينما", "حيثما", "أنى", "وإن"})
+_BARE_TAWKID    = frozenset({"إن", "إنَّ", "أن", "أنَّ", "إنما", "أنما", "لأن", "كأن", "كأنَّ", "لكن", "لكنَّ"})
+_BARE_TARAJI    = frozenset({"لعل", "لعلَّ", "لعلي", "لعلنا", "لعلك", "لعله", "لعلها", "لعلهم", "عسى"})
 _BARE_SABABIYYA = frozenset({"لأن", "إذ", "حتى", "لأنه", "لأنها", "لأنهم"})
 _BARE_MADH      = frozenset({"نعم","حبذا"})
 _BARE_DHAMM     = frozenset({"بئس","ساء"})
@@ -126,6 +130,10 @@ class SentenceClassifier:
             return ClassificationResult(SentenceType.MADH,     0.95, first)
         if fb in _BARE_DHAMM:
             return ClassificationResult(SentenceType.DHAMM,    0.95, first)
+        if fb in _BARE_TAWKID:
+            return ClassificationResult(SentenceType.TAWKID,  0.92, first)
+        if fb in _BARE_TARAJI:
+            return ClassificationResult(SentenceType.TARAJI,  0.92, first)
         if fb in _BARE_SHART:
             return ClassificationResult(SentenceType.SHART,    0.90, first)
         for t, tb in zip(tokens, all_b):
