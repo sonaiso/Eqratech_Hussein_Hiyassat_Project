@@ -210,12 +210,12 @@ def extract_features(
         if p:
             features["pronoun"] = {"surface": token, "bare": bare, **p}
             features["number"] = p.get("number")
-            features["gender"] = p.get("gender", "unknown")
+            features["gender"] = p.get("gender") or ""
             features["definite"] = None
             features["case"] = None
         else:
             features["number"] = None
-            features["gender"] = "unknown"
+            features["gender"] = ""
             features["definite"] = None
             features["case"] = None
         _apply_mabni_rules(features, mabni_result)
@@ -225,7 +225,7 @@ def extract_features(
     if kind in {WordKind.DEMONSTRATIVE, WordKind.NAME, WordKind.PARTICLE}:
         features["definite"] = _infer_definiteness(bare)
         features["number"] = None
-        features["gender"] = "unknown"
+        features["gender"] = ""
         features["case"] = _detect_case_from_token(token)
         # If a suffix is present and matches a known clitic pronoun, expose it.
         if extraction.suffix:

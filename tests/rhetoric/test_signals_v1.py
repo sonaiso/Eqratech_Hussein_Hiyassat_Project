@@ -129,3 +129,20 @@ def test_negative_no_signals(extractor: RhetoricSignalsExtractor) -> None:
     signals = extractor.extract(tokens, sentence_type="خبرية")
     assert isinstance(signals, list)
     assert len(signals) == 0
+
+
+def test_la_not_lam_tawkid(extractor: RhetoricSignalsExtractor) -> None:
+    """لا is operator (Layer 3); must never be interpreted as lam al-tawkid (emphasis)."""
+    tokens = ["لا", "تذهب"]
+    # Simulate word_analyses: first token is operator (لا)
+    word_analyses = [
+        {"kind": "operator", "operator": {"operator": "لا"}},
+        {"kind": "verb"},
+    ]
+    signals = extractor.extract(tokens, sentence_type="نهي", word_analyses=word_analyses)
+    prohibition = [s for s in signals if s.type == "prohibition"]
+    emphasis = [s for s in signals if s.type == "emphasis"]
+    assert len(prohibition) >= 1
+    # No emphasis signal triggered by "لا" (lam tawkid would be wrong)
+    for s in emphasis:
+        assert s.trigger != "لا"

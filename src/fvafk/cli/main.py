@@ -56,6 +56,8 @@ TAG_TO_ARABIC = {
         "active_participle": "اسم فاعل", "passive_participle": "اسم مفعول",
         "verbal_noun": "مصدر", "broken_plural_fu3alaa": "جمع تكسير", "broken_plural_fu33al": "جمع تكسير",
         "sound_masc_plural": "جمع مذكر سالم", "sound_fem_plural": "جمع مؤنث سالم",
+        "operator": "أداة", "particle": "حرف", "mabni": "مبني",
+        "demonstrative": "إشارة", "name": "اسم علم", "pronoun": "ضمير",
     },
     "case": {
         "nominative": "مرفوع", "accusative": "منصوب", "genitive": "مجرور",
@@ -83,6 +85,21 @@ def _translate_row_tags_to_arabic(row: Dict[str, str]) -> Dict[str, str]:
             continue
         out[key] = mapping.get(val, out[key])
     return out
+
+
+def _type_with_kind_fallback(type_val: str, kind: str) -> str:
+    """If type is empty or 'unknown', use kind-based display type so CSV does not show غير معروف."""
+    if type_val and type_val.strip().lower() != "unknown":
+        return type_val
+    kind_fallback = {
+        "operator": "operator",
+        "particle": "particle",
+        "mabni": "mabni",
+        "demonstrative": "demonstrative",
+        "name": "name",
+        "pronoun": "pronoun",
+    }
+    return kind_fallback.get((kind or "").strip().lower(), "")
 
 
 class MinimalCLI:
@@ -416,12 +433,24 @@ class MinimalCLI:
                     "sentence_type": c2d_result.sentence_type.value,
                     "confidence": round(c2d_result.confidence, 2),
                 }
-                # Rhetoric Signals V1 (on top of sentence type)
+                # Rhetoric Signals V1 (Layer 5: consumes c2b + c2d)
                 try:
                     from engines.rhetoric.extractor import RhetoricSignalsExtractor
                     from dataclasses import asdict
                     rse = RhetoricSignalsExtractor()
-                    rhetoric_signals = rse.extract(tokens, sentence_type=c2d_result.sentence_type.value)
+                    c2b_words = (
+                        result.get("c2b", {}).get("words")
+                        if isinstance(result.get("c2b"), dict)
+                        else None
+                    )
+                    if not isinstance(c2b_words, list):
+                        c2b_words = None
+                    rhetoric_signals = rse.extract(
+                        tokens,
+                        sentence_type=c2d_result.sentence_type.value,
+                        word_analyses=c2b_words,
+                        trigger_word=getattr(c2d_result, "trigger_word", None),
+                    )
                     result["rhetoric_signals"] = [
                         {k: v for k, v in asdict(s).items()}
                         for s in rhetoric_signals
@@ -1357,7 +1386,10 @@ class MinimalCLI:
                 "category": (pat.get("category") if isinstance(pat, dict) else None) or feats.get("category") or "",
                 "is_mabni": "true" if (w.get("kind") == "mabni") else "",
                 "kind": w.get("kind") or "",
-                "type": (pat.get("type") if isinstance(pat, dict) else None) or feats.get("type") or "",
+                "type": _type_with_kind_fallback(
+                    (pat.get("type") if isinstance(pat, dict) else None) or feats.get("type") or "",
+                    w.get("kind") or "",
+                ),
                 "word_wazn": template if template else "",
                 "template": template if template else "",
                 "prefix": aff.get("prefix") or "",
