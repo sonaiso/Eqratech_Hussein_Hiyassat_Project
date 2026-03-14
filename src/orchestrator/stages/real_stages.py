@@ -14,6 +14,24 @@ from typing import Any, Dict, List, Optional
 from ..adapters.fvafk_runner import FVAFK_RESULT_KEY
 from ..builders import build_layer_output, get_previous_output
 from ..gates import compute_gates, gate_entry
+from ..l8b_verb_bab_governance import RealL8BVerbBabGovernance
+
+def _enrich_l4_with_connectives(items: List[Dict[str, Any]]) -> None:
+    """Optionally add connective_group from shared connectives layer (non-invasive)."""
+    try:
+        from ..connectives import classify_connective
+        for item in items:
+            w = item.get("word")
+            if not w:
+                continue
+            c = classify_connective(w)
+            if c:
+                item["connective_group"] = c.get("group")
+                item["connective_hint"] = c.get("category_name") or c.get("group")
+    except Exception:
+        pass
+from ..l10b_deep_syntax import RealL10BDeepSyntax
+from ..l11b_causal_i3rab import RealL11BCausalI3rab
 from ..types import LayerOutputDict, PipelineDict, STAGE_ORDER
 from .base_stage import BaseStage
 from .placeholders import STAGE_NAMES
@@ -145,6 +163,7 @@ class RealL4Operators(BaseStage):
                     "word": w.get("word"), "kind": w.get("kind"),
                     "operator": w.get("operator") if w.get("kind") == "operator" else None,
                 })
+            _enrich_l4_with_connectives(items)
             result = {"words": items, "operator_count": sum(1 for i in items if i.get("operator"))}
             status = "success"
             next_input = {"words": items}
@@ -305,11 +324,11 @@ class RealL9WaznMatching(BaseStage):
     """L9: Wazn matching — from c2b.words (pattern.template, word_wazn). Eligibility: has_root_candidate."""
 
     def __init__(self) -> None:
-        super().__init__("L9_WAZN_MATCHING", STAGE_NAMES["L9_WAZN_MATCHING"], 9)
+        super().__init__("L9_WAZN_MATCHING", STAGE_NAMES["L9_WAZN_MATCHING"], 10)
 
     def run(self, pipeline: PipelineDict) -> LayerOutputDict:
         fvafk = _get_fvafk(pipeline)
-        received = get_previous_output(pipeline, 9)
+        received = get_previous_output(pipeline, 10)
         gates = compute_gates(pipeline)
         gates_applied_list: List[Dict[str, Any]] = [
             gate_entry("has_tokens", gates["has_tokens"]),
@@ -352,11 +371,11 @@ class RealL10Syntax(BaseStage):
     """L10: Syntax — from syntax (word_forms, links.isnadi); may have error."""
 
     def __init__(self) -> None:
-        super().__init__("L10_SYNTAX", STAGE_NAMES["L10_SYNTAX"], 10)
+        super().__init__("L10_SYNTAX", STAGE_NAMES["L10_SYNTAX"], 11)
 
     def run(self, pipeline: PipelineDict) -> LayerOutputDict:
         fvafk = _get_fvafk(pipeline)
-        received = get_previous_output(pipeline, 10)
+        received = get_previous_output(pipeline, 11)
         errors: List[str] = []
         if fvafk:
             syntax = fvafk.get("syntax") or {}
@@ -389,11 +408,11 @@ class RealL11I3rab(BaseStage):
     """L11: i3rab — explicit layer; from c2b.words[].c2e.i3rab_text. Eligibility: has_i3rab_evidence for success."""
 
     def __init__(self) -> None:
-        super().__init__("L11_I3RAB", STAGE_NAMES["L11_I3RAB"], 11)
+        super().__init__("L11_I3RAB", STAGE_NAMES["L11_I3RAB"], 13)
 
     def run(self, pipeline: PipelineDict) -> LayerOutputDict:
         fvafk = _get_fvafk(pipeline)
-        received = get_previous_output(pipeline, 11)
+        received = get_previous_output(pipeline, 13)
         gates = compute_gates(pipeline)
         gates_applied_list: List[Dict[str, Any]] = [
             gate_entry("has_tokens", gates["has_tokens"]),
@@ -411,6 +430,17 @@ class RealL11I3rab(BaseStage):
                     "i3rab_text": i3rab_text,
                     "status": "success" if i3rab_text else "partial",
                 })
+            # Optional: enrich from L10B deep syntax when present (pass-through evidence)
+            lo = pipeline.get("layer_outputs") or {}
+            l10b = lo.get("L10B_DEEP_SYNTAX") or {}
+            tr10b = (l10b.get("transformation_result") or {}).get("dependency_nodes") or []
+            node_by_id = {n.get("token_id"): n for n in tr10b if n.get("token_id") is not None}
+            for tr in token_results:
+                tid = tr.get("token_id")
+                node = node_by_id.get(str(tid)) if tid is not None else None
+                if node and (node.get("head_id") is not None or node.get("relation")):
+                    tr["dependency_head_id"] = node.get("head_id")
+                    tr["dependency_relation"] = node.get("relation")
             result = {"token_results": token_results, "count": len(token_results)}
             has_any = gates["has_i3rab_evidence"] or any(t.get("i3rab_text") for t in token_results)
             status = "success" if has_any else "partial"
@@ -432,11 +462,11 @@ class RealL12SemanticRhetorical(BaseStage):
     """L12: Semantic / rhetorical — from c2d, rhetoric_signals. Eligibility: has_sentence_level_evidence."""
 
     def __init__(self) -> None:
-        super().__init__("L12_SEMANTIC_RHETORICAL", STAGE_NAMES["L12_SEMANTIC_RHETORICAL"], 12)
+        super().__init__("L12_SEMANTIC_RHETORICAL", STAGE_NAMES["L12_SEMANTIC_RHETORICAL"], 15)
 
     def run(self, pipeline: PipelineDict) -> LayerOutputDict:
         fvafk = _get_fvafk(pipeline)
-        received = get_previous_output(pipeline, 12)
+        received = get_previous_output(pipeline, 15)
         gates = compute_gates(pipeline)
         gates_applied_list: List[Dict[str, Any]] = [
             gate_entry("has_tokens", gates["has_tokens"]),
@@ -476,8 +506,11 @@ def get_real_stages_l1_l12() -> List[BaseStage]:
         RealL6Phonology(),
         RealL7Syllabification(),
         RealL8RootExtraction(),
+        RealL8BVerbBabGovernance(),
         RealL9WaznMatching(),
         RealL10Syntax(),
+        RealL10BDeepSyntax(),
         RealL11I3rab(),
+        RealL11BCausalI3rab(),
         RealL12SemanticRhetorical(),
     ]

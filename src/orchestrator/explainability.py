@@ -164,6 +164,108 @@ def extract_evidence_L8(lo: Dict[str, Any]) -> List[Dict[str, Any]]:
     return entries
 
 
+def extract_evidence_L8B(lo: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """L8B verb bab / governance: root type, bab, transitivity, required preposition, special class."""
+    layer = lo.get("L8B_VERB_BAB_GOVERNANCE") or {}
+    tr = layer.get("transformation_result") or {}
+    st = layer.get("status", "missing")
+    entries: List[Dict[str, Any]] = []
+    profiles = tr.get("verb_governance_profiles") or []
+    summary = tr.get("governance_summary") or {}
+    resolved = summary.get("resolved_profiles", 0)
+    candidate = summary.get("candidate_profiles", 0)
+    if st == "skipped":
+        entries.append(explanation_entry(
+            "Verb governance was skipped (no tokens).",
+            "L8B_VERB_BAB_GOVERNANCE",
+            ["status=skipped"],
+            status="skipped",
+        ))
+        return entries
+    excluded = summary.get("excluded_non_verbs", 0)
+    ev = [f"verb_count={summary.get('verb_count', 0)}", f"resolved={resolved}", f"candidate={candidate}"]
+    if excluded is not None and excluded > 0:
+        ev.append(f"excluded_non_verbs={excluded}")
+    claims: List[str] = []
+    for p in profiles[:8]:
+        root_type = p.get("root_type") or "unknown"
+        trans = p.get("transitivity") or "unknown"
+        gov = p.get("governance_family") or "unknown"
+        objs = p.get("objects", 0)
+        preps = p.get("required_prepositions") or []
+        special = p.get("special_class")
+        ev.append(f"{p.get('surface')}: root_type={root_type}, transitivity={trans}, objects={objs}, governance={gov}")
+        if preps:
+            ev.append(f"  required_prepositions={preps}")
+        if special:
+            ev.append(f"  special_class={special}")
+        # Passive voice evidence
+        voice_ev = p.get("voice_evidence") or {}
+        voice = (voice_ev.get("voice") or "").strip()
+        rule = (voice_ev.get("rule") or "").strip()
+        conf = float(voice_ev.get("confidence") or 0)
+        if voice == "passive" and rule and rule != "none":
+            if rule == "sound_trilateral_passive":
+                claims.append("Passive voice detected by rule sound_trilateral_passive.")
+            elif rule == "hollow_passive":
+                claims.append("Hollow passive pattern detected (root middle weak).")
+            elif rule == "defective_passive":
+                claims.append("Defective passive morphology inferred.")
+            elif rule == "derived_passive":
+                claims.append("Derived passive morphology inferred.")
+            else:
+                claims.append(f"Passive voice detected by rule {rule}.")
+        elif voice == "passive" and conf < 0.5:
+            claims.append("Passive voice candidate only — weak vowel evidence.")
+        if p.get("expected_subject_role") == "نائب فاعل":
+            ev.append("  expected_subject_role=نائب فاعل")
+        bab_status = (p.get("bab_status") or "").strip()
+        bab_val = (p.get("bab") or "").strip()
+        tm = p.get("tense_mapping") or {}
+        if bab_status == "resolved" and bab_val != "unknown":
+            claims.append("Bab resolved from lexical bab knowledge base.")
+        elif bab_status == "candidate":
+            claims.append("Bab candidate inferred from surface/root pattern.")
+        elif bab_val == "unknown":
+            claims.append("Bab unresolved; no reliable lexical or pattern evidence.")
+        if (tm.get("present_passive_pattern") or "").strip() and (tm.get("present_passive_pattern") or "").strip() != "unknown":
+            claims.append("Present passive pattern estimated from root type and bab.")
+        vc = (p.get("valency_class") or "").strip()
+        if vc and vc != "unknown":
+            claims.append("Verb valency class inferred from semantic valency seed knowledge.")
+            ev.append(f"  valency_class={vc}, required_roles={p.get('valency_required_roles') or []}")
+        if trans != "unknown" and gov != "unknown":
+            if objs == 0 and "intransitive" in gov:
+                claims.append("Verb governance profile: لازم (intransitive).")
+            elif objs >= 1 and preps:
+                claims.append("Verb governance profile: متعدي requiring preposition.")
+            elif objs == 1:
+                claims.append("Verb governance profile: transitive verb expecting one object.")
+            elif objs == 2 and special == "أفعال القلوب":
+                claims.append("Verb governance profile: mental verb (أفعال القلوب).")
+            elif objs == 2 and special == "أفعال التحويل":
+                claims.append("Verb governance profile: transformational verb (أفعال التحويل).")
+    claim = " ".join(claims[:3]) if claims else "Verb governance profiles from L8B (root type, transitivity, governance family)."
+    limitation_parts: List[str] = []
+    if excluded and excluded > 0:
+        limitation_parts.append("Tokens without strong verb evidence excluded from verb governance (verb-focused gating).")
+    limitation_parts.append("Valency knowledge is seed-level and does not yet cover full Arabic verb semantics.")
+    if resolved == 0 and candidate == 0 and profiles:
+        limitation_parts.append("Bab unknown; governance from lexical knowledge base only.")
+    elif resolved == 0 and not limitation_parts:
+        limitation_parts.append("No resolved verb profiles; candidate or unresolved only.")
+    limitation = " ".join(limitation_parts) if limitation_parts else None
+    entries.append(explanation_entry(
+        claim,
+        "L8B_VERB_BAB_GOVERNANCE",
+        ev[:12],
+        confidence_hint="lexical KB + root type" if resolved else "candidate or unknown",
+        limitation=limitation,
+        status="supported" if resolved else ("limited" if candidate else "absent"),
+    ))
+    return entries
+
+
 def extract_evidence_L9(lo: Dict[str, Any]) -> List[Dict[str, Any]]:
     """L9 wazn matching: template/word_wazn; if skipped, explain gate."""
     layer = lo.get("L9_WAZN_MATCHING") or {}
@@ -234,6 +336,125 @@ def extract_evidence_L10(lo: Dict[str, Any]) -> List[Dict[str, Any]]:
     return entries
 
 
+def extract_evidence_L10B(lo: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """L10B deep syntax: dependency_nodes, dependency_edges, clause_units, attachments."""
+    layer = lo.get("L10B_DEEP_SYNTAX") or {}
+    tr = layer.get("transformation_result") or {}
+    st = layer.get("status", "missing")
+    nodes = tr.get("dependency_nodes") or []
+    edges = tr.get("dependency_edges") or []
+    clause_units = tr.get("clause_units") or []
+    summary = tr.get("syntax_summary") or {}
+    entries: List[Dict[str, Any]] = []
+    resolved = summary.get("resolved_edges", 0)
+    candidate = summary.get("candidate_edges", 0)
+    unresolved = summary.get("unresolved_tokens", len(nodes))
+    main_clause = summary.get("main_clause_type") or "unknown"
+    ev = [
+        f"dependency_nodes={len(nodes)}",
+        f"dependency_edges={len(edges)}",
+        f"resolved_edges={resolved}",
+        f"candidate_edges={candidate}",
+        f"unresolved_tokens={unresolved}",
+        f"main_clause_type={main_clause}",
+        f"clause_units={len(clause_units)}",
+    ]
+    if summary.get("verb_governance_applied"):
+        ev.append(f"governance_alignment_score={summary.get('governance_alignment_score', '—')}")
+        for m in (summary.get("missing_arguments") or [])[:3]:
+            ev.append(f"missing: {m}")
+        for il in (summary.get("illegal_arguments") or [])[:3]:
+            ev.append(f"illegal: {il}")
+        for t in (tr.get("syntax_reasoning_trace") or [])[:5]:
+            ev.append(f"trace: {t}")
+    if summary.get("passive_alignment_used"):
+        ev.append("passive_alignment_used=True")
+    if summary.get("valency_alignment_used"):
+        ev.append("valency_alignment_used=True")
+    naib_edges = [e for e in edges if (e.get("relation") or "").strip() == "naib_fa'il"]
+    if naib_edges:
+        ev.append(f"naib_fa'il_edges={len(naib_edges)}")
+    idafa_suppressed = [e for e in edges if e.get("idafa_suppression")]
+    if idafa_suppressed:
+        ev.append(f"weak_idafa_suppressed={len(idafa_suppressed)}")
+    claims: List[str] = []
+    if resolved > 0:
+        claims.append("Resolved dependency relations from L10 isnadi and rule-based harf_jar/idafa.")
+    if summary.get("passive_alignment_used"):
+        claims.append("Passive frame from L8B used to prioritize نائب فاعل over active فاعل.")
+    if summary.get("valency_alignment_used"):
+        claims.append("Valency/governance expectation used as weak syntactic prior.")
+    if idafa_suppressed:
+        claims.append("Weak idafa candidate suppressed due to stronger verbal/passive structure.")
+    if summary.get("verb_governance_applied"):
+        claims.append("Verb governance rule applied: transitivity alignment.")
+    if clause_units:
+        types = [c.get("type") for c in clause_units if c.get("type")]
+        if types:
+            claims.append(f"Clause units: {', '.join(types)}.")
+    if not edges and not clause_units:
+        claims.append("No dependency edges or clause units produced.")
+    claim = " ".join(claims) if claims else "Deep syntax: dependency nodes and edges from L10 + rules."
+    entries.append(explanation_entry(
+        claim,
+        "L10B_DEEP_SYNTAX",
+        ev,
+        confidence_hint="rule-based dependency from L10/morphology" if resolved > 0 else "candidate only",
+        limitation="Rule-constrained dependency inference with guarded relation generation.",
+        status="supported" if resolved > 0 else "limited",
+    ))
+    return entries
+
+
+def extract_evidence_connectives(lo: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Connectives knowledge: report tokens recognized as conditional/adversative/negation/explanation from shared layer."""
+    entries: List[Dict[str, Any]] = []
+    # Prefer L10B nodes (they carry connective_group from shared layer)
+    layer = lo.get("L10B_DEEP_SYNTAX") or {}
+    tr = layer.get("transformation_result") or {}
+    nodes = tr.get("dependency_nodes") or []
+    by_group: Dict[str, List[str]] = {}
+    for n in nodes:
+        group = (n.get("connective_group") or "").strip()
+        if not group:
+            continue
+        surface = (n.get("surface") or "").strip()
+        if surface and group not in by_group:
+            by_group[group] = []
+        if surface and surface not in (by_group.get(group) or []):
+            by_group.setdefault(group, []).append(surface)
+    # Fallback: L4 words with connective_group
+    if not by_group:
+        l4 = lo.get("L4_OPERATORS") or {}
+        words = (l4.get("transformation_result") or {}).get("words") or []
+        for w in words:
+            group = (w.get("connective_group") or "").strip()
+            if not group:
+                continue
+            surface = (w.get("word") or "").strip()
+            if surface:
+                by_group.setdefault(group, []).append(surface)
+    if not by_group:
+        return entries
+    group_claims = {
+        "conditional": "Conditional connective recognized from shared connectives knowledge.",
+        "negation": "Negation connective used as weak clause-level hint.",
+        "explanation_causation": "Explanatory/causal connective recognized from shared knowledge base.",
+        "adversative": "Adversative connective recognized from connectives layer.",
+    }
+    for group, tokens in by_group.items():
+        claim = group_claims.get(group) or f"Connective group {group} recognized from shared connectives knowledge."
+        ev = [f"group={group}", f"tokens={tokens[:10]}"]
+        entries.append(explanation_entry(
+            claim,
+            "CONNECTIVES_KNOWLEDGE",
+            ev,
+            confidence_hint="lexical match from data/connectives_api",
+            status="supported",
+        ))
+    return entries
+
+
 def extract_evidence_L11(lo: Dict[str, Any]) -> List[Dict[str, Any]]:
     """L11 i3rab: token_results, i3rab_text. Evidence from current c2e payload."""
     layer = lo.get("L11_I3RAB") or {}
@@ -268,6 +489,91 @@ def extract_evidence_L11(lo: Dict[str, Any]) -> List[Dict[str, Any]]:
     return entries
 
 
+def extract_evidence_L11B(lo: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """L11B causal i3rab: structured role, governing factor, case/mood, reasoning. Reports parse_strength impact."""
+    layer = lo.get("L11B_CAUSAL_I3RAB") or {}
+    tr = layer.get("transformation_result") or {}
+    reasoning = tr.get("token_i3rab_reasoning") or []
+    summary = tr.get("i3rab_summary") or {}
+    resolved = summary.get("resolved_tokens", 0)
+    candidate = summary.get("candidate_tokens", 0)
+    unresolved = summary.get("unresolved_tokens", len(reasoning))
+    entries: List[Dict[str, Any]] = []
+    ev = [
+        f"resolved_tokens={resolved}",
+        f"candidate_tokens={candidate}",
+        f"unresolved_tokens={unresolved}",
+    ]
+    for r in reasoning[:5]:
+        if r.get("role") and r.get("role") != "—":
+            ev.append(f"{r.get('surface')}: role={r.get('role')} status={r.get('role_status')} gov={r.get('governing_factor')}")
+    naib_count = sum(1 for r in reasoning if (r.get("role") or "").strip() == "نائب فاعل")
+    if naib_count:
+        ev.append(f"نائب فاعل assigned={naib_count}")
+    weak_idafa_lim = [r for r in reasoning if r.get("limitations") and any("weak idafa suppressed" in (x or "") for x in r.get("limitations", []))]
+    if weak_idafa_lim:
+        ev.append("weak idafa suppressed in role prioritization")
+    # L10B parse_strength: when low, L11B lowers confidence and prefers candidate
+    l10b = lo.get("L10B_DEEP_SYNTAX") or {}
+    sum10b = (l10b.get("transformation_result") or {}).get("syntax_summary") or {}
+    parse_strength = sum10b.get("parse_strength")
+    if parse_strength is not None and float(parse_strength) < 0.35:
+        ev.append("L10B parse_strength < 0.35: confidence reduced, prefer candidate over resolved.")
+        limitation_extra = " Lowered confidence due to shallow deep-syntax parse."
+    else:
+        limitation_extra = ""
+    claims: List[str] = []
+    if resolved > 0:
+        claims.append("Resolved grammatical roles from L10B/L11 and rule-based governing factors.")
+    if naib_count:
+        claims.append("Passive evidence used to assign نائب فاعل where L8B/L10B support it.")
+    if weak_idafa_lim:
+        claims.append("Weak idafa suppressed; نائب فاعل preferred over مضاف إليه when passive evidence exists.")
+    if candidate > 0:
+        claims.append("Candidate roles from nominal/idafa/object heuristics.")
+    if not claims:
+        claims.append("Structured causal i3rab: role and case reasoning from pipeline evidence.")
+    claim = " ".join(claims)
+    limitation = "Rule-constrained; first-scope roles only. No full Arabic i3rab coverage." + limitation_extra
+    entries.append(explanation_entry(
+        claim,
+        "L11B_CAUSAL_I3RAB",
+        ev,
+        confidence_hint="causal i3rab from L10B + L11" if resolved else "candidate or text fallback only",
+        limitation=limitation.strip(),
+        status="supported" if resolved > 0 else "limited",
+    ))
+    return entries
+
+
+def extract_evidence_semantic_roles(lo: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """SEMANTIC_ROLE_PROJECTION: structural semantic projection from L8B/L10B/L11B. Hint only."""
+    proj = lo.get("SEMANTIC_ROLE_PROJECTION") or {}
+    roles = proj.get("semantic_roles") or []
+    coverage = proj.get("projection_coverage") or 0.0
+    entries: List[Dict[str, Any]] = []
+    if not roles:
+        return entries
+    ev = [f"projection_coverage={coverage}", f"assigned_roles={len(roles)}"]
+    for r in roles[:5]:
+        ev.append(f"{r.get('surface')}: {r.get('semantic_role')} ({r.get('source', '')})")
+    claims: List[str] = []
+    patient_from_passive = [x for x in roles if x.get("semantic_role") == "PATIENT" and "passive" in (x.get("source") or "")]
+    if patient_from_passive:
+        claims.append("Semantic role projection: PATIENT inferred from passive syntactic structure.")
+    if not claims:
+        claims.append("Semantic role projection applied from syntactic roles and valency (structural hint only).")
+    entries.append(explanation_entry(
+        " ".join(claims),
+        "SEMANTIC_ROLE_PROJECTION",
+        ev,
+        confidence_hint="structural projection from L8B/L10B/L11B",
+        limitation="Structural semantic projection only; not deep semantics or logical inference.",
+        status="supported" if roles else "limited",
+    ))
+    return entries
+
+
 def extract_evidence_L12(lo: Dict[str, Any]) -> List[Dict[str, Any]]:
     """L12 semantic/rhetorical: sentence_type, rhetoric_signals. Honest about limited depth."""
     layer = lo.get("L12_SEMANTIC_RHETORICAL") or {}
@@ -284,6 +590,79 @@ def extract_evidence_L12(lo: Dict[str, Any]) -> List[Dict[str, Any]]:
         confidence_hint="c2d + rhetoric extractor" if st == "success" else "partial",
         limitation="Rhetoric detection is surface/syntax-assisted; deep semantic rhetoric not implemented.",
         status="supported" if (sentence_type and sentence_type != "—") or rhetoric else "limited",
+    ))
+    return entries
+
+
+def extract_evidence_L12B(lo: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """L12B analogical reasoning: inferences and ambiguity resolutions. supported | limited."""
+    layer = lo.get("L12B_ANALOGICAL_REASONING") or {}
+    tr = layer.get("transformation_result") or {}
+    st = layer.get("status", "missing")
+    inferences = tr.get("analogical_inferences") or []
+    resolutions = tr.get("ambiguity_resolutions") or []
+    summary = tr.get("analogical_summary") or {}
+    total = summary.get("total_inferences", len(inferences))
+    entries: List[Dict[str, Any]] = []
+    ev = [f"total_inferences={total}", f"ambiguity_resolutions={len(resolutions)}"]
+    if inferences:
+        for inf in inferences[:3]:
+            rtype = inf.get("reasoning_type", "")
+            ev.append(f"inference: {rtype} ({inf.get('status', '')})")
+    if st == "skipped":
+        entries.append(explanation_entry(
+            "Analogical reasoning skipped (no tokens or gate).",
+            "L12B_ANALOGICAL_REASONING",
+            ev,
+            status="skipped",
+        ))
+        return entries
+    claim = "Analogical inference: pattern similarity and ambiguity resolution from L5–L12."
+    if total > 0:
+        claim = "Analogical inference: ism fa'il pattern similarity, syntactic role inference, or i3rab analogy."
+    entries.append(explanation_entry(
+        claim,
+        "L12B_ANALOGICAL_REASONING",
+        ev,
+        confidence_hint="analogical similarity" if total else "no inference produced",
+        limitation="Deterministic rules only; no ML or corpus lookup." if total else "No inference applied.",
+        status="supported" if total > 0 else "limited",
+    ))
+    return entries
+
+
+def extract_evidence_L13_cognitive_fusion(lo: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """L13 Cognitive Fusion: dominant source per token, conflict resolved, ambiguity remaining."""
+    layer = lo.get("L13_COGNITIVE_FUSION") or {}
+    tr = layer.get("transformation_result") or {}
+    token_states = tr.get("token_states") or []
+    fusion_mode = tr.get("fusion_mode") or "normal"
+    global_conf = tr.get("global_confidence")
+    entries: List[Dict[str, Any]] = []
+    ev = [f"fusion_mode={fusion_mode}", f"token_states_count={len(token_states)}"]
+    if global_conf is not None:
+        ev.append(f"global_confidence={global_conf}")
+    dominant_sources: List[str] = []
+    for ts in token_states[:5]:
+        stack = ts.get("evidence_stack") or []
+        if stack:
+            top = max(stack, key=lambda x: x.get("weight") or 0)
+            dominant_sources.append(f"{ts.get('token', '')}->{top.get('source', '')}")
+    if dominant_sources:
+        ev.extend(dominant_sources)
+    conflicts = [c for ts in token_states for c in (ts.get("conflicts_resolved") or [])]
+    ambiguities = [a for ts in token_states for a in (ts.get("ambiguities_remaining") or [])]
+    if conflicts:
+        ev.append(f"conflicts_resolved={len(conflicts)}")
+    if ambiguities:
+        ev.append(f"ambiguities_remaining={len(ambiguities)}")
+    entries.append(explanation_entry(
+        "Cognitive fusion: hierarchical evidence arbitration; dominant source per token.",
+        "L13_COGNITIVE_FUSION",
+        ev,
+        confidence_hint="fusion_mode=" + fusion_mode,
+        limitation="Arbitration only; no invention. Syntax depth limits role resolution.",
+        status="supported" if token_states else "limited",
     ))
     return entries
 
@@ -323,9 +702,16 @@ def build_evidence_trace(pipeline: Dict[str, Any]) -> List[Dict[str, Any]]:
     trace.extend(extract_evidence_L5(lo))
     trace.extend(extract_evidence_L6_L7(lo))
     trace.extend(extract_evidence_L8(lo))
+    trace.extend(extract_evidence_L8B(lo))
     trace.extend(extract_evidence_L9(lo))
     trace.extend(extract_evidence_L10(lo))
+    trace.extend(extract_evidence_L10B(lo))
+    trace.extend(extract_evidence_connectives(lo))
     trace.extend(extract_evidence_L11(lo))
+    trace.extend(extract_evidence_L11B(lo))
+    trace.extend(extract_evidence_semantic_roles(lo))
     trace.extend(extract_evidence_L12(lo))
+    trace.extend(extract_evidence_L12B(lo))
+    trace.extend(extract_evidence_L13_cognitive_fusion(lo))
     trace.extend(extract_evidence_L13(lo, fv))
     return trace

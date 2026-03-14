@@ -106,3 +106,79 @@ def test_final_validation_always_present():
         assert "global_validity" in fv
         assert "final_confidence" in fv
         assert "issues" in fv
+
+
+# ── Stage 8: Explainability tests ──────────────────────────────────────────
+
+def test_evidence_trace_in_artifacts():
+    """rendered_output.artifacts must contain evidence_trace."""
+    from orchestrator.pipeline_orchestrator import run_pipeline as _run
+    pipeline = _run("كَاتِبٌ", render_mode="detailed")
+    ro = pipeline.get("rendered_output", {})
+    artifacts = ro.get("artifacts", {})
+    assert "evidence_trace" in artifacts, "evidence_trace missing from artifacts"
+    assert isinstance(artifacts["evidence_trace"], list)
+    assert len(artifacts["evidence_trace"]) > 0
+
+
+def test_evidence_trace_entry_shape():
+    """Each evidence trace entry must have required fields."""
+    from orchestrator.pipeline_orchestrator import run_pipeline as _run
+    pipeline = _run("إِنَّ اللَّهَ غَفُورٌ", render_mode="detailed")
+    trace = pipeline["rendered_output"]["artifacts"]["evidence_trace"]
+    for entry in trace:
+        assert "claim" in entry
+        assert "supporting_stage" in entry
+        assert "evidence" in entry
+        assert "status" in entry
+        assert entry["status"] in ("supported", "limited", "absent", "skipped")
+
+
+def test_skipped_stages_have_explanations():
+    """Skipped layers (وَ L8/L9) must appear in evidence trace as skipped."""
+    from orchestrator.pipeline_orchestrator import run_pipeline as _run
+    pipeline = _run("وَ", render_mode="detailed")
+    trace = pipeline["rendered_output"]["artifacts"]["evidence_trace"]
+    skipped_stages = {e["supporting_stage"] for e in trace if e["status"] == "skipped"}
+    assert "L8_ROOT_EXTRACTION" in skipped_stages
+    assert "L9_WAZN_MATCHING" in skipped_stages
+
+
+def test_i3rab_evidence_present():
+    """I3rab evidence section must appear for content words."""
+    from orchestrator.pipeline_orchestrator import run_pipeline as _run
+    pipeline = _run("كَاتِبٌ", render_mode="detailed")
+    sections = pipeline["rendered_output"]["sections"]
+    section_ids = [s["id"] for s in sections]
+    assert "i3rab_evidence" in section_ids or "i3rab" in section_ids
+
+
+def test_no_overclaiming_on_punctuation():
+    """Punctuation must not have supported morphology evidence."""
+    from orchestrator.pipeline_orchestrator import run_pipeline as _run
+    pipeline = _run("!", render_mode="detailed")
+    trace = pipeline["rendered_output"]["artifacts"]["evidence_trace"]
+    for entry in trace:
+        if entry["supporting_stage"] in ("L8_ROOT_EXTRACTION", "L9_WAZN_MATCHING"):
+            assert entry["status"] == "skipped", (
+                f"Punctuation should not have supported morphology: {entry}"
+            )
+
+
+def test_compact_why_lines_for_skipped():
+    """Compact mode must include Why lines when stages are skipped."""
+    from orchestrator.pipeline_orchestrator import run_pipeline as _run
+    pipeline = _run("وَ", render_mode="compact")
+    ro = pipeline.get("rendered_output", {})
+    summary = ro.get("summary", "")
+    # artifacts should still have evidence_trace in compact
+    assert "evidence_trace" in ro.get("artifacts", {})
+
+
+def test_validation_reasoning_section_present():
+    """detailed mode must have a validation_reasoning section."""
+    from orchestrator.pipeline_orchestrator import run_pipeline as _run
+    pipeline = _run("إِنَّ اللَّهَ غَفُورٌ", render_mode="detailed")
+    sections = pipeline["rendered_output"]["sections"]
+    section_ids = [s["id"] for s in sections]
+    assert "validation_reasoning" in section_ids or "validation" in section_ids

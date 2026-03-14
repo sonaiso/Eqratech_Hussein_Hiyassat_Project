@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import List, Optional
 
+from .l12b_analogical_reasoning import RealL12BAnalogicalReasoning
+from .l13_cognitive_fusion import RealL13CognitiveFusion
 from .l13_validation import RealL13Validation
 from .l14_presentation import RealL14Presentation
 from .stages.base_stage import BaseStage
@@ -20,11 +22,13 @@ from .types import STAGE_ORDER
 def get_default_registry() -> List[BaseStage]:
     """
     Return the list of stages in fixed order. Every stage ID appears exactly once.
-    L0: placeholder. L1–L12: real adapters. L13: real validation. L14: real presentation.
+    L0: placeholder. L1–L12: real adapters. L12B: analogical reasoning. L13: validation. L14: presentation.
     """
     stages: List[BaseStage] = []
     stages.append(make_l0_input_stage())
     stages.extend(get_real_stages_l1_l12())
+    stages.append(RealL12BAnalogicalReasoning())
+    stages.append(RealL13CognitiveFusion())
     stages.append(RealL13Validation())
     stages.append(RealL14Presentation())
     return stages

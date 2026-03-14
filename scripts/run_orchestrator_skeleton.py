@@ -20,6 +20,7 @@ def main() -> int:
     ap.add_argument("--json", action="store_true", help="Output full pipeline as JSON")
     ap.add_argument("--summary", action="store_true", help="Output only layer status summary")
     ap.add_argument("--render", choices=["compact", "detailed", "debug"], metavar="MODE", help="L14 render mode: compact, detailed, or debug")
+    ap.add_argument("--profile", action="store_true", help="Collect per-stage timing and set pipeline['profiling']")
     args = ap.parse_args()
     text = (args.text or "").strip()
     if not text and not sys.stdin.isatty():
@@ -33,7 +34,7 @@ def main() -> int:
     from orchestrator.validation import validate_pipeline_shape
 
     render_mode = args.render if args.render else None
-    pipeline = run(text, source={"entrypoint": "run_orchestrator_skeleton"}, render_mode=render_mode)
+    pipeline = run(text, source={"entrypoint": "run_orchestrator_skeleton"}, render_mode=render_mode, profile=args.profile)
     ok, issues = validate_pipeline_shape(pipeline)
     if not ok:
         print("Validation issues:", issues, file=sys.stderr)

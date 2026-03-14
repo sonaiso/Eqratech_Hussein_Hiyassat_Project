@@ -2,6 +2,8 @@
 """
 Pipeline orchestrator — central entry point.
 
+READ docs/architecture/PIPELINE_MASTER_MEMORY.md BEFORE ANY MAJOR CHANGE.
+
 Accepts raw text, runs stages in order, returns canonical pipeline object.
 Stage 4: runs FVAFK once and uses real adapters for L1–L12.
 """
@@ -9,11 +11,14 @@ Stage 4: runs FVAFK once and uses real adapters for L1–L12.
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any, Dict, List, Optional
 
 from .adapters.fvafk_runner import FVAFK_RESULT_KEY, run_fvafk_once
 from .builders import build_empty_pipeline
 from .errors import PipelineError, StageError
+from .l14_presentation import augment_rendered_output_with_profiling
+from .profiling import build_profiling_summary
 from .stage_registry import get_default_registry
 from .stages.base_stage import BaseStage
 from .types import LayerOutputDict, PipelineDict, STAGE_ORDER
@@ -46,6 +51,7 @@ def run_pipeline(
     metadata: Optional[Dict[str, Any]] = None,
     run_mode: Optional[str] = None,
     render_mode: Optional[str] = None,
+    profile: bool = False,
     stages: Optional[List[BaseStage]] = None,
 ) -> PipelineDict:
     """
@@ -55,6 +61,7 @@ def run_pipeline(
     - request_id, source, metadata: optional pipeline metadata
     - run_mode: optional (e.g. "full", "skeleton"); currently unused, for future use
     - render_mode: optional (compact | detailed | debug); L14 uses this for presentation
+    - profile: if True, collect per-stage timing and set pipeline["profiling"]
     - stages: optional list of stages; if None, uses default registry
     """
     pipeline = build_empty_pipeline(
@@ -76,25 +83,93 @@ def run_pipeline(
         pipeline[FVAFK_RESULT_KEY] = {"success": False, "error": str(e)}  # type: ignore[typeddict-unknown-key]
 
     registry = stages if stages is not None else get_default_registry()
+    profile_records: List[Dict[str, Any]] = []
 
     for stage in registry:
         layer_id = stage.layer_id
+        # Pre-Stage-13 audit: run before L13 Cognitive Fusion, set readiness and fusion mode
+        if layer_id == "L13_COGNITIVE_FUSION":
+            try:
+                from .pre_stage13_audit import PreStage13ReadinessAudit
+                audit = PreStage13ReadinessAudit().run_audit(pipeline)
+                pipeline["pre_stage13_audit"] = audit  # type: ignore[typeddict-unknown-key]
+                if "meta" not in pipeline:
+                    pipeline["meta"] = {}  # type: ignore[typeddict-unknown-key]
+                pipeline["meta"]["fusion_readiness"] = audit["readiness_band"]  # type: ignore[typeddict-unknown-key]
+                if audit["readiness_band"] == "LOW":
+                    pipeline["meta"]["conservative_fusion_mode"] = True  # type: ignore[typeddict-unknown-key]
+            except Exception as e:
+                logger.warning("pre_stage13_audit failed: %s", e, exc_info=True)
+                pipeline["pre_stage13_audit"] = {  # type: ignore[typeddict-unknown-key]
+                    "readiness_score": 0.0,
+                    "readiness_band": "LOW",
+                    "sources": [],
+                    "blocking_issues": ["audit failed"],
+                    "advisory_notes": [],
+                }
+                if "meta" not in pipeline:
+                    pipeline["meta"] = {}  # type: ignore[typeddict-unknown-key]
+                pipeline["meta"]["fusion_readiness"] = "LOW"  # type: ignore[typeddict-unknown-key]
+                pipeline["meta"]["conservative_fusion_mode"] = True  # type: ignore[typeddict-unknown-key]
+        t0 = time.perf_counter() if profile else None
         logger.info("stage_started layer_id=%s layer_name=%s index=%s", layer_id, stage.layer_name, stage.stage_index)
         try:
             layer_output = stage.run(pipeline)
+            t1 = time.perf_counter() if profile else None
             status = layer_output.get("status", "missing")
-            warnings = layer_output.get("warnings") or []
-            errors = layer_output.get("errors") or []
+            warnings_count = len(layer_output.get("warnings") or [])
+            errors_count = len(layer_output.get("errors") or [])
+            if profile and t0 is not None and t1 is not None:
+                profile_records.append({
+                    "layer_id": layer_id,
+                    "elapsed_ms": (t1 - t0) * 1000,
+                    "status": status,
+                    "warnings_count": warnings_count,
+                    "errors_count": errors_count,
+                })
             reused = layer_output.get("reused_module")
             logger.info(
                 "stage_finished layer_id=%s status=%s warnings=%s errors=%s reused=%s",
                 layer_id,
                 status,
-                len(warnings),
-                len(errors),
+                warnings_count,
+                errors_count,
                 reused.get("symbol") if isinstance(reused, dict) else None,
             )
             insert_layer_output(pipeline, layer_id, layer_output)
+            # SEMANTIC_ROLE_PROJECTION: additive enrichment after L11B (read-only from L8B, L10B, L11B)
+            if layer_id == "L11B_CAUSAL_I3RAB":
+                try:
+                    from .semantic_roles import project_semantic_roles
+                    lo = pipeline.get("layer_outputs") or {}
+                    result = project_semantic_roles(lo)
+                    if result is not None:
+                        lo["SEMANTIC_ROLE_PROJECTION"] = result
+                except Exception as e:
+                    logger.debug("semantic_role_projection skipped: %s", e)
+            if layer_id == "L13_COGNITIVE_FUSION":
+                tr = layer_output.get("transformation_result") or {}
+                pipeline["cognitive_fusion"] = {  # type: ignore[typeddict-unknown-key]
+                    "fusion_mode": tr.get("fusion_mode"),
+                    "token_states": tr.get("token_states", []),
+                    "global_confidence": tr.get("global_confidence"),
+                    "tokens_high_confidence": tr.get("tokens_high_confidence", 0),
+                    "tokens_low_confidence": tr.get("tokens_low_confidence", 0),
+                    "unresolved_ambiguities": tr.get("unresolved_ambiguities", 0),
+                }
+                try:
+                    from .post_stage13_audit import PostStage13FusionAudit
+                    pipeline["post_stage13_audit"] = PostStage13FusionAudit().run_audit(pipeline)  # type: ignore[typeddict-unknown-key]
+                except Exception as audit_err:
+                    logger.warning("post_stage13_audit failed: %s", audit_err, exc_info=True)
+                    pipeline["post_stage13_audit"] = {  # type: ignore[typeddict-unknown-key]
+                        "fusion_consistency": "low",
+                        "resolved_conflicts": 0,
+                        "remaining_ambiguities": 0,
+                        "issues": [{"code": "AUDIT_FAILED", "message": str(audit_err), "severity": "error"}],
+                        "advisory_notes": ["Post-fusion audit crashed; result unavailable."],
+                        "source_alignment": {"strong_sources_respected": False, "weak_source_overreach": True},
+                    }
             if layer_id == "L13_VALIDATION":
                 tr = layer_output.get("transformation_result") or {}
                 pipeline["final_validation"] = {  # type: ignore[typeddict-unknown-key]
@@ -112,6 +187,15 @@ def run_pipeline(
                     "artifacts": tr.get("artifacts", {}),
                 }
         except Exception as e:
+            t1 = time.perf_counter() if profile else None
+            if profile and t0 is not None and t1 is not None:
+                profile_records.append({
+                    "layer_id": layer_id,
+                    "elapsed_ms": (t1 - t0) * 1000,
+                    "status": "failed",
+                    "warnings_count": 0,
+                    "errors_count": 1,
+                })
             logger.warning("stage_failed layer_id=%s error=%s", layer_id, e, exc_info=True)
             failed_output: LayerOutputDict = {
                 "layer_id": layer_id,
@@ -122,6 +206,10 @@ def run_pipeline(
                 "received_input": {},
             }
             insert_layer_output(pipeline, layer_id, failed_output)
+
+    if profile and profile_records:
+        pipeline["profiling"] = build_profiling_summary(profile_records)  # type: ignore[typeddict-unknown-key]
+        augment_rendered_output_with_profiling(pipeline)
 
     # Remove internal keys so output matches Stage 2 contract
     pipeline.pop(FVAFK_RESULT_KEY, None)
@@ -137,9 +225,10 @@ def run(
     metadata: Optional[Dict[str, Any]] = None,
     output_mode: Optional[str] = None,
     render_mode: Optional[str] = None,
+    profile: bool = False,
 ) -> PipelineDict:
     """
-    Convenience entry point: run_pipeline with output_mode and render_mode.
+    Convenience entry point: run_pipeline with output_mode, render_mode, and profile.
     """
     return run_pipeline(
         text,
@@ -148,4 +237,5 @@ def run(
         metadata=metadata,
         run_mode=output_mode,
         render_mode=render_mode,
+        profile=profile,
     )

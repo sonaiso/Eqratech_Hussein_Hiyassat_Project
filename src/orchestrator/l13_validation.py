@@ -122,7 +122,7 @@ class RealL13Validation(BaseStage):
     """L13: Validation — cross-layer consistency, issues, global_validity."""
 
     def __init__(self) -> None:
-        super().__init__("L13_VALIDATION", STAGE_NAMES["L13_VALIDATION"], 13)
+        super().__init__("L13_VALIDATION", STAGE_NAMES["L13_VALIDATION"], 18)
 
     def run(self, pipeline: Dict[str, Any]) -> Dict[str, Any]:
         layer_outputs = pipeline.get("layer_outputs") or {}
