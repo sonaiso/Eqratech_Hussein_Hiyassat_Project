@@ -29,16 +29,7 @@ def _normalize(s: str) -> str:
     return "".join(c for c in s if not ("\u064b" <= c <= "\u0652") and c != "\u0670").strip()
 
 
-# Normalized (no diacritics) preposition -> semantic role for Rule 4
-_NORM_PREP_TO_ROLE: Dict[str, str] = {}
-for _prep, _role in [
-    ("الى", ROLE_GOAL), ("إلى", ROLE_GOAL),
-    ("من", ROLE_SOURCE), ("مِن", ROLE_SOURCE),
-    ("في", ROLE_LOCATION), ("فِي", ROLE_LOCATION),
-    ("على", ROLE_LOCATION), ("عَلَى", ROLE_LOCATION),
-    ("ب", ROLE_INSTRUMENT), ("بِ", ROLE_INSTRUMENT),
-]:
-    _NORM_PREP_TO_ROLE[_normalize(_prep) or _prep] = _role
+# PP semantic role uses operator catalog via operators_semantics (no hardcoded prep->role map)
 
 
 def _tokens_from_lo(lo: Dict[str, Any]) -> List[str]:
@@ -153,16 +144,57 @@ def project_semantic_roles(lo: Dict[str, Any]) -> Optional[Dict[str, Any]]:
                     source = "mafoul_bih_valency_projection"
                     break
 
-        # Rule 4 — majrur + preposition دلالي → GOAL/SOURCE/LOCATION/INSTRUMENT
+        # Rule 4 — majrur + operator catalog PP semantics (Rules A–F)
         if not semantic_role and rel == "majrur":
             head_idx = majrur_from.get(i)
             if head_idx is not None and head_idx < len(tokens):
                 prep_surface = (tokens[head_idx] or "").strip()
-                prep_norm = _normalize(prep_surface)
-                semantic_role = _NORM_PREP_TO_ROLE.get(prep_norm) or _NORM_PREP_TO_ROLE.get(prep_surface)
-                if semantic_role:
-                    confidence = CONF_WEAK
-                    source = "majrur_preposition_projection"
+                majrur_norm = _normalize(surface)
+                try:
+                    from ..operators_semantics import get_operator_semantic_hints
+                    hints = get_operator_semantic_hints(prep_surface)
+                except Exception:
+                    hints = None
+                if hints:
+                    preferred = hints.get("preferred_semantic_role")
+                    withhold = hints.get("withhold_location_for") or []
+                    # Rule E: على — do not assign LOCATION by default; abstract object -> GOAL or withhold
+                    if preferred == "GOAL" and "LOCATION" in (hints.get("semantic_functions") or []):
+                        if majrur_norm in withhold or any(majrur_norm == w for w in withhold):
+                            semantic_role = ROLE_GOAL
+                            confidence = CONF_MEDIUM
+                            source = "majrur_preposition_operator_catalog_goal_conservative"
+                        else:
+                            semantic_role = ROLE_GOAL
+                            confidence = CONF_MEDIUM
+                            source = "majrur_preposition_operator_catalog"
+                    elif preferred == "GOAL":
+                        semantic_role = ROLE_GOAL
+                        confidence = CONF_MEDIUM
+                        source = "majrur_preposition_operator_catalog"
+                    elif preferred == "SOURCE":
+                        semantic_role = ROLE_SOURCE
+                        confidence = CONF_MEDIUM
+                        source = "majrur_preposition_operator_catalog"
+                    elif preferred == "LOCATION":
+                        if majrur_norm in withhold or any(majrur_norm == w for w in withhold):
+                            pass  # withhold
+                        else:
+                            semantic_role = ROLE_LOCATION
+                            confidence = CONF_MEDIUM
+                            source = "majrur_preposition_operator_catalog"
+                    elif preferred == "INSTRUMENT":
+                        semantic_role = ROLE_INSTRUMENT
+                        confidence = CONF_WEAK
+                        source = "majrur_preposition_operator_catalog"
+                    elif preferred == "STATE":
+                        semantic_role = ROLE_STATE
+                        confidence = CONF_WEAK
+                        source = "majrur_preposition_operator_catalog"
+                    else:
+                        pass  # Rule F: leave unprojected if no safe role
+                else:
+                    pass  # no operator hint: do not hallucinate
 
         # Rule 5 — حال + motion/transformation hint → STATE (weak)
         if not semantic_role and role == "حال":

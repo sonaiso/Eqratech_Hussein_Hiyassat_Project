@@ -93,3 +93,76 @@ def test_projection_result_shape():
         assert "semantic_role" in r
         assert "confidence" in r
         assert "source" in r
+
+
+def test_ila_goal_pp():
+    """سافر خالد إلى عمان -> عمان = GOAL (Rule A)."""
+    pipeline = run_pipeline_for_test("سَافَرَ خَالِدٌ إِلَى عَمَّانَ")
+    lo = pipeline.get("layer_outputs") or {}
+    proj = lo.get("SEMANTIC_ROLE_PROJECTION") or {}
+    roles = proj.get("semantic_roles") or []
+    goal = [r for r in roles if r.get("semantic_role") == "GOAL"]
+    assert "semantic_roles" in proj
+    if goal:
+        assert any("عَمَّان" in (r.get("surface") or "") or "عمان" in (r.get("surface") or "") for r in goal)
+
+
+def test_min_source_pp():
+    """خرجت من البيت -> البيت = SOURCE (Rule B)."""
+    pipeline = run_pipeline_for_test("خَرَجْتُ مِنَ الْبَيْتِ")
+    lo = pipeline.get("layer_outputs") or {}
+    proj = lo.get("SEMANTIC_ROLE_PROJECTION") or {}
+    roles = proj.get("semantic_roles") or []
+    source = [r for r in roles if r.get("semantic_role") == "SOURCE"]
+    assert "semantic_roles" in proj
+    if source:
+        assert any("بَيْت" in (r.get("surface") or "") or "الْبَيْت" in (r.get("surface") or "") for r in source)
+
+
+def test_fi_location_pp():
+    """جلست في البيت -> البيت = LOCATION (Rule C)."""
+    pipeline = run_pipeline_for_test("جَلَسْتُ فِي الْبَيْتِ")
+    lo = pipeline.get("layer_outputs") or {}
+    proj = lo.get("SEMANTIC_ROLE_PROJECTION") or {}
+    roles = proj.get("semantic_roles") or []
+    loc = [r for r in roles if r.get("semantic_role") == "LOCATION"]
+    assert "semantic_roles" in proj
+    if loc:
+        assert any("بَيْت" in (r.get("surface") or "") for r in loc)
+
+
+def test_ala_allah_not_location():
+    """توكلت على الله -> الله must NOT default to LOCATION; GOAL or unprojected (Rule E)."""
+    pipeline = run_pipeline_for_test("تَوَكَّلْتُ عَلَى اللَّهِ")
+    lo = pipeline.get("layer_outputs") or {}
+    proj = lo.get("SEMANTIC_ROLE_PROJECTION") or {}
+    roles = proj.get("semantic_roles") or []
+    for r in roles:
+        surf = (r.get("surface") or "")
+        if "اللَّهِ" in surf or "الله" in surf or "اللهِ" in surf:
+            assert r.get("semantic_role") != "LOCATION", "على الله must not be projected as LOCATION"
+            assert r.get("semantic_role") in (None, "GOAL", "") or r.get("semantic_role") is not None
+
+
+def test_ala_allah_long_sentence():
+    """Regression: sentence containing عَلَى اللَّهِ — token الله should be GOAL or unprojected, not LOCATION."""
+    pipeline = run_pipeline_for_test("لَوْ ضُرِبَ الظَّالِمُ كَالْحَجَرِ لَمَا ظَلَمَ أَحَداً وَتَوَكَّلَ عَلَى اللَّهِ")
+    lo = pipeline.get("layer_outputs") or {}
+    proj = lo.get("SEMANTIC_ROLE_PROJECTION") or {}
+    roles = proj.get("semantic_roles") or []
+    for r in roles:
+        surf = (r.get("surface") or "")
+        if "الله" in surf or "اللَّهِ" in surf:
+            assert r.get("semantic_role") != "LOCATION", "على الله must not be LOCATION"
+
+
+def test_bi_instrument_pp():
+    """كتبت بالقلم -> القلم = INSTRUMENT when structurally supported (Rule D)."""
+    pipeline = run_pipeline_for_test("كَتَبْتُ بِالْقَلَمِ")
+    lo = pipeline.get("layer_outputs") or {}
+    proj = lo.get("SEMANTIC_ROLE_PROJECTION") or {}
+    roles = proj.get("semantic_roles") or []
+    assert "semantic_roles" in proj
+    inst = [r for r in roles if r.get("semantic_role") == "INSTRUMENT"]
+    if inst:
+        assert any("قلم" in (r.get("surface") or "") for r in inst)

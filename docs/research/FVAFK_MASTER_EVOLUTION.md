@@ -32,7 +32,7 @@ The system remains deterministic and rule-based.
 - Sentence classification (L12), analogical reasoning (L12B).
 - Cognitive fusion (L13), validation (L13_VALIDATION), presentation (L14).
 - Explainability trace; profiling; tests; CI.
-- Additive layers: L8B verb bab governance, valency seed (L8C data), connectives layer, SEMANTIC_ROLE_PROJECTION.
+- Additive layers: L8B verb bab governance, valency seed (L8C data), connectives layer, SEMANTIC_ROLE_PROJECTION, DISCOURSE_FRAME_BUILDER.
 - Tightening: passive-aware wiring, valency-aware syntax, weak idafa suppression.
 
 **Summary:**
@@ -55,6 +55,7 @@ The system remains deterministic and rule-based.
 - Explainability trace pipeline (evidence_trace from L4 through L13 and SEMANTIC_ROLE_PROJECTION).
 - Tightening passes: passive-aware wiring; valency-aware syntax; weak idafa suppression (documented in docs/tightening_pass_passive_valency_idafa.md).
 - Structural semantic role projection (SEMANTIC_ROLE_PROJECTION after L11B; SECTION 4d).
+- Discourse frame builder (DISCOURSE_FRAME_BUILDER after L12B; SECTION 4e; conditional/adversative/explanation vs causation, scope, weak-frame tightening; see docs/discourse_frame_builder.md).
 
 ---
 
@@ -99,6 +100,8 @@ Stage 18 (Semantic Role Engine), Stage 20 (Rhetorical Structures), Stage 22 (Gol
 | Date | Change | Notes |
 |------|--------|------|
 | (Initial) | FVAFK_MASTER_EVOLUTION created | Snapshot and roadmap recorded; evolution log initialised. |
+| 2026-03-15 | discourse frame builder additive layer (conditional/adversative/explanation, scope, weak-frame tightening) (risk: low) | DISCOURSE_FRAME_BUILDER |
+
 
 ---
 

@@ -51,6 +51,12 @@ def test_detailed_mode_includes_i3rab_section():
     assert_has_section(ro, "i3rab")
 
 
+def test_detailed_mode_includes_discourse_frames_section():
+    pipeline = run_pipeline_for_test("كَاتِبٌ", render_mode="detailed")
+    ro = pipeline.get("rendered_output") or {}
+    assert_has_section(ro, "discourse_frames")
+
+
 def test_debug_mode_includes_stage_info():
     pipeline = run_pipeline_for_test("كَاتِبٌ", render_mode="debug")
     ro = pipeline.get("rendered_output") or {}

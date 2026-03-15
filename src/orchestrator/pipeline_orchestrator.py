@@ -147,6 +147,16 @@ def run_pipeline(
                         lo["SEMANTIC_ROLE_PROJECTION"] = result
                 except Exception as e:
                     logger.debug("semantic_role_projection skipped: %s", e)
+            # DISCOURSE_FRAME_BUILDER: additive enrichment after L12B (connectives, L10B clause, L12/L12B)
+            if layer_id == "L12B_ANALOGICAL_REASONING":
+                try:
+                    from .discourse_frame import build_discourse_frames
+                    lo = pipeline.get("layer_outputs") or {}
+                    result = build_discourse_frames(lo)
+                    if result is not None:
+                        lo["DISCOURSE_FRAME_BUILDER"] = result
+                except Exception as e:
+                    logger.debug("discourse_frame_builder skipped: %s", e)
             if layer_id == "L13_COGNITIVE_FUSION":
                 tr = layer_output.get("transformation_result") or {}
                 pipeline["cognitive_fusion"] = {  # type: ignore[typeddict-unknown-key]

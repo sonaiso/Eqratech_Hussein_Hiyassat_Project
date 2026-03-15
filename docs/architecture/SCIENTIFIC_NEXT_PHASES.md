@@ -49,11 +49,11 @@ Organised by scientific hypothesis, required layers, risk, and expected capabili
 | Item | Description |
 |------|-------------|
 | **Scientific hypothesis** | Connectives and clause structure support discourse-level interpretation (condition, cause, contrast). |
-| **Required layers** | Connectives layer (in place); L16 Clause Engine (planned); L12B discourse hints. |
+| **Required layers** | Connectives layer (in place); DISCOURSE_FRAME_BUILDER (in place); L16 Clause Engine (planned); L12B discourse hints. |
 | **Risk analysis** | Medium: clause boundaries and attachment are hard; connectives are hints only. |
-| **Expected emergence** | Clause typing; connective-aware attachment; discourse coherence hints. |
+| **Expected emergence** | Clause typing; connective-aware attachment; discourse coherence hints; SECTION 4e discourse frames. |
 
-*Status: Connectives in place; Clause Engine planned (Stage 16).*
+*Status: Connectives and DISCOURSE_FRAME_BUILDER in place; Clause Engine planned (Stage 16).*
 
 ---
 

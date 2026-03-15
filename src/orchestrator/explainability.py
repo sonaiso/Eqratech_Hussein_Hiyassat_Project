@@ -561,6 +561,18 @@ def extract_evidence_semantic_roles(lo: Dict[str, Any]) -> List[Dict[str, Any]]:
     patient_from_passive = [x for x in roles if x.get("semantic_role") == "PATIENT" and "passive" in (x.get("source") or "")]
     if patient_from_passive:
         claims.append("Semantic role projection: PATIENT inferred from passive syntactic structure.")
+    pp_operator = [x for x in roles if "operator_catalog" in (x.get("source") or "")]
+    if pp_operator:
+        claims.append("Operator semantic hints from enriched operator catalog used for PP role projection.")
+        goal_roles = [x for x in pp_operator if x.get("semantic_role") == "GOAL"]
+        if goal_roles:
+            claims.append("GOAL inferred from preposition (e.g. إلى or على) with governed PP structure.")
+        source_roles = [x for x in pp_operator if x.get("semantic_role") == "SOURCE"]
+        if source_roles:
+            claims.append("SOURCE inferred from preposition من with structural support.")
+        loc_roles = [x for x in pp_operator if x.get("semantic_role") == "LOCATION"]
+        if loc_roles:
+            claims.append("LOCATION inferred conservatively from في.")
     if not claims:
         claims.append("Semantic role projection applied from syntactic roles and valency (structural hint only).")
     entries.append(explanation_entry(
@@ -627,6 +639,54 @@ def extract_evidence_L12B(lo: Dict[str, Any]) -> List[Dict[str, Any]]:
         confidence_hint="analogical similarity" if total else "no inference produced",
         limitation="Deterministic rules only; no ML or corpus lookup." if total else "No inference applied.",
         status="supported" if total > 0 else "limited",
+    ))
+    return entries
+
+
+def extract_evidence_discourse_frames(lo: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """DISCOURSE_FRAME_BUILDER: frames from connectives + L10B clause + L12/L12B. Evidence quality reflected."""
+    df = lo.get("DISCOURSE_FRAME_BUILDER") or {}
+    frames = df.get("frames") or []
+    entries: List[Dict[str, Any]] = []
+    if not frames:
+        return entries
+    ev = [
+        f"frame_count={df.get('frame_count', 0)}",
+        f"strong_frame_count={df.get('strong_frame_count', 0)}",
+        f"weak_frame_count={df.get('weak_frame_count', 0)}",
+    ]
+    for f in frames[:5]:
+        trigger = f.get("trigger", "")
+        ft = f.get("frame_type", "")
+        conf = f.get("confidence", "")
+        scope = f.get("scope_hint", "")
+        lim = f.get("limitation") or ""
+        ev.append(f"{trigger}: {ft} ({conf}, {scope})" + (f" — {lim}" if lim else ""))
+    claims: List[str] = []
+    strong_conditional = [x for x in frames if x.get("frame_type") == "conditional" and x.get("confidence") == "strong"]
+    if strong_conditional:
+        claims.append("Conditional discourse frame supported by connective recognition and clause structure.")
+    weak_conditional = [x for x in frames if x.get("frame_type") == "conditional" and x.get("confidence") == "weak"]
+    if weak_conditional:
+        claims.append("Conditional discourse frame inferred from connective recognition only.")
+    adversative_weak = [x for x in frames if x.get("frame_type") == "adversative" and x.get("confidence") == "weak"]
+    if adversative_weak:
+        claims.append("Adversative discourse frame inferred from connective recognition only.")
+    explanation_frames = [x for x in frames if x.get("frame_type") == "explanation"]
+    if explanation_frames and any(x.get("limitation") for x in explanation_frames):
+        claims.append("Explanation frame kept conservative; causation not fully disambiguated.")
+    suppressed = [x for x in frames if x.get("limitation") and "suppressed" in (x.get("limitation") or "")]
+    if suppressed:
+        claims.append("Weak discourse frame suppressed due to lack of structural support.")
+    if not claims:
+        claims.append("Discourse frames built from connectives and L10B/L12B; token vs clause support reflected.")
+    entries.append(explanation_entry(
+        " ".join(claims),
+        "DISCOURSE_FRAME_BUILDER",
+        ev,
+        confidence_hint="connective + clause/discourse alignment",
+        limitation="Additive layer only; does not override syntax or i'rab.",
+        status="supported" if frames else "limited",
     ))
     return entries
 
@@ -712,6 +772,7 @@ def build_evidence_trace(pipeline: Dict[str, Any]) -> List[Dict[str, Any]]:
     trace.extend(extract_evidence_semantic_roles(lo))
     trace.extend(extract_evidence_L12(lo))
     trace.extend(extract_evidence_L12B(lo))
+    trace.extend(extract_evidence_discourse_frames(lo))
     trace.extend(extract_evidence_L13_cognitive_fusion(lo))
     trace.extend(extract_evidence_L13(lo, fv))
     return trace

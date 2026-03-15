@@ -83,6 +83,10 @@ def _render_compact(pipeline: Dict[str, Any]) -> Dict[str, Any]:
     causal_res = sum11b.get("resolved_tokens")
     causal_cand = sum11b.get("candidate_tokens")
     causal_i3rab_line = f"\nStructured i3rab reasoning: {causal_res} resolved / {causal_cand} candidate" if (causal_res is not None or causal_cand is not None) else ""
+    df_compact = (pipeline.get("layer_outputs") or {}).get("DISCOURSE_FRAME_BUILDER") or {}
+    frames_compact = df_compact.get("frames") or []
+    strong_medium_types = list(dict.fromkeys(f.get("frame_type") for f in frames_compact if f.get("confidence") in ("strong", "medium")))
+    discourse_frames_line = f"\nDiscourse frames (strong/medium): {strong_medium_types}" if strong_medium_types else ""
     perf_line = ""
     if pipeline.get("profiling"):
         total_ms = (pipeline["profiling"] or {}).get("total_time_ms")
@@ -101,6 +105,7 @@ def _render_compact(pipeline: Dict[str, Any]) -> Dict[str, Any]:
         + deep_syntax_line
         + verb_governance_line
         + causal_i3rab_line
+        + discourse_frames_line
         + ("\n" + "\n".join(why_lines) if why_lines else "")
         + perf_line
     )
@@ -315,6 +320,28 @@ def _render_detailed(pipeline: Dict[str, Any]) -> Dict[str, Any]:
             sem_lines.append(f"  {surf} | {syn_role} | — | —")
     sections.append(_section("semantic_roles", "SECTION 4d — SEMANTIC ROLES", "\n".join(sem_lines)))
 
+    # 7d. SECTION 4e — DISCOURSE FRAMES
+    df = lo.get("DISCOURSE_FRAME_BUILDER") or {}
+    frames_4e = df.get("frames") or []
+    frame_lines_4e = [
+        f"frame_count: {df.get('frame_count', 0)}",
+        f"strong_frame_count: {df.get('strong_frame_count', 0)}",
+        f"weak_frame_count: {df.get('weak_frame_count', 0)}",
+        f"frame_types: {df.get('frame_types', [])}",
+        f"coverage_hint: {df.get('coverage_hint', '—')}",
+        "trigger | frame_type | scope_hint | confidence | limitation",
+    ]
+    for f in frames_4e:
+        trigger = f.get("trigger") or "—"
+        ft = f.get("frame_type") or "—"
+        scope = f.get("scope_hint") or "—"
+        conf = f.get("confidence") or "—"
+        lim = f.get("limitation") or "—"
+        frame_lines_4e.append(f"  {trigger} | {ft} | {scope} | {conf} | {lim}")
+    if not frames_4e:
+        frame_lines_4e.append("  (no discourse frames)")
+    sections.append(_section("discourse_frames", "SECTION 4e — DISCOURSE FRAMES", "\n".join(frame_lines_4e)))
+
     # 8. Semantic / Rhetorical
     L12 = lo.get("L12_SEMANTIC_RHETORICAL") or {}
     tr12 = L12.get("transformation_result") or {}
@@ -491,6 +518,9 @@ def _render_debug(pipeline: Dict[str, Any]) -> Dict[str, Any]:
     summary_12b = tr12b.get("analogical_summary") or {}
     lines.append("")
     lines.append(f"L12B_ANALOGICAL_REASONING: inferences={summary_12b.get('total_inferences', 0)}, resolutions={len(tr12b.get('ambiguity_resolutions') or [])}")
+    df_debug = lo.get("DISCOURSE_FRAME_BUILDER") or {}
+    lines.append("")
+    lines.append(f"DISCOURSE_FRAME_BUILDER: frame_count={df_debug.get('frame_count')} strong_frame_count={df_debug.get('strong_frame_count')} weak_frame_count={df_debug.get('weak_frame_count')} frame_types={df_debug.get('frame_types')} coverage_hint={df_debug.get('coverage_hint')}")
 
     # L13 Cognitive Fusion
     cf = pipeline.get("cognitive_fusion") or {}
