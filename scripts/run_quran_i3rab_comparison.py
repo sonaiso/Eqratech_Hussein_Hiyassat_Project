@@ -107,9 +107,12 @@ def _alignment_debug_row(
 
     surf = ""
     tnorm = ""
+    reason_out = alignment_reason
     if rr is not None:
         surf = rr.ayah_token_surface or ""
         tnorm = rr.ayah_token_normalized or ""
+        seg = getattr(rr, "segmentation_reason", "") or ""
+        reason_out = (seg or rr.reason or alignment_reason).strip()
     return {
         "row_index": row_index,
         "surah": row.surah,
@@ -121,7 +124,7 @@ def _alignment_debug_row(
         "ayah_token_surface": surf,
         "ayah_token_normalized": tnorm,
         "alignment_status": alignment_status,
-        "alignment_reason": alignment_reason,
+        "alignment_reason": reason_out,
         "occurrence_rank_gold": str(occ_rg),
         "occurrence_rank_ayah": str(occ_ra),
         "comparator_decision": comparator_decision,
@@ -145,6 +148,8 @@ def _default_paths(root: Path) -> Dict[str, Path]:
         "progress": root / "data" / "quran_i3rab_progress.json",
         "summary": root / "data" / "quran_i3rab_run_summary.json",
         "align_debug": root / "data" / "quran_i3rab_alignment_debug.csv",
+        "ayah_audit": root / "data" / "quran_i3rab_ayah_audit.csv",
+        "ayah_token_debug": root / "data" / "quran_i3rab_ayah_token_debug.csv",
     }
 
 
@@ -161,6 +166,8 @@ def run() -> int:
     ap.add_argument("--progress", type=Path, default=defaults["progress"])
     ap.add_argument("--summary", type=Path, default=defaults["summary"])
     ap.add_argument("--alignment-debug", type=Path, default=defaults["align_debug"])
+    ap.add_argument("--ayah-audit", type=Path, default=defaults["ayah_audit"])
+    ap.add_argument("--ayah-token-debug", type=Path, default=defaults["ayah_token_debug"])
     ap.add_argument("--limit", type=int, default=None, help="Max gold rows to process this run")
     ap.add_argument("--resume", action="store_true", help="Continue after last_row_index in progress file")
     ap.add_argument("--dry-run", action="store_true", help="Do not write output CSVs / progress")
@@ -179,6 +186,13 @@ def run() -> int:
     from orchestrator.quran_gold.alignment import (
         AlignmentOutcome,
         align_gold_words_to_pipeline_tokens,
+    )
+    from orchestrator.quran_gold.segmentation_audit import (
+        AyahAuditRow,
+        build_token_inventory_rows,
+        summarize_ayah_reason,
+        write_ayah_audit_csv,
+        write_ayah_token_debug_csv,
     )
     from orchestrator.quran_gold.analyzer_extract import extract_snapshots, get_token_surfaces
     from orchestrator.quran_gold.ayah_loader import default_quran_text_path, get_ayah_text, load_ayah_text_index
@@ -235,6 +249,8 @@ def run() -> int:
     alignment_debug_rows: List[Dict[str, Any]] = []
     new_erqa: List[Dict[str, Any]] = []
     wrong_rows: List[Dict[str, Any]] = []
+    ayah_audit_rows: List[AyahAuditRow] = []
+    ayah_token_debug_accum: List[Dict[str, Any]] = []
 
     erqa_fields = (
         "surah",
@@ -290,6 +306,29 @@ def run() -> int:
         if not ayah_text:
             rows_alignment_attempts += len(gidxs)
             alignment_missing_in_ayah_count += len(gidxs)
+            ayah_audit_rows.append(
+                AyahAuditRow(
+                    surah=surah,
+                    ayah=ayah,
+                    gold_row_count=len(gold_words),
+                    pipeline_token_count=0,
+                    aligned_count=0,
+                    missing_count=len(gold_words),
+                    ambiguous_count=0,
+                    token_counts_differ=len(gold_words) != 0,
+                    order_drift=False,
+                    reason_summary="missing_ayah_text",
+                )
+            )
+            if gold_words:
+                by_wi2: Dict[int, int] = {}
+                for gix, r0 in indexed:
+                    if r0.surah == surah and r0.ayah == ayah:
+                        by_wi2[int(r0.index_in_ayah)] = gix
+                ggi = [by_wi2.get(i) for i in range(len(gold_words))]
+                ayah_token_debug_accum.extend(
+                    build_token_inventory_rows(surah, ayah, gold_words, ggi, [])
+                )
             for gi in gidxs:
                 last_row_done = max(last_row_done, gi)
                 row = indexed[gi][1]
@@ -316,6 +355,55 @@ def run() -> int:
         token_surfaces = get_token_surfaces(pipeline)
         snapshots = extract_snapshots(pipeline)
         rich_align = align_gold_words_to_pipeline_tokens(gold_words, token_surfaces)
+
+        gold_row_count = len(gold_words)
+        pipeline_token_count = len(token_surfaces)
+        aligned_ct = sum(
+            1
+            for r in rich_align
+            if r.outcome
+            in (AlignmentOutcome.ALIGNED_UNIQUE, AlignmentOutcome.ALIGNED_BY_OCCURRENCE)
+        )
+        missing_ct = sum(1 for r in rich_align if r.outcome == AlignmentOutcome.ALIGNMENT_MISSING_IN_AYAH)
+        amb_ct = sum(
+            1
+            for r in rich_align
+            if r.outcome
+            in (
+                AlignmentOutcome.ALIGNMENT_AMBIGUOUS,
+                AlignmentOutcome.ALIGNMENT_PREFIX_CONFLICT,
+                AlignmentOutcome.ALIGNMENT_ORDER_CONFLICT,
+            )
+        )
+        token_counts_differ = gold_row_count != pipeline_token_count
+        order_drift = any(r.outcome == AlignmentOutcome.ALIGNMENT_ORDER_CONFLICT for r in rich_align)
+        reason_summary = summarize_ayah_reason(token_counts_differ, order_drift, missing_ct, amb_ct)
+        seg_tags = sorted({r.segmentation_reason for r in rich_align if r.segmentation_reason})
+        if seg_tags:
+            reason_summary = f"{reason_summary}|tags={','.join(seg_tags[:8])}"
+        ayah_audit_rows.append(
+            AyahAuditRow(
+                surah=surah,
+                ayah=ayah,
+                gold_row_count=gold_row_count,
+                pipeline_token_count=pipeline_token_count,
+                aligned_count=aligned_ct,
+                missing_count=missing_ct,
+                ambiguous_count=amb_ct,
+                token_counts_differ=token_counts_differ,
+                order_drift=order_drift,
+                reason_summary=reason_summary,
+            )
+        )
+        if aligned_ct < gold_row_count or missing_ct or amb_ct:
+            by_wi: Dict[int, int] = {}
+            for gix, r0 in indexed:
+                if r0.surah == surah and r0.ayah == ayah:
+                    by_wi[int(r0.index_in_ayah)] = gix
+            gold_global_indices: List[Optional[int]] = [by_wi.get(i) for i in range(gold_row_count)]
+            ayah_token_debug_accum.extend(
+                build_token_inventory_rows(surah, ayah, gold_words, gold_global_indices, token_surfaces)
+            )
 
         for gi in gidxs:
             last_row_done = max(last_row_done, gi)
@@ -379,6 +467,7 @@ def run() -> int:
             rows_aligned += 1
             tok_i = rr.token_index
             assert tok_i is not None
+            # If pipeline_span==2 (split/merge recovery), use the first token's snapshot only.
             snap = snapshots[tok_i] if tok_i < len(snapshots) else None
             dec = compare_token_conservative(row.i3rab, snap)
 
@@ -455,6 +544,32 @@ def run() -> int:
         (confirmed_wrong_count / rows_aligned) if rows_aligned > 0 else 0.0
     )
 
+    ayahs_touched = len(ayah_audit_rows)
+    ayahs_with_any_alignment_failure = sum(
+        1 for a in ayah_audit_rows if a.aligned_count < a.gold_row_count
+    )
+    ayahs_with_token_count_mismatch = sum(1 for a in ayah_audit_rows if a.token_counts_differ)
+    ayahs_fully_aligned = sum(
+        1
+        for a in ayah_audit_rows
+        if a.aligned_count == a.gold_row_count and a.missing_count == 0 and a.ambiguous_count == 0
+    )
+    ranked_problems = sorted(
+        ayah_audit_rows,
+        key=lambda a: (a.gold_row_count - a.aligned_count, a.missing_count + a.ambiguous_count),
+        reverse=True,
+    )
+    top_5_problem_ayahs = [
+        {
+            "surah": a.surah,
+            "ayah": a.ayah,
+            "failure_words": a.gold_row_count - a.aligned_count,
+            "token_counts_differ": a.token_counts_differ,
+            "reason_summary": a.reason_summary,
+        }
+        for a in ranked_problems[:5]
+    ]
+
     summary: Dict[str, Any] = {
         "rows_inspected": rows_aligned,
         "rows_aligned": rows_aligned,
@@ -477,6 +592,11 @@ def run() -> int:
         "stop_reason": stop_reason,
         "last_row_index": last_row_done,
         "dry_run": args.dry_run,
+        "ayahs_touched": ayahs_touched,
+        "ayahs_with_any_alignment_failure": ayahs_with_any_alignment_failure,
+        "ayahs_with_token_count_mismatch": ayahs_with_token_count_mismatch,
+        "ayahs_fully_aligned": ayahs_fully_aligned,
+        "top_5_problem_ayahs": top_5_problem_ayahs,
     }
 
     print(json.dumps(summary, ensure_ascii=False, indent=2))
@@ -497,6 +617,10 @@ def run() -> int:
     if args.dry_run:
         args.alignment_debug.resolve().parent.mkdir(parents=True, exist_ok=True)
         _write_alignment_debug(args.alignment_debug.resolve(), alignment_debug_rows)
+        args.ayah_audit.resolve().parent.mkdir(parents=True, exist_ok=True)
+        write_ayah_audit_csv(str(args.ayah_audit.resolve()), ayah_audit_rows)
+        args.ayah_token_debug.resolve().parent.mkdir(parents=True, exist_ok=True)
+        write_ayah_token_debug_csv(str(args.ayah_token_debug.resolve()), ayah_token_debug_accum)
         args.summary.resolve().parent.mkdir(parents=True, exist_ok=True)
         args.summary.write_text(json.dumps({**summary, "written": False}, ensure_ascii=False, indent=2), encoding="utf-8")
         return 0

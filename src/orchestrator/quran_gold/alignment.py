@@ -83,8 +83,14 @@ def strip_match_noise(s: str) -> str:
     """Tatweel + Quranic ornaments + superscript alif (U+0670) for Uthmani vs CSV."""
     t = normalize_arabic_surface(s)
     t = t.replace("\u0640", "")
+    # Uthmani يَٰ… vs CSV يَا… (must not apply to مَٰن in ٱلرَّحْمَٰنِ — only after yaa)
+    t = t.replace("\u064a\u064e\u0670", "\u064a\u064e\u0627")
+    # ءَا (hamza+fatha+alif) vs آ (alef madda) — common Quran typography split
+    t = t.replace("\u0621\u064e\u0627", "\u0622")
     t = t.replace("\u0670", "")  # ٰ — often present in Uthmani, absent in gold CSV
-    for ch in "\u06DB\u06DA\u06D6\u06D7\u06D8\u06DE\u06E9":
+    # Medial hamza on yaa (ئ) vs hamza alone (ء) — gold CSV vs Uthmani shadda/hamza placement
+    t = t.replace("\u0626", "\u0621")
+    for ch in "\u06DB\u06DA\u06D6\u06D7\u06D8\u06DE\u06E9\u06DF\u06E7\u06E8":
         t = t.replace(ch, "")
     if t.endswith("\u0629"):
         t = t[:-1] + "\u0647"
@@ -122,6 +128,11 @@ def match_gold_to_token_surfaces(
         rs = strip_match_noise(rest)
         if rs == gs:
             return True, "token_prefix_stripped", g, t
+        rest2 = _strip_one_leading_prefix_token_norm(rest)
+        if rest2 is not None:
+            rs2 = strip_match_noise(rest2)
+            if rs2 == gs:
+                return True, SEG_CLITIC, g, t
     grest = _strip_one_leading_prefix_token_norm(g)
     if grest is not None:
         grs = strip_match_noise(grest)
@@ -132,9 +143,30 @@ def match_gold_to_token_surfaces(
     return False, "none", g, t
 
 
+def _skeleton_match(gold_raw: str, token_raw: str) -> bool:
+    gs = strip_match_noise(gold_raw)
+    ts = strip_match_noise(token_raw)
+    return bool(gs and ts and strip_weak_diacritics(gs) == strip_weak_diacritics(ts))
+
+
+def _any_forward_skeleton_match(gold_raw: str, token_surfaces: Sequence[str], cursor: int) -> bool:
+    for j in range(cursor, len(token_surfaces)):
+        if _skeleton_match(gold_raw, token_surfaces[j]):
+            return True
+    return False
+
+
 def _gold_occurrence_index(gold_words_norm: List[str], gi: int) -> int:
     gk = gold_words_norm[gi]
     return sum(1 for j in range(gi) if gold_words_norm[j] == gk)
+
+
+# Segmentation / diagnostic reason tags (string values for CSV / debug)
+SEG_NO_FORWARD = "no_forward_match"
+SEG_TOKEN_COUNT_MISMATCH = "token_count_mismatch_in_ayah"
+SEG_SPLIT_MERGE = "likely_split_merge_mismatch"
+SEG_CLITIC = "likely_clitic_boundary_mismatch"
+SEG_ORTHOGRAPHY = "likely_orthography_variant"
 
 
 @dataclass(frozen=True)
@@ -150,6 +182,8 @@ class RichAlignmentResult:
     occurrence_rank_gold: int
     occurrence_rank_ayah: int
     match_detail: str
+    pipeline_span: int = 1
+    segmentation_reason: str = ""
 
 
 @dataclass(frozen=True)
@@ -174,6 +208,7 @@ def align_gold_words_to_pipeline_tokens(
     """
     n_g = len(gold_words)
     n_t = len(token_surfaces)
+    count_mismatch = n_g != n_t
     gold_norm = [normalize_arabic_surface(g) for g in gold_words]
     results: List[RichAlignmentResult] = []
     cursor = 0
@@ -195,6 +230,8 @@ def align_gold_words_to_pipeline_tokens(
                     occurrence_rank_gold=0,
                     occurrence_rank_ayah=0,
                     match_detail="empty",
+                    pipeline_span=1,
+                    segmentation_reason="",
                 )
             )
             continue
@@ -209,6 +246,36 @@ def align_gold_words_to_pipeline_tokens(
                 continue
             candidates.append((j, detail, g2, t2, token_surfaces[j]))
 
+        # Recovery: one gold word spans two pipeline tokens (concatenated orthography)
+        merged_pair = False
+        if not candidates and cursor < n_t - 1:
+            for j in range(cursor, n_t - 1):
+                pair = token_surfaces[j] + token_surfaces[j + 1]
+                ok, detail, g2, t2 = match_gold_to_token_surfaces(gold_raw, pair)
+                if ok:
+                    cursor = j + 2
+                    results.append(
+                        RichAlignmentResult(
+                            gold_index=gi,
+                            token_index=j,
+                            outcome=AlignmentOutcome.ALIGNED_BY_OCCURRENCE,
+                            reason=SEG_SPLIT_MERGE,
+                            gold_word_raw=gold_raw,
+                            gold_word_normalized=g2,
+                            ayah_token_surface=pair,
+                            ayah_token_normalized=t2,
+                            occurrence_rank_gold=occ_g,
+                            occurrence_rank_ayah=occ_g,
+                            match_detail=detail,
+                            pipeline_span=2,
+                            segmentation_reason=SEG_SPLIT_MERGE,
+                        )
+                    )
+                    merged_pair = True
+                    break
+        if merged_pair:
+            continue
+
         # Order conflict: matches exist only before cursor
         if not candidates:
             any_before = False
@@ -222,12 +289,19 @@ def align_gold_words_to_pipeline_tokens(
                 if any_before
                 else AlignmentOutcome.ALIGNMENT_MISSING_IN_AYAH
             )
+            seg_fail = SEG_NO_FORWARD
+            if count_mismatch:
+                seg_fail = SEG_TOKEN_COUNT_MISMATCH
+            elif any_before:
+                seg_fail = "match_only_before_cursor"
+            elif _any_forward_skeleton_match(gold_raw, token_surfaces, cursor):
+                seg_fail = SEG_ORTHOGRAPHY
             results.append(
                 RichAlignmentResult(
                     gold_index=gi,
                     token_index=None,
                     outcome=oc,
-                    reason="no_forward_match" if not any_before else "match_only_before_cursor",
+                    reason=seg_fail,
                     gold_word_raw=gold_raw,
                     gold_word_normalized=gn,
                     ayah_token_surface="",
@@ -235,6 +309,8 @@ def align_gold_words_to_pipeline_tokens(
                     occurrence_rank_gold=occ_g,
                     occurrence_rank_ayah=0,
                     match_detail="none",
+                    pipeline_span=1,
+                    segmentation_reason=seg_fail,
                 )
             )
             continue
@@ -257,6 +333,7 @@ def align_gold_words_to_pipeline_tokens(
             outc = AlignmentOutcome.ALIGNED_BY_OCCURRENCE
 
         cursor = j_pick + 1
+        seg_tag = detail if detail in (SEG_CLITIC, SEG_ORTHOGRAPHY) else ""
         results.append(
             RichAlignmentResult(
                 gold_index=gi,
@@ -270,6 +347,8 @@ def align_gold_words_to_pipeline_tokens(
                 occurrence_rank_gold=occ_g,
                 occurrence_rank_ayah=occ_rank_ayah,
                 match_detail=detail,
+                pipeline_span=1,
+                segmentation_reason=seg_tag,
             )
         )
 
