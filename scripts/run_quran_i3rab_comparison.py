@@ -73,14 +73,68 @@ def _write_wrong(path: Path, rows: List[Dict[str, Any]], fieldnames: Tuple[str, 
             w.writerow(r)
 
 
+ALIGNMENT_DEBUG_FIELDS = (
+    "row_index",
+    "surah",
+    "ayah",
+    "gold_word",
+    "gold_word_normalized",
+    "ayah_text",
+    "ayah_token_index",
+    "ayah_token_surface",
+    "ayah_token_normalized",
+    "alignment_status",
+    "alignment_reason",
+    "occurrence_rank_gold",
+    "occurrence_rank_ayah",
+    "comparator_decision",
+)
+
+
+def _alignment_debug_row(
+    row_index: int,
+    row: Any,
+    ayah_text: str,
+    token_index: Optional[int],
+    rr: Optional[Any],
+    alignment_status: str,
+    alignment_reason: str,
+    occ_rg: int,
+    occ_ra: int,
+    comparator_decision: str,
+) -> Dict[str, Any]:
+    from orchestrator.quran_gold.alignment import normalize_arabic_surface
+
+    surf = ""
+    tnorm = ""
+    if rr is not None:
+        surf = rr.ayah_token_surface or ""
+        tnorm = rr.ayah_token_normalized or ""
+    return {
+        "row_index": row_index,
+        "surah": row.surah,
+        "ayah": row.ayah,
+        "gold_word": row.word,
+        "gold_word_normalized": normalize_arabic_surface(row.word),
+        "ayah_text": ayah_text,
+        "ayah_token_index": "" if token_index is None else str(token_index),
+        "ayah_token_surface": surf,
+        "ayah_token_normalized": tnorm,
+        "alignment_status": alignment_status,
+        "alignment_reason": alignment_reason,
+        "occurrence_rank_gold": str(occ_rg),
+        "occurrence_rank_ayah": str(occ_ra),
+        "comparator_decision": comparator_decision,
+    }
+
+
 def _write_alignment_debug(path: Path, rows: List[Dict[str, Any]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    fn = ("surah", "ayah", "ayah_word_index", "gold_word", "reason", "token_surfaces_head")
     with open(path, "w", newline="", encoding="utf-8-sig") as f:
-        w = csv.DictWriter(f, fieldnames=list(fn))
+        w = csv.DictWriter(f, fieldnames=list(ALIGNMENT_DEBUG_FIELDS))
         w.writeheader()
         for r in rows:
-            w.writerow({k: r.get(k, "") for k in fn})
+            w.writerow({k: r.get(k, "") for k in ALIGNMENT_DEBUG_FIELDS})
 
 
 def _default_paths(root: Path) -> Dict[str, Path]:
@@ -123,8 +177,8 @@ def run() -> int:
 
     from orchestrator import run_pipeline
     from orchestrator.quran_gold.alignment import (
-        AlignmentStatus,
-        align_gold_words_to_tokens,
+        AlignmentOutcome,
+        align_gold_words_to_pipeline_tokens,
     )
     from orchestrator.quran_gold.analyzer_extract import extract_snapshots, get_token_surfaces
     from orchestrator.quran_gold.ayah_loader import default_quran_text_path, get_ayah_text, load_ayah_text_index
@@ -170,9 +224,14 @@ def run() -> int:
     # Stats (alignment_coverage = rows_aligned / rows_alignment_attempts)
     rows_alignment_attempts = 0
     rows_aligned = 0
-    rows_alignment_ambiguous = 0
+    aligned_unique_count = 0
+    aligned_by_occurrence_count = 0
+    alignment_missing_in_ayah_count = 0
+    alignment_prefix_conflict_count = 0
+    alignment_order_conflict_count = 0
     rows_matched = 0
     rows_wrong = 0
+    confirmed_wrong_count = 0
     alignment_debug_rows: List[Dict[str, Any]] = []
     new_erqa: List[Dict[str, Any]] = []
     wrong_rows: List[Dict[str, Any]] = []
@@ -202,12 +261,6 @@ def run() -> int:
         "ayah_word_index",
     )
 
-    # Build set of ayahs needed
-    needed_ayahs: Set[Tuple[int, int]] = set()
-    for gi in to_process:
-        row = indexed[gi][1]
-        needed_ayahs.add((row.surah, row.ayah))
-
     # Pre-group global indices by ayah for iteration
     by_ayah: DefaultDict[Tuple[int, int], List[int]] = defaultdict(list)
     for gi in to_process:
@@ -236,19 +289,23 @@ def run() -> int:
 
         if not ayah_text:
             rows_alignment_attempts += len(gidxs)
-            rows_alignment_ambiguous += len(gidxs)
+            alignment_missing_in_ayah_count += len(gidxs)
             for gi in gidxs:
                 last_row_done = max(last_row_done, gi)
                 row = indexed[gi][1]
                 alignment_debug_rows.append(
-                    {
-                        "surah": surah,
-                        "ayah": ayah,
-                        "ayah_word_index": row.index_in_ayah,
-                        "gold_word": row.word,
-                        "reason": "missing_ayah_text",
-                        "token_surfaces_head": "",
-                    }
+                    _alignment_debug_row(
+                        gi,
+                        row,
+                        "",
+                        None,
+                        None,
+                        AlignmentOutcome.ALIGNMENT_MISSING_IN_AYAH.value,
+                        "missing_ayah_text",
+                        row.index_in_ayah,
+                        0,
+                        "skipped_alignment",
+                    )
                 )
             continue
 
@@ -258,48 +315,92 @@ def run() -> int:
         )
         token_surfaces = get_token_surfaces(pipeline)
         snapshots = extract_snapshots(pipeline)
-        align_results, _aln_line, _amb_line = align_gold_words_to_tokens(gold_words, token_surfaces)
-        head_surfaces = " | ".join(token_surfaces[:12])
+        rich_align = align_gold_words_to_pipeline_tokens(gold_words, token_surfaces)
 
         for gi in gidxs:
             last_row_done = max(last_row_done, gi)
             row = indexed[gi][1]
             pos = row.index_in_ayah
             rows_alignment_attempts += 1
-            if pos < 0 or pos >= len(align_results):
-                rows_alignment_ambiguous += 1
+            if pos < 0 or pos >= len(rich_align):
                 alignment_debug_rows.append(
-                    {
-                        "surah": surah,
-                        "ayah": ayah,
-                        "ayah_word_index": pos,
-                        "gold_word": row.word,
-                        "reason": "index_out_of_range",
-                        "token_surfaces_head": head_surfaces,
-                    }
+                    _alignment_debug_row(
+                        gi,
+                        row,
+                        ayah_text,
+                        None,
+                        None,
+                        AlignmentOutcome.ALIGNMENT_MISSING_IN_AYAH.value,
+                        "index_out_of_range",
+                        row.index_in_ayah,
+                        0,
+                        "skipped_alignment",
+                    )
                 )
+                alignment_missing_in_ayah_count += 1
                 continue
 
-            ar = align_results[pos]
-            if ar.status != AlignmentStatus.ALIGNED:
-                rows_alignment_ambiguous += 1
+            rr = rich_align[pos]
+            if rr.outcome == AlignmentOutcome.ALIGNED_UNIQUE:
+                aligned_unique_count += 1
+            elif rr.outcome == AlignmentOutcome.ALIGNED_BY_OCCURRENCE:
+                aligned_by_occurrence_count += 1
+            elif rr.outcome == AlignmentOutcome.ALIGNMENT_AMBIGUOUS:
+                pass
+            elif rr.outcome == AlignmentOutcome.ALIGNMENT_MISSING_IN_AYAH:
+                alignment_missing_in_ayah_count += 1
+            elif rr.outcome == AlignmentOutcome.ALIGNMENT_PREFIX_CONFLICT:
+                alignment_prefix_conflict_count += 1
+            elif rr.outcome == AlignmentOutcome.ALIGNMENT_ORDER_CONFLICT:
+                alignment_order_conflict_count += 1
+
+            confirmed = rr.outcome in (
+                AlignmentOutcome.ALIGNED_UNIQUE,
+                AlignmentOutcome.ALIGNED_BY_OCCURRENCE,
+            )
+
+            if not confirmed:
                 alignment_debug_rows.append(
-                    {
-                        "surah": surah,
-                        "ayah": ayah,
-                        "ayah_word_index": pos,
-                        "gold_word": row.word,
-                        "reason": ar.reason,
-                        "token_surfaces_head": head_surfaces,
-                    }
+                    _alignment_debug_row(
+                        gi,
+                        row,
+                        ayah_text,
+                        rr.token_index,
+                        rr,
+                        rr.outcome.value,
+                        rr.reason,
+                        rr.occurrence_rank_gold,
+                        rr.occurrence_rank_ayah,
+                        "skipped_alignment",
+                    )
                 )
                 continue
 
             rows_aligned += 1
-            tok_i = ar.token_index
+            tok_i = rr.token_index
             assert tok_i is not None
             snap = snapshots[tok_i] if tok_i < len(snapshots) else None
             dec = compare_token_conservative(row.i3rab, snap)
+
+            comp_dec = "diagnostic_partial" if dec.level in (
+                MatchLevel.STRUCTURED_CASE_MARKER,
+                MatchLevel.PARTIAL_SEMANTIC,
+            ) else ("match" if erqa_eligible(dec) else "mismatch")
+
+            alignment_debug_rows.append(
+                _alignment_debug_row(
+                    gi,
+                    row,
+                    ayah_text,
+                    tok_i,
+                    rr,
+                    rr.outcome.value,
+                    rr.reason,
+                    rr.occurrence_rank_gold,
+                    rr.occurrence_rank_ayah,
+                    comp_dec,
+                )
+            )
 
             if erqa_eligible(dec):
                 rows_matched += 1
@@ -320,9 +421,9 @@ def run() -> int:
                         }
                     )
             elif dec.level in (MatchLevel.STRUCTURED_CASE_MARKER, MatchLevel.PARTIAL_SEMANTIC):
-                # Diagnostic only — not wrong, not erqa
                 pass
             else:
+                confirmed_wrong_count += 1
                 rows_wrong += 1
                 wrong_rows.append(
                     {
@@ -332,7 +433,7 @@ def run() -> int:
                         "gold_i3rab": row.i3rab,
                         "system_i3rab": dec.system_i3rab_display,
                         "mismatch_reason": dec.notes,
-                        "alignment_status": "aligned",
+                        "alignment_status": rr.outcome.value,
                         "analyzer_source": dec.analyzer_source,
                         "notes": dec.level.value,
                         "ayah_word_index": row.index_in_ayah,
@@ -345,18 +446,30 @@ def run() -> int:
             break
 
     # Coverage / rates
+    rows_alignment_ambiguous = rows_alignment_attempts - rows_aligned
     alignment_coverage = (
         (rows_aligned / rows_alignment_attempts) if rows_alignment_attempts > 0 else 1.0
     )
     match_rate = (rows_matched / rows_aligned) if rows_aligned > 0 else 0.0
+    confirmed_wrong_rate = (
+        (confirmed_wrong_count / rows_aligned) if rows_aligned > 0 else 0.0
+    )
 
     summary: Dict[str, Any] = {
         "rows_inspected": rows_aligned,
         "rows_aligned": rows_aligned,
         "rows_alignment_ambiguous": rows_alignment_ambiguous,
         "rows_alignment_attempts": rows_alignment_attempts,
+        "aligned_unique_count": aligned_unique_count,
+        "aligned_by_occurrence_count": aligned_by_occurrence_count,
+        "alignment_missing_in_ayah_count": alignment_missing_in_ayah_count,
+        "alignment_prefix_conflict_count": alignment_prefix_conflict_count,
+        "alignment_order_conflict_count": alignment_order_conflict_count,
         "rows_matched": rows_matched,
         "rows_wrong": rows_wrong,
+        "confirmed_wrong_count": confirmed_wrong_count,
+        "confirmed_wrong_rate": round(confirmed_wrong_rate, 4),
+        "confirmed_wrong_rate_percent": round(confirmed_wrong_rate * 100, 2),
         "alignment_coverage": round(alignment_coverage, 4),
         "alignment_coverage_percent": round(alignment_coverage * 100, 2),
         "match_rate": round(match_rate, 4),
@@ -382,6 +495,8 @@ def run() -> int:
         return 3
 
     if args.dry_run:
+        args.alignment_debug.resolve().parent.mkdir(parents=True, exist_ok=True)
+        _write_alignment_debug(args.alignment_debug.resolve(), alignment_debug_rows)
         args.summary.resolve().parent.mkdir(parents=True, exist_ok=True)
         args.summary.write_text(json.dumps({**summary, "written": False}, ensure_ascii=False, indent=2), encoding="utf-8")
         return 0

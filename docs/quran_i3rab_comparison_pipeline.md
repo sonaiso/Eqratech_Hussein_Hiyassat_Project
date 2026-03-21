@@ -21,9 +21,14 @@ Full ayah strings are loaded from `data/quran-uthmani.txt` (line format: `surah|
 
 ## Alignment policy
 
-- Gold words are aligned to pipeline token surfaces in order using **normalized** Arabic orthography (`normalize_arabic_surface` in `alignment.py`).
-- If multiple forward candidates share the same surface, the position is **`alignment_ambiguous`**: it is logged to `data/quran_i3rab_alignment_debug.csv` and **does not** increment `wrong_i3rab.csv` or the `--max-wrong-rows` counter.
-- Zero candidates → ambiguous / debug, not counted as a confirmed mismatch.
+Implemented in `orchestrator/quran_gold/alignment.py`:
+
+- **Monotonic forward** greedy match: at each gold word, take the **first** pipeline token index `j ≥ cursor` that matches.
+- **Surfaces**: NFC, ٱ→ا, tatweel removal, Quranic pause marks, **superscript alif (U+0670)** (Uthmani vs CSV), optional **ta marbuta → ha** at word end, then optional **consonant skeleton** (strip Arabic diacritics 064B–065F) as a last resort before declaring missing.
+- **Prefixes**: one leading و / ف / ل / ب / ك may be stripped from **token** or **gold** (conservative).
+- **Outcomes** per row: `aligned_unique`, `aligned_by_occurrence`, `alignment_ambiguous`, `alignment_missing_in_ayah`, `alignment_prefix_conflict`, `alignment_order_conflict`.
+- **Confirmed wrong** (comparator mismatch) is recorded only when alignment is `aligned_unique` or `aligned_by_occurrence`.
+- Rows that fail alignment are logged to `data/quran_i3rab_alignment_debug.csv` with `comparator_decision=skipped_alignment` and **do not** count toward `--max-wrong-rows`.
 
 ## Matching levels (conservative)
 
