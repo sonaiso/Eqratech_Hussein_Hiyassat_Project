@@ -214,7 +214,7 @@ class RealL13CognitiveFusion(BaseStage):
         super().__init__(
             "L13_COGNITIVE_FUSION",
             STAGE_NAMES["L13_COGNITIVE_FUSION"],
-            17,
+            22,
         )
 
     def run(self, pipeline: PipelineDict) -> LayerOutputDict:

@@ -142,16 +142,34 @@ class MyNewGate(BaseGate):
 
 ---
 
+## Documentation (required on major changes)
+
+**For contributors and AI agents:** Any **major update** to the codebase (new stage, new additive layer, pipeline/orchestrator change, tightening pass, or change affecting architecture/roadmap) **must** be reflected in these three files in the same task:
+
+| File | When to update |
+|------|----------------|
+| `docs/architecture/PIPELINE_MASTER_MEMORY.md` | Architecture, stages, additive layers, integration points; add a row to Section 8 Change Log |
+| `docs/research/FVAFK_MASTER_EVOLUTION.md` | Engineering state, achievements, planned stages table, roadmap; add a row to Section F Engine Evolution Log |
+| `docs/architecture/SCIENTIFIC_NEXT_PHASES.md` | Phase status (e.g. planned → implemented), phase descriptions |
+
+- **Do not** consider the task complete until these docs are updated (or you explicitly report "not updated" with reason).
+- Full rules and the required post-task report format are in **PIPELINE_MASTER_MEMORY.md Section 7** (Agent Operating Rules).
+- Project rule file: **`.cursorrules`** (Cursor will use this to enforce doc updates on major changes).
+
+---
+
 ## Submitting a Pull Request
 
 1. Create a feature branch: `git checkout -b feat/my-feature`
 2. Make your changes with focused commits
 3. Ensure all tests pass: `pytest -q`
-4. Push and open a PR against `main`
-5. Fill in the PR template describing:
+4. If the change is major (see Documentation above), update the three doc files and include the doc-update check in your PR description
+5. Push and open a PR against `main`
+6. Fill in the PR template describing:
    - What changed and why
    - Which tests cover the change
    - Any breaking changes
+   - Documentation update check (if applicable)
 
 ---
 

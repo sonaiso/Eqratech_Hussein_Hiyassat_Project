@@ -55,6 +55,28 @@ def _minimal_lo_conditional_with_clause_support():
     }
 
 
+def _minimal_lo_inna_noise():
+    """Noisy upstream conditional hint on إنَّ must not yield a conditional frame."""
+    return {
+        "L10B_DEEP_SYNTAX": {
+            "transformation_result": {
+                "syntax_summary": {"main_clause_type": "nominal"},
+                "clause_units": [],
+                "dependency_nodes": [
+                    {"surface": "إِنَّ", "connective_group": "conditional"},
+                ],
+            },
+        },
+        "L12B_ANALOGICAL_REASONING": {
+            "transformation_result": {
+                "analogical_inferences": [
+                    {"token": "إِنَّ", "reasoning_type": "discourse", "connective_group": "conditional"},
+                ],
+            },
+        },
+    }
+
+
 def _minimal_lo_adversative_token_only():
     """Adversative from L10B node only; no L12B discourse support."""
     return {
@@ -170,6 +192,16 @@ def test_conditional_with_clause_support_strong():
     f = frames[0]
     assert f.get("confidence") == CONF_STRONG
     assert f.get("scope_hint") in ("clause-level", "sentence-level")
+
+
+def test_inna_noise_does_not_emit_conditional_frame():
+    """إِنَّ must not emit a conditional discourse frame even if noisy metadata says conditional."""
+    from orchestrator.discourse_frame import build_discourse_frames
+
+    lo = _minimal_lo_inna_noise()
+    out = build_discourse_frames(lo)
+    assert out is not None
+    assert out.get("frame_count", 0) == 0
 
 
 def test_adversative_token_only_not_strong():

@@ -14,7 +14,7 @@ def test_l11b_in_stage_order():
     assert "L11B_CAUSAL_I3RAB" in STAGE_ORDER
     idx = STAGE_ORDER.index("L11B_CAUSAL_I3RAB")
     assert STAGE_ORDER[idx - 1] == "L11_I3RAB"
-    assert STAGE_ORDER[idx + 1] == "L12_SEMANTIC_RHETORICAL"
+    assert STAGE_ORDER[idx + 1] == "L17_RULE_BASED_I3RAB"
 
 
 def test_output_shape_valid():

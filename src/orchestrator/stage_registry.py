@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-Stage registry — all 15 fixed stages in deterministic order.
+Stage registry — fixed deterministic pipeline order.
 
-Stage 4: L1–L12 real adapters. Stage 6: L13 real validation. L0, L14 placeholder.
+L1–L12 real adapters also include L14_JAMID_MUSHTAQ and L13_VERB_TRANSFORMATION
+before L12_GENDER_NUMBER. L13 cognitive fusion / validation and L14 presentation
+remain separate real stages.
 """
 
 from __future__ import annotations
@@ -22,7 +24,8 @@ from .types import STAGE_ORDER
 def get_default_registry() -> List[BaseStage]:
     """
     Return the list of stages in fixed order. Every stage ID appears exactly once.
-    L0: placeholder. L1–L12: real adapters. L12B: analogical reasoning. L13: validation. L14: presentation.
+    L0: placeholder. Morphology/syntax/i'rab stages use real adapters. L12B:
+    analogical reasoning. L13: cognitive fusion + validation. L14: presentation.
     """
     stages: List[BaseStage] = []
     stages.append(make_l0_input_stage())

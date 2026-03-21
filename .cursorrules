@@ -1,0 +1,31 @@
+# FVAFK Project Rules
+
+## Documentation update (MANDATORY on major changes)
+
+**When you make any major update** (new stage, new additive layer, pipeline/orchestrator change, new integration point, tightening pass, validation/confidence change, or any change that affects architecture, scientific status, or roadmap), you **MUST**:
+
+1. **Update these three files in the same task** (do not leave for later):
+   - `docs/architecture/PIPELINE_MASTER_MEMORY.md` — Section 4/5 if architecture changed; Section 8 Change Log with a new row
+   - `docs/research/FVAFK_MASTER_EVOLUTION.md` — Section B/C/D if state/achievements/plan changed; Section F Engine Evolution Log with a new row
+   - `docs/architecture/SCIENTIFIC_NEXT_PHASES.md` — Phase descriptions and status if phase/roadmap changed
+
+2. **At the end of your response**, include the required report block (from PIPELINE_MASTER_MEMORY Section 7):
+
+   ```
+   Documentation update check:
+   - PIPELINE_MASTER_MEMORY.md: updated / not updated
+   - FVAFK_MASTER_EVOLUTION.md: updated / not updated
+   - SCIENTIFIC_NEXT_PHASES.md: updated / not updated
+   - update_architecture_log.py executed: yes / no (if applicable)
+   - if any document was not updated, explain why
+   ```
+
+3. **Self-audit:** Compare code reality to the three docs; if you find divergence (e.g. docs say "planned" but code implements it), update the docs in the same task. Report:
+   - code reality reviewed against each of the three docs: yes/no
+   - divergence detected: yes/no; if yes, what and action taken
+
+**Definition of "major update":** New or removed stage/layer, changed STAGE_ORDER or additive layers, new loader/helper that changes architecture, feature moving from planned→implemented, significant tightening of L8B/L10B/L11B/L15/L16, validation/confidence logic change, or any change that would make the three doc files outdated if not updated.
+
+**Task completion:** A task that includes a major update is **INCOMPLETE** until the three docs are updated (or explicitly reported as "not updated" with a reason) and the documentation check block is present in your final report.
+
+Read the full rules in `docs/architecture/PIPELINE_MASTER_MEMORY.md` Section 7 (Agent Operating Rules) before doing architectural or pipeline work.

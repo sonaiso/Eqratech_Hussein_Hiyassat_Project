@@ -28,10 +28,14 @@ STAGE_NAMES: Dict[str, str] = {
     "L8_ROOT_EXTRACTION": "Root hypothesis extraction",
     "L8B_VERB_BAB_GOVERNANCE": "Verb bab / governance profile",
     "L9_WAZN_MATCHING": "Wazn matching",
+    "L14_JAMID_MUSHTAQ": "Jamid vs Mushtaq (derivational classification)",
+    "L13_VERB_TRANSFORMATION": "Verb transformation engine",
+    "L12_GENDER_NUMBER": "Gender & Number",
     "L10_SYNTAX": "Syntax / sentence relations",
     "L10B_DEEP_SYNTAX": "Deep dependency syntax",
     "L11_I3RAB": "i3rab",
     "L11B_CAUSAL_I3RAB": "Causal i3rab reasoning",
+    "L17_RULE_BASED_I3RAB": "Rule-based iʿrāb reasoner",
     "L12_SEMANTIC_RHETORICAL": "Semantic / rhetorical",
     "L12B_ANALOGICAL_REASONING": "Analogical reasoning",
     "L13_COGNITIVE_FUSION": "Cognitive fusion",
@@ -95,7 +99,7 @@ def make_l11_i3rab_placeholder() -> BaseStage:
     """L11: i3rab — explicit independent layer; placeholder until adapter."""
     return PlaceholderStage(
         "L11_I3RAB",
-        11,
+        17,
         status_default="missing",
         note="L11 i3rab placeholder; adapter not connected.",
     )

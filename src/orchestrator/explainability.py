@@ -643,6 +643,43 @@ def extract_evidence_L12B(lo: Dict[str, Any]) -> List[Dict[str, Any]]:
     return entries
 
 
+def extract_evidence_dependency_syntax(lo: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """DEPENDENCY_SYNTAX_BUILDER: additive layer after L10B; dependency_links, root_resolution, ambiguity_log, candidate_markers."""
+    ds = lo.get("DEPENDENCY_SYNTAX_BUILDER") or {}
+    entries: List[Dict[str, Any]] = []
+    if not ds:
+        return entries
+    links = ds.get("dependency_links") or []
+    root_res = ds.get("root_resolution") or {}
+    amb_log = ds.get("ambiguity_log") or []
+    cand_mark = ds.get("candidate_markers") or []
+    coverage = ds.get("coverage") or "—"
+    ev = [
+        f"coverage={coverage}",
+        f"dependency_links={len(links)}",
+        f"root_id={root_res.get('root_id')} root_form={root_res.get('root_form')}",
+        f"ambiguity_log={len(amb_log)}",
+        f"candidate_markers={len(cand_mark)}",
+    ]
+    if links:
+        for L in links[:5]:
+            ev.append(f"  {L.get('head_id')}→{L.get('dependent_id')} {L.get('relation')}")
+    claim = "Dependency syntax builder (Stage 15): explicit dependency graph from L10B; root in root_resolution; canonical head→dependent directions."
+    if amb_log:
+        claim += " Ambiguities logged with ranked candidates (no silent collapse)."
+    if cand_mark:
+        claim += f" Candidate markers (TAMYIZ_CAND/HAL_CAND): {len(cand_mark)} passed to Stage 16."
+    entries.append(explanation_entry(
+        claim,
+        "DEPENDENCY_SYNTAX_BUILDER",
+        ev,
+        confidence_hint="additive layer after L10B; does not mutate L10B",
+        limitation="Quality depends on L10B/L8B upstream; clause-first and root priority applied (Pass E).",
+        status="supported" if links or root_res.get("root_id") is not None else "limited",
+    ))
+    return entries
+
+
 def extract_evidence_discourse_frames(lo: Dict[str, Any]) -> List[Dict[str, Any]]:
     """DISCOURSE_FRAME_BUILDER: frames from connectives + L10B clause + L12/L12B. Evidence quality reflected."""
     df = lo.get("DISCOURSE_FRAME_BUILDER") or {}
@@ -689,6 +726,33 @@ def extract_evidence_discourse_frames(lo: Dict[str, Any]) -> List[Dict[str, Any]
         status="supported" if frames else "limited",
     ))
     return entries
+
+
+def extract_evidence_L13_verb_transformation(lo: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """L13 verb transformation: generated paradigm from L8B tense_mapping + root."""
+    layer = lo.get("L13_VERB_TRANSFORMATION") or {}
+    tr = layer.get("transformation_result") or {}
+    rows = tr.get("verb_transformations") or []
+    summary = tr.get("transformation_summary") or {}
+    ev = [
+        f"total_verbs={summary.get('total_verbs', len(rows))}",
+        f"fully_transformed={summary.get('fully_transformed', 0)}",
+        f"partially_transformed={summary.get('partially_transformed', 0)}",
+    ]
+    for row in rows[:5]:
+        ev.append(
+            f"{row.get('surface', '—')}: past={row.get('base_past_active') or '—'} "
+            f"present={row.get('base_present_active') or '—'} masdar={row.get('masdar') or '—'} "
+            f"imperative={row.get('imperative') or '—'}"
+        )
+    return [explanation_entry(
+        "Verb transformation engine generated conservative base paradigms from L8B tense mapping and root evidence.",
+        "L13_VERB_TRANSFORMATION",
+        ev,
+        confidence_hint="resolved bab/root yields stronger paradigm coverage",
+        limitation="Pass 1 only; quadrilateral and weak-root handling remains conservative.",
+        status="supported" if rows else "limited",
+    )]
 
 
 def extract_evidence_L13_cognitive_fusion(lo: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -766,6 +830,7 @@ def build_evidence_trace(pipeline: Dict[str, Any]) -> List[Dict[str, Any]]:
     trace.extend(extract_evidence_L9(lo))
     trace.extend(extract_evidence_L10(lo))
     trace.extend(extract_evidence_L10B(lo))
+    trace.extend(extract_evidence_dependency_syntax(lo))
     trace.extend(extract_evidence_connectives(lo))
     trace.extend(extract_evidence_L11(lo))
     trace.extend(extract_evidence_L11B(lo))
@@ -773,6 +838,7 @@ def build_evidence_trace(pipeline: Dict[str, Any]) -> List[Dict[str, Any]]:
     trace.extend(extract_evidence_L12(lo))
     trace.extend(extract_evidence_L12B(lo))
     trace.extend(extract_evidence_discourse_frames(lo))
+    trace.extend(extract_evidence_L13_verb_transformation(lo))
     trace.extend(extract_evidence_L13_cognitive_fusion(lo))
     trace.extend(extract_evidence_L13(lo, fv))
     return trace

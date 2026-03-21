@@ -45,12 +45,13 @@ def test_profiling_slowest_stage_id_is_valid():
     assert slowest is None or slowest in REQUIRED_STAGE_IDS
 
 
-def test_profiling_stage_count_is_20():
+def test_profiling_stage_count_matches_stage_order():
     from orchestrator import run
+    from orchestrator.types import STAGE_ORDER
     p = run("وَ", profile=True)
     pf = p.get("profiling")
     assert pf is not None
-    assert pf.get("stage_count") == 20
+    assert pf.get("stage_count") == len(STAGE_ORDER)
 
 
 def test_rendered_output_can_include_performance_section():

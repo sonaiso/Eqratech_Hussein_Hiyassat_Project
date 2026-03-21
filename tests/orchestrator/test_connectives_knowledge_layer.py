@@ -109,7 +109,7 @@ def test_lookup_diacritic_insensitive():
 
 def test_group_classification_conditional():
     """Conditional group: لو، إن، إذا (if present in selected files)."""
-    for token in ["لَو", "لو", "إِنْ", "إن", "إِذَا", "اذا"]:
+    for token in ["لَو", "لو", "إِنْ", "إِذَا", "اذا"]:
         c = get_connective_by_token(token)
         if c is not None and c.get("group") == GROUP_CONDITIONAL:
             assert is_conditional_connective(token)
@@ -162,6 +162,13 @@ def test_classify_connective_returns_none_for_unknown():
     """Unknown token returns None."""
     assert classify_connective("") is None
     assert classify_connective("xyz_nonexistent_word") is None
+
+
+def test_inna_and_anna_not_conditional():
+    """إِنَّ / أَنَّ and ambiguous bare إن/أن should not be treated as conditional connectives."""
+    for token in ["إِنَّ", "إن", "أَنَّ", "أن", "ان"]:
+        assert classify_connective(token) is None
+        assert is_conditional_connective(token) is False
 
 
 def test_l10b_consumes_connective_hints():

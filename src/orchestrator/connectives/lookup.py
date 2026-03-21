@@ -32,6 +32,27 @@ def _normalize(s: str) -> str:
     return "".join(result).strip()
 
 
+def _is_explicit_conditional_in(token: str) -> bool:
+    """True only for explicitly conditional إِنْ/انْ forms."""
+    t = (token or "").strip()
+    norm = _normalize(t)
+    return ("ْ" in t) and norm in ("إن", "ان")
+
+
+def _is_nonconditional_inna_like(token: str) -> bool:
+    """
+    Block conditional lookup for إِنَّ / أَنَّ and ambiguous undiacritized إن/أن/ان.
+    Conservative policy: when ambiguous, prefer non-conditional.
+    """
+    t = (token or "").strip()
+    if not t:
+        return False
+    if _is_explicit_conditional_in(t):
+        return False
+    norm = _normalize(t)
+    return norm in ("إن", "أن", "ان")
+
+
 def _ensure_loaded() -> None:
     global _connectives_cache, _normalized_index
     if _connectives_cache is not None:
@@ -61,12 +82,20 @@ def get_connective_by_token(token: str) -> Optional[Dict[str, Any]]:
     """Return normalized connective entry for token, or None. Diacritic-insensitive."""
     if not token:
         return None
+    if _is_nonconditional_inna_like(token):
+        return None
     _ensure_loaded()
     t = (token or "").strip()
     if t in (_normalized_index or {}):
-        return (_normalized_index or {}).get(t)
+        entry = (_normalized_index or {}).get(t)
+        if entry and entry.get("group") == GROUP_CONDITIONAL and _is_nonconditional_inna_like(token):
+            return None
+        return entry
     norm = _normalize(t)
-    return (_normalized_index or {}).get(norm) if norm else None
+    entry = (_normalized_index or {}).get(norm) if norm else None
+    if entry and entry.get("group") == GROUP_CONDITIONAL and _is_nonconditional_inna_like(token):
+        return None
+    return entry
 
 
 def get_connectives_by_group(group: str) -> List[Dict[str, Any]]:

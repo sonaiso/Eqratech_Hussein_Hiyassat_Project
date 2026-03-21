@@ -129,6 +129,91 @@ def _is_finite_verb_wazn(template: str) -> bool:
     return False
 
 
+def _is_verb_at(
+    token_index: int,
+    tokens: List[str],
+    l8b_profiles: Dict[int, Dict[str, Any]],
+    words5: List[Dict],
+    words9: List[Dict],
+) -> bool:
+    """True if token at index is a verb: L8B profile, L5 kind==verb, or wazn verb pattern (Patch C)."""
+    if l8b_profiles.get(token_index):
+        return True
+    if token_index >= len(tokens):
+        return False
+    surface = (tokens[token_index] or "").strip()
+    w5 = next((x for x in words5 if (x.get("word") or "").strip() == surface), None)
+    if w5 and (w5.get("kind") or "").strip().lower() in ("verb", "فعل"):
+        return True
+    w9 = next((x for x in words9 if (x.get("word") or "").strip() == surface), None)
+    if w9:
+        tpl = (w9.get("template") or w9.get("word_wazn") or "").strip()
+        if _is_finite_verb_wazn(tpl):
+            return True
+    return False
+
+
+def _first_non_particle_token(tokens: List[str], op_words: List[Dict]) -> Optional[int]:
+    """First token index that is not an operator/particle (Patch C)."""
+    for i in range(len(tokens)):
+        surface = (tokens[i] or "").strip()
+        if not surface:
+            continue
+        if _is_operator_token(surface, op_words):
+            continue
+        if _token_in_normalized_set(surface, _SHART_MARKERS_NORMALIZED):
+            continue
+        return i
+    return None
+
+
+def _is_preposition_at(token_index: int, tokens: List[str], op_words: List[Dict]) -> bool:
+    """True if token at index is a preposition (harf jar) (Patch C)."""
+    if token_index >= len(tokens):
+        return False
+    surface = (tokens[token_index] or "").strip()
+    return _token_in_normalized_set(surface, _HARF_JAR_NORMALIZED)
+
+
+def _detect_main_clause_type(
+    tokens: List[str],
+    op_words: List[Dict],
+    l8b_profiles: Dict[int, Dict[str, Any]],
+    words5: List[Dict],
+    words9: List[Dict],
+) -> str:
+    """Main clause type with priority: conditional > verbal > nominal (fronted PP) > nominal (Patch C)."""
+    # Priority 1: Conditional
+    has_cond_trigger = any(
+        (x.get("effect_signature") or "").strip().upper() == "COND"
+        for x in op_words
+    )
+    if not has_cond_trigger:
+        for i in range(len(tokens)):
+            surface = (tokens[i] or "").strip()
+            if _is_operator_token(surface, op_words) and _token_in_normalized_set(surface, _SHART_MARKERS_NORMALIZED):
+                has_cond_trigger = True
+                break
+    has_verb = any(
+        _is_verb_at(i, tokens, l8b_profiles, words5, words9)
+        for i in range(len(tokens))
+    )
+    if has_cond_trigger and has_verb:
+        return "conditional"
+
+    # Priority 2: Verbal
+    first_content = _first_non_particle_token(tokens, op_words)
+    if first_content is not None and _is_verb_at(first_content, tokens, l8b_profiles, words5, words9):
+        return "verbal"
+
+    # Priority 3: Fronted PP / nominal (شبه جملة + مبتدأ مؤخر)
+    if first_content is not None and _is_preposition_at(first_content, tokens, op_words):
+        return "nominal"
+
+    # Priority 4: Nominal default
+    return "nominal"
+
+
 def _second_noun_definite_or_possessive(surface: str) -> bool:
     """Heuristic: second token in idafa is often definite (ال) or has possessive suffix."""
     if not surface or not isinstance(surface, str):
@@ -581,19 +666,8 @@ def _build_dependency_structure(
             })
             break
 
-    # 6) Main clause type hierarchy: conditional > verbal > nominal
-    main_finite_verb_present = False
-    for w9 in words9:
-        tpl = (w9.get("template") or w9.get("word_wazn") or "").strip()
-        if _is_finite_verb_wazn(tpl):
-            main_finite_verb_present = True
-            break
-    if conditional_marker_present:
-        main_clause_type = "conditional"
-    elif main_finite_verb_present or isnadi_links:
-        main_clause_type = "verbal"
-    else:
-        main_clause_type = "nominal"
+    # 6) Main clause type (Patch C): conditional > verbal > nominal (fronted PP) > nominal
+    main_clause_type = _detect_main_clause_type(tokens, op_words, l8b_map, words5, words9)
 
     clause_units.insert(0, {
         "clause_id": "main",
@@ -641,7 +715,7 @@ class RealL10BDeepSyntax(BaseStage):
     """
 
     def __init__(self) -> None:
-        super().__init__("L10B_DEEP_SYNTAX", STAGE_NAMES["L10B_DEEP_SYNTAX"], 12)
+        super().__init__("L10B_DEEP_SYNTAX", STAGE_NAMES["L10B_DEEP_SYNTAX"], 15)
 
     def run(self, pipeline: PipelineDict) -> LayerOutputDict:
         lo = pipeline.get("layer_outputs") or {}

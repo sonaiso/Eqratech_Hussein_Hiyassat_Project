@@ -22,8 +22,10 @@ def test_registry_order_matches_stage_order():
     from orchestrator.types import STAGE_ORDER
     registry = get_default_registry()
     reg_ids = [s.layer_id for s in registry]
-    assert reg_ids == STAGE_ORDER
+    # STAGE_ORDER may include additive layers (DEPENDENCY_SYNTAX_BUILDER, CLAUSE_ENGINE) filled in side blocks; registry is subsequence
     assert STAGE_ORDER == REQUIRED_STAGE_IDS
+    order_of_reg_in_stage = [STAGE_ORDER.index(rid) for rid in reg_ids if rid in STAGE_ORDER]
+    assert order_of_reg_in_stage == sorted(order_of_reg_in_stage), "registry order must preserve STAGE_ORDER subsequence"
 
 
 def test_layer_outputs_keys_match_stage_order():

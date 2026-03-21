@@ -170,7 +170,7 @@ class RealL12BAnalogicalReasoning(BaseStage):
         super().__init__(
             "L12B_ANALOGICAL_REASONING",
             STAGE_NAMES["L12B_ANALOGICAL_REASONING"],
-            16,
+            21,
         )
 
     def run(self, pipeline: PipelineDict) -> LayerOutputDict:

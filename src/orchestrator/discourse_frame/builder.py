@@ -28,6 +28,24 @@ FRAME_CAUSATION = "causation"
 FRAME_NEGATION = "negation"
 
 
+def _is_nonconditional_inna_like(token: str) -> bool:
+    """
+    Conservative discourse guard:
+    إِنَّ / أَنَّ and ambiguous undiacritized إن/أن/ان must not emit conditional frames.
+    """
+    if not token:
+        return False
+    t = (token or "").strip()
+    if "ْ" in t:
+        return False
+    norm = []
+    for c in t:
+        if "\u064b" <= c <= "\u0652" or c == "\u0670":
+            continue
+        norm.append(c)
+    return "".join(norm).strip() in ("إن", "أن", "ان")
+
+
 def _has_clause_support_conditional(lo: Dict[str, Any]) -> bool:
     """True if L10B main_clause_type or clause_units support conditional structure."""
     l10b = lo.get("L10B_DEEP_SYNTAX") or {}
@@ -141,6 +159,8 @@ def build_discourse_frames(lo: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         token = (item.get("token") or "").strip()
         group = (item.get("connective_group") or "").strip()
         if not token or not group:
+            continue
+        if group == "conditional" and _is_nonconditional_inna_like(token):
             continue
         c = classify_connective(token)
         if not c:

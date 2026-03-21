@@ -14,7 +14,7 @@ def test_l10b_in_stage_order():
     assert "L10B_DEEP_SYNTAX" in STAGE_ORDER
     idx = STAGE_ORDER.index("L10B_DEEP_SYNTAX")
     assert STAGE_ORDER[idx - 1] == "L10_SYNTAX"
-    assert STAGE_ORDER[idx + 1] == "L11_I3RAB"
+    assert STAGE_ORDER[idx + 1] == "CLAUSE_ENGINE"
 
 
 def test_transformation_result_has_dependency_nodes_and_edges():

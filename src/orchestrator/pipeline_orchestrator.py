@@ -137,6 +137,59 @@ def run_pipeline(
                 reused.get("symbol") if isinstance(reused, dict) else None,
             )
             insert_layer_output(pipeline, layer_id, layer_output)
+            # ARABIC_WORD_STATE: persistent per-token morphology (L8/L9 stem-aligned); refreshed after L9; L12 patches gender/number
+            lo = pipeline.get("layer_outputs") or {}
+            if layer_id == "L9_WAZN_MATCHING":
+                try:
+                    from .arabic_word_state import rebuild_arabic_word_state_from_layers
+                    rebuild_arabic_word_state_from_layers(lo)
+                except Exception as e:
+                    logger.debug("arabic_word_state rebuild after L9 skipped: %s", e)
+            if layer_id == "L12_GENDER_NUMBER":
+                try:
+                    from .arabic_word_state import merge_l12_gender_number_into_word_state
+                    tr_l12 = layer_output.get("transformation_result") or {}
+                    merge_l12_gender_number_into_word_state(lo, tr_l12)
+                except Exception as e:
+                    logger.debug("arabic_word_state L12 merge skipped: %s", e)
+            # DEPENDENCY_SYNTAX_BUILDER (Stage 15): additive after L10B; explicit dependency graph from L10B signals
+            if layer_id == "L10B_DEEP_SYNTAX":
+                lo = pipeline.get("layer_outputs") or {}
+                try:
+                    from .dependency_syntax import build_dependency_syntax
+                    result = build_dependency_syntax(lo)
+                    if result is not None:
+                        lo["DEPENDENCY_SYNTAX_BUILDER"] = result
+                except Exception as e:
+                    logger.debug("dependency_syntax_builder skipped: %s", e)
+                # CLAUSE_ENGINE: additive after DEPENDENCY_SYNTAX_BUILDER; stub until Stage 16 full implementation
+                try:
+                    from .clause_engine import build_clause_output
+                    clause_result = build_clause_output(lo)
+                    if clause_result is not None:
+                        lo["CLAUSE_ENGINE"] = {"transformation_result": clause_result, **clause_result}
+                    else:
+                        empty_clause = {
+                            "status": "success",
+                            "clauses": [],
+                            "clause_count": 0,
+                            "hal_detected": False,
+                            "tamyiz_detected": False,
+                            "sila_detected": False,
+                        }
+                        lo["CLAUSE_ENGINE"] = {"transformation_result": empty_clause, **empty_clause}
+                except Exception as e:
+                    logger.debug("clause_engine skipped: %s", e)
+                    skipped_clause = {
+                        "status": "skipped",
+                        "clauses": [],
+                        "clause_count": 0,
+                        "reason": str(e),
+                        "hal_detected": False,
+                        "tamyiz_detected": False,
+                        "sila_detected": False,
+                    }
+                    lo["CLAUSE_ENGINE"] = {"transformation_result": skipped_clause, **skipped_clause}
             # SEMANTIC_ROLE_PROJECTION: additive enrichment after L11B (read-only from L8B, L10B, L11B)
             if layer_id == "L11B_CAUSAL_I3RAB":
                 try:

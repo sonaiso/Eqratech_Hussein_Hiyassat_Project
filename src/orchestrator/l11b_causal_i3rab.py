@@ -58,6 +58,37 @@ MARKER_SUKUN = "السكون"
 MARKER_MABNI = "مبني"
 MARKER_GHAYR = "غير محسوم"
 
+# Unresolved / weak role values for status normalization (Patch B)
+_UNRESOLVED_VALUES = ("", "—", None, "غير محسوم", "منقول من الإعراب النصي")
+
+
+def normalize_i3rab_status(
+    role: Any,
+    governing_factor: Any,
+    case_or_mood: Any,
+    marker: Any,
+    confidence: float,
+) -> str:
+    """Normalize token status to resolved | candidate | unresolved from role, factors, and confidence (Patch B)."""
+    if role in _UNRESOLVED_VALUES:
+        return "unresolved"
+    fully_resolved = (
+        role not in _UNRESOLVED_VALUES
+        and governing_factor not in _UNRESOLVED_VALUES
+        and case_or_mood not in _UNRESOLVED_VALUES
+        and marker not in _UNRESOLVED_VALUES
+        and confidence >= 0.70
+    )
+    if fully_resolved:
+        return "resolved"
+    partially_present = (
+        role not in ("", "—", None, "منقول من الإعراب النصي")
+        and confidence >= 0.45
+    )
+    if partially_present:
+        return "candidate"
+    return "unresolved"
+
 
 def _get_tokens(pipeline: PipelineDict) -> List[str]:
     """Token list from L2 or L5."""
@@ -395,18 +426,24 @@ def _build_one_token_reasoning(
                 break
 
     confidence = max(0.05, min(0.98, confidence))
+    conf_rounded = round(confidence, 2)
+    # Patch B: apply normalized status so summary counts are consistent
+    role_status = normalize_i3rab_status(
+        role, governing_factor, case_or_mood, marker, conf_rounded
+    )
 
     return {
         "token_id": token_id,
         "surface": surface,
         "role": role,
         "role_status": role_status,
+        "status": role_status,
         "governing_factor": governing_factor,
         "case_or_mood": case_or_mood,
         "marker": marker,
         "reasoning_steps": reasoning_steps,
         "supporting_sources": supporting_sources,
-        "confidence": round(confidence, 2),
+        "confidence": conf_rounded,
         "limitations": limitations,
     }
 
@@ -444,7 +481,7 @@ class RealL11BCausalI3rab(BaseStage):
     """
 
     def __init__(self) -> None:
-        super().__init__("L11B_CAUSAL_I3RAB", STAGE_NAMES["L11B_CAUSAL_I3RAB"], 14)
+        super().__init__("L11B_CAUSAL_I3RAB", STAGE_NAMES["L11B_CAUSAL_I3RAB"], 18)
 
     def run(self, pipeline: PipelineDict) -> LayerOutputDict:
         lo = pipeline.get("layer_outputs") or {}

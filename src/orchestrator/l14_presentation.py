@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
+from .arabic_word_state import build_detailed_morphology_roots_and_wazn, compact_roots_summary_first_n
 from .builders import build_layer_output
 from .explainability import build_evidence_trace
 from .stages.base_stage import BaseStage
@@ -42,11 +43,8 @@ def _render_compact(pipeline: Dict[str, Any]) -> Dict[str, Any]:
         if i3rab:
             i3rab_lines.append(f"  {surface}: {i3rab[:60]}{'…' if len(i3rab) > 60 else ''}")
     i3rab_block = "\n".join(i3rab_lines) if i3rab_lines else "—"
-    L8 = (pipeline.get("layer_outputs") or {}).get("L8_ROOT_EXTRACTION") or {}
-    tr8 = L8.get("transformation_result") or {}
-    words8 = tr8.get("words") or []
-    roots = [f"{w.get('word')}: {w.get('root') or '—'}" for w in words8[:5]]
-    roots_line = "; ".join(roots) if roots else "—"
+    lo_pipe = pipeline.get("layer_outputs") or {}
+    roots_line = compact_roots_summary_first_n(lo_pipe, 5)
     validation_note = f"{len(issues)} issue(s)" if issues else "No issues."
     # Stage 8: short "why" lines from evidence trace
     trace = build_evidence_trace(pipeline)
@@ -78,6 +76,12 @@ def _render_compact(pipeline: Dict[str, Any]) -> Dict[str, Any]:
     sum8b = (L8B.get("transformation_result") or {}).get("governance_summary") or {}
     verb_gov_resolved = sum8b.get("resolved_profiles", 0)
     verb_governance_line = f"\nVerb governance: {verb_gov_resolved} verb profiles resolved" if verb_gov_resolved is not None else ""
+    L13V = (pipeline.get("layer_outputs") or {}).get("L13_VERB_TRANSFORMATION") or {}
+    sum13v = (L13V.get("transformation_result") or {}).get("transformation_summary") or {}
+    verb_transform_line = (
+        f"\nVerb transformations: {sum13v.get('fully_transformed', 0)} fully / {sum13v.get('partially_transformed', 0)} partial"
+        if sum13v else ""
+    )
     L11B = (pipeline.get("layer_outputs") or {}).get("L11B_CAUSAL_I3RAB") or {}
     sum11b = (L11B.get("transformation_result") or {}).get("i3rab_summary") or {}
     causal_res = sum11b.get("resolved_tokens")
@@ -104,6 +108,7 @@ def _render_compact(pipeline: Dict[str, Any]) -> Dict[str, Any]:
         + fusion_audit_line
         + deep_syntax_line
         + verb_governance_line
+        + verb_transform_line
         + causal_i3rab_line
         + discourse_frames_line
         + ("\n" + "\n".join(why_lines) if why_lines else "")
@@ -174,16 +179,15 @@ def _render_detailed(pipeline: Dict[str, Any]) -> Dict[str, Any]:
     tr9 = L9.get("transformation_result") or {}
     st8 = L8.get("status", "")
     st9 = L9.get("status", "")
+    roots_block, wazn_block = build_detailed_morphology_roots_and_wazn(lo)
     if st8 == "skipped":
         morph = "L8 (roots): skipped (no morphology candidate or no tokens)."
     else:
-        words8 = tr8.get("words") or []
-        morph = "L8 roots:\n" + "\n".join(f"  {w.get('word')}: {w.get('root') or '—'}" for w in words8) if words8 else "L8: no words."
+        morph = roots_block
     if st9 == "skipped":
         morph += "\n\nL9 (wazn): skipped (no root candidate)."
     else:
-        words9 = tr9.get("words") or []
-        morph += "\n\nL9 wazn:\n" + "\n".join(f"  {w.get('word')}: {w.get('template') or w.get('word_wazn') or '—'}" for w in words9) if words9 else ""
+        morph += "\n\nL9 wazn (state-aligned):\n" + wazn_block
     sections.append(_section("morphology", "Morphology", morph))
 
     # 5b. Verb governance (L8B)
@@ -341,6 +345,127 @@ def _render_detailed(pipeline: Dict[str, Any]) -> Dict[str, Any]:
     if not frames_4e:
         frame_lines_4e.append("  (no discourse frames)")
     sections.append(_section("discourse_frames", "SECTION 4e — DISCOURSE FRAMES", "\n".join(frame_lines_4e)))
+
+    # 7e. SECTION 4f — DEPENDENCY SYNTAX BUILDER (additive layer after L10B)
+    ds = lo.get("DEPENDENCY_SYNTAX_BUILDER") or {}
+    root_res = ds.get("root_resolution") or {}
+    links_ds = ds.get("dependency_links") or []
+    amb_log = ds.get("ambiguity_log") or []
+    cor_log = ds.get("corrections_log") or []
+    cand_mark = ds.get("candidate_markers") or []
+    ds_lines = [
+        f"coverage: {ds.get('coverage', '—')}",
+        f"root_resolution: root_id={root_res.get('root_id', '—')} root_form={root_res.get('root_form', '—')} confidence={root_res.get('confidence', '—')} rule={root_res.get('rule', '—')}",
+        f"dependency_links count: {len(links_ds)}",
+        f"ambiguity_log count: {len(amb_log)}",
+        f"corrections_log count: {len(cor_log)}",
+        f"candidate_markers count: {len(cand_mark)}",
+        "main dependency links (head → dependent | relation | arabic_role):",
+    ]
+    for L in links_ds[:25]:
+        ds_lines.append(f"  {L.get('head_id')} → {L.get('dependent_id')} | {L.get('relation')} | {L.get('arabic_role')}")
+    if not links_ds:
+        ds_lines.append("  (none)")
+    sections.append(_section("dependency_syntax_builder", "SECTION 4f — DEPENDENCY SYNTAX BUILDER", "\n".join(ds_lines)))
+
+    # 7f. SECTION 4g — CLAUSE STRUCTURE (CLAUSE_ENGINE)
+    ce = lo.get("CLAUSE_ENGINE") or {}
+    ce_lines = [
+        f"conditional_structure_detected: {ce.get('conditional_structure_detected', False)}",
+        f"clause_count: {ce.get('clause_count', 0)}",
+        f"hal_detected: {ce.get('hal_detected', False)} | tamyiz_detected: {ce.get('tamyiz_detected', False)} | "
+        f"sila_detected: {ce.get('sila_detected', False)}",
+        "per-clause: clause_id | clause_type | arabic_label | span | head | confidence | parent_clause_id",
+    ]
+    analysis = ce.get("clause_analysis") or ce.get("clauses") or []
+    for c in analysis[:20]:
+        cid = c.get("clause_id") or c.get("clause_id", "—")
+        ctype = c.get("clause_type") or c.get("type", "—")
+        label = c.get("arabic_label", "—")
+        span = c.get("span") or (f"{c.get('start_token_id', '—')}-{c.get('end_token_id', '—')}" if c.get("start_token_id") is not None else "—")
+        head = c.get("head_token_id", "—")
+        conf = c.get("confidence", "—")
+        parent = c.get("parent_clause_id", "—")
+        ce_lines.append(f"  {cid} | {ctype} | {label} | {span} | {head} | {conf} | {parent}")
+    if not analysis:
+        ce_lines.append("  (none)")
+    for lim in (ce.get("limitations") or [])[:5]:
+        ce_lines.append(f"  limitation: {lim}")
+    hal_rows = [c for c in analysis if c.get("clause_type") == "hal_clause"]
+    if hal_rows:
+        ce_lines.append("Pass 2 hal_clause: hal_marker | hal_subject_ref | parent_clause_id")
+        for cl in hal_rows[:12]:
+            ce_lines.append(
+                f"  {cl.get('clause_id')} | {cl.get('hal_marker')} | {cl.get('hal_subject_ref')} | {cl.get('parent_clause_id')}"
+            )
+    tam_rows = [c for c in analysis if c.get("clause_type") == "tamyiz_phrase"]
+    if tam_rows:
+        ce_lines.append("Pass 2 tamyiz_phrase: tamyiz_type | tamyiz_noun_token_id | parent_clause_id")
+        for cl in tam_rows[:12]:
+            ce_lines.append(
+                f"  {cl.get('clause_id')} | {cl.get('tamyiz_type')} | {cl.get('tamyiz_noun_token_id')} | {cl.get('parent_clause_id')}"
+            )
+    sil_rows = [c for c in analysis if c.get("clause_type") == "sila_mawsul"]
+    if sil_rows:
+        ce_lines.append("Pass 2 sila_mawsul: antecedent_token_id | i3rab_note")
+        for cl in sil_rows[:12]:
+            ce_lines.append(
+                f"  {cl.get('clause_id')} | {cl.get('antecedent_token_id')} | {cl.get('i3rab_note')}"
+            )
+    sections.append(_section("clause_structure", "SECTION 4g — CLAUSE STRUCTURE", "\n".join(ce_lines)))
+
+    # 7g. SECTION 4i — DERIVATIONAL CLASSIFICATION (L14 Jamid vs Mushtaq)
+    jm_lo = lo.get("L14_JAMID_MUSHTAQ") or {}
+    jm_tr = jm_lo.get("transformation_result") or {}
+    jm_class = jm_tr.get("token_classifications") or []
+    jm_lines = ["surface | root (canonical) | wazn | derivational_class | jamid_or_mushtaq | confidence"]
+    for tc in jm_class[:30]:
+        jm_lines.append(
+            f"  {tc.get('surface', '—')} | {tc.get('root') or '—'} | {tc.get('wazn') or '—'} | "
+            f"{tc.get('derivational_class', '—')} | {tc.get('jamid_or_mushtaq', '—')} | {tc.get('confidence', 0)}"
+        )
+    if not jm_class:
+        jm_lines.append("  (none)")
+    jm_sum = jm_tr.get("classification_summary") or {}
+    jm_lines.append(
+        f"summary: ism_fail={jm_sum.get('ism_fail_count', 0)} ism_mafuul={jm_sum.get('ism_mafuul_count', 0)} "
+        f"mushtaq_lexical={jm_sum.get('mushtaq_lexical_count', 0)} jamid={jm_sum.get('jamid_count', 0)} "
+        f"verb={jm_sum.get('verb_count', 0)} particle={jm_sum.get('particle_count', 0)} unknown={jm_sum.get('unknown_count', 0)}"
+    )
+    sections.append(_section("derivational_classification", "SECTION 4i — DERIVATIONAL CLASSIFICATION", "\n".join(jm_lines)))
+
+    # 7h. SECTION 4k — GENDER & NUMBER (L12)
+    gn_lo = lo.get("L12_GENDER_NUMBER") or {}
+    gn_tr = gn_lo.get("transformation_result") or {}
+    gn_features = gn_tr.get("token_features") or []
+    gn_lines = ["surface | gender | number | number_type | agreement_status | confidence"]
+    for row in gn_features[:30]:
+        gn_lines.append(f"  {row.get('surface', '—')} | {row.get('gender', '—')} | {row.get('number', '—')} | {row.get('number_type', '—')} | {row.get('agreement_status', '—')} | {row.get('confidence', 0)}")
+    if not gn_features:
+        gn_lines.append("  (none)")
+    gn_sum = gn_tr.get("agreement_summary") or {}
+    gn_lines.append(f"agreement_summary: total={gn_sum.get('total', 0)} agreed={gn_sum.get('agreed_count', 0)} conflict={gn_sum.get('conflict_count', 0)} unresolved={gn_sum.get('unresolved_count', 0)}")
+    sections.append(_section("gender_number", "SECTION 4k — GENDER & NUMBER", "\n".join(gn_lines)))
+
+    # 7i. SECTION 4l — VERB TRANSFORMATIONS (L13_VERB_TRANSFORMATION)
+    vt_lo = lo.get("L13_VERB_TRANSFORMATION") or {}
+    vt_tr = vt_lo.get("transformation_result") or {}
+    vt_rows = vt_tr.get("verb_transformations") or []
+    vt_lines = ["surface | past_active | present_active | past_passive | masdar | imperative | confidence"]
+    for row in vt_rows[:30]:
+        vt_lines.append(
+            f"  {row.get('surface', '—')} | {row.get('base_past_active') or '—'} | {row.get('base_present_active') or '—'} | "
+            f"{row.get('base_past_passive') or '—'} | {row.get('masdar') or '—'} | {row.get('imperative') or '—'} | "
+            f"{row.get('transformation_confidence', 0)}"
+        )
+    if not vt_rows:
+        vt_lines.append("  (none)")
+    vt_summary = vt_tr.get("transformation_summary") or {}
+    vt_lines.append(
+        f"summary: total={vt_summary.get('total_verbs', 0)} fully={vt_summary.get('fully_transformed', 0)} "
+        f"partially={vt_summary.get('partially_transformed', 0)} untransformed={vt_summary.get('untransformed', 0)}"
+    )
+    sections.append(_section("verb_transformations", "SECTION 4l — VERB TRANSFORMATIONS", "\n".join(vt_lines)))
 
     # 8. Semantic / Rhetorical
     L12 = lo.get("L12_SEMANTIC_RHETORICAL") or {}
@@ -521,6 +646,9 @@ def _render_debug(pipeline: Dict[str, Any]) -> Dict[str, Any]:
     df_debug = lo.get("DISCOURSE_FRAME_BUILDER") or {}
     lines.append("")
     lines.append(f"DISCOURSE_FRAME_BUILDER: frame_count={df_debug.get('frame_count')} strong_frame_count={df_debug.get('strong_frame_count')} weak_frame_count={df_debug.get('weak_frame_count')} frame_types={df_debug.get('frame_types')} coverage_hint={df_debug.get('coverage_hint')}")
+    ds_debug = lo.get("DEPENDENCY_SYNTAX_BUILDER") or {}
+    lines.append("")
+    lines.append(f"DEPENDENCY_SYNTAX_BUILDER: coverage={ds_debug.get('coverage')} links={len(ds_debug.get('dependency_links') or [])} root_id={(ds_debug.get('root_resolution') or {}).get('root_id')} ambiguity_log={len(ds_debug.get('ambiguity_log') or [])} candidate_markers={len(ds_debug.get('candidate_markers') or [])}")
 
     # L13 Cognitive Fusion
     cf = pipeline.get("cognitive_fusion") or {}
@@ -637,7 +765,7 @@ class RealL14Presentation(BaseStage):
     """L14: Presentation — render pipeline to readable output (compact/detailed/debug)."""
 
     def __init__(self) -> None:
-        super().__init__("L14_PRESENTATION", STAGE_NAMES["L14_PRESENTATION"], 19)
+        super().__init__("L14_PRESENTATION", STAGE_NAMES["L14_PRESENTATION"], 24)
 
     def run(self, pipeline: Dict[str, Any]) -> Dict[str, Any]:
         render_mode = pipeline.get("_render_mode") or "detailed"

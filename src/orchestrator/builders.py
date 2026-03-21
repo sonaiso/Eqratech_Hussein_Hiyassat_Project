@@ -27,7 +27,7 @@ def build_empty_pipeline(
 ) -> PipelineDict:
     """
     Build a canonical empty pipeline object (Stage 2 contract).
-    layer_outputs contains all 15 fixed keys with empty dicts; caller will fill them.
+    layer_outputs contains the full fixed STAGE_ORDER keys with empty dicts; caller will fill them.
     """
     now = datetime.now(timezone.utc).isoformat()
     rid = request_id or f"REQ_{uuid.uuid4().hex[:8].upper()}"
