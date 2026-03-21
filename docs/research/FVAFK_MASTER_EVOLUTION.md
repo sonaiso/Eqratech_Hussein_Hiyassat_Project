@@ -76,7 +76,7 @@ The system remains deterministic and rule-based.
 | 13 | Verb Transformation Engine | Convert verb across tense/voice. | Past↔present, active↔passive, masdar, imperative. | `L13_VERB_TRANSFORMATION`: base_past_active, base_present_active, base_past_passive, base_present_passive, masdar, imperative. | **Implemented (Pass 1).** SECTION 4l; see docs/stage13_verb_transformation.md. |
 | 14 | Jamid vs Mushtaq Engine | Derivational classification. | ISM_FAIL, ISM_MAFUUL, SIFA_MUSHABBAHA, MASDAR, SIGA_MUBALAGHAH, JAMID, VERB, PARTICLE from L8/L9/L5/L8B. | token_classifications, classification_summary, ambiguity_log. | **Implemented (Pass 1).** SECTION 4i. See docs/stage14_jamid_mushtaq.md. |
 | 15 | Dependency Syntax Builder | Full dependency tree. | Self-loop guard, L10B carry-forward; head-dependent, idafa, jar-majrur, coord, appos. | dependency_links, root_resolution, ambiguity_log, corrections_log, candidate_markers. | Core for rule-based iʿrāb. **Implemented (additive; Pass A self-loop+carry-forward, B/C/D/E).** See Section C and docs/dependency_syntax_builder.md. |
-| 16 | Clause Engine | Clause decomposition (conditional, etc.). | Shart particle, feil shart, jawab particle, jawab shart; clause_analysis. | clause_analysis, conditional_structure_detected, SECTION 4g. | **Implemented (in STAGE_ORDER).** Conditional decomposition; parent_clause_id. |
+| 16 | Clause Engine | Clause decomposition (conditional, etc.). | Pass 1: shart/feil/jawab; Pass 2: hal, tamyiz عدد, sila. | clause_analysis, conditional_structure_detected, hal/tamyiz/sila flags, SECTION 4g. | **Implemented (in STAGE_ORDER).** Pass 1 conditional + Pass 2 additive; `docs/clause_engine.md`. |
 | 17 | Rule-Based Iʿrāb Reasoner | Iʿrāb from reasoning, not only text. | Stage 15/16, L8B, L5, L4; v2: L12, L14; token_reasoning; does not replace L11B. | token_reasoning (syntactic_role, governing_factor, i3rab_case_or_mood, marker, reasoning_steps, clause_id), reasoning_summary; v2: agreement_evidence, derivational_evidence, refinement_applied. | **Implemented (v1 + v2).** SECTION 4h; docs/stage17_rule_based_i3rab_v2.md. |
 | 18 | Semantic Role Engine | Thematic/semantic roles (full). | Agent, patient, goal, instrument, etc. | semantic_role, event_structure. | Deep semantic interpretation. |
 | 19 | Advanced Sentence Modes | Injunctive, interrogative, exclamatory, etc. | Order, prohibition, question, exclamation. | sentence_mode, mode_trigger. | Richer sentence classification. |
@@ -197,6 +197,8 @@ Stage 18 (Semantic Role Engine), Stage 20 (Rhetorical Structures), Stage 22 (Gol
 | 2026-03-18 | Batch 2.7: L17 clause-level `khabar_in_analysis` — B2.7-K1_resolve_khabar_in_verbal_clause; token roles preserved; additive clause function (risk: low) | L17_RULE_BASED_I3RAB, analyze_sentence |
 
 | 2026-03-21 | **Batch 2.8:** `analyze_sentence.render_report` — L17-first narrative, unified headline **الثقة النهائية** (single user-facing figure), L11/L11B demoted to appendix, `SECTION 4j` preferred table moved to appendix, duplicate L17 table removed; khabar-in after L17; tests `test_batch_28_report_presentation.py` (risk: none) | analyze_sentence |
+
+| 2026-03-21 | Stage 16 **Pass 2** (CLAUSE_ENGINE): hal / tamyiz / sila; SECTION 4g extended; `test_clause_engine_pass2.py`; `docs/clause_engine.md` (risk: low) | CLAUSE_ENGINE,analyze_sentence,L14_PRESENTATION,docs |
 
 
 ---
