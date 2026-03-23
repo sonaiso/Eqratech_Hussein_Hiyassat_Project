@@ -33,3 +33,5 @@ def test_structured_l17():
     gold = "مَفْعُولٌ بِهٖ مَنْصُوبٌ"
     d = compare_token_conservative(gold, snap)
     assert erqa_eligible(d) or d.level == MatchLevel.STRUCTURED_ROLE
+
+

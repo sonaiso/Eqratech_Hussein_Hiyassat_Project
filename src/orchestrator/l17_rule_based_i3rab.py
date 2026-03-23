@@ -19,6 +19,10 @@ B2.6: G026_JAR_TAALLUQ_VERB — fused حرف جر + ضمير (e.g. لَام-atta
 B2.7: B2.7-K1_resolve_khabar_in_verbal_clause — clause-level خبر إن analysis (جملة فعلية في محل رفع خبر إن)
       when khabar_in_candidates + INNA + verbal_embedded + strong verbal predicate; does not overwrite token roles;
       emits khabar_in_analysis; secondary_analysis khabar_in_* on span tokens.
+B28.19: B28_19_NOMINAL_SHORT — short nominal مبتدأ/خبر when L10B nominal, no verb, ≤1 Stage15 link; skip خبر when
+      SIFA/نعت or surface kasra-genitive on the candidate.
+B28.16: B28_16_IDAFA_KASRA_AFTER_NAAT — definite kasra-final noun after resolved نعت (governed by NOUN head) as
+      مضاف إليه when Stage15 omits IDAFA; runs after `_apply_b28_16_mudaf_head_idafa`.
 """
 
 from __future__ import annotations
@@ -29,7 +33,11 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from .arabic_word_state import ensure_arabic_word_state, ref_word_state_for_token
 from .builders import build_layer_output, get_previous_output
-from .l14_jamid_mushtaq import has_strong_true_verb_evidence
+from .l14_jamid_mushtaq import (
+    has_strong_true_verb_evidence,
+    is_detached_iyya_pronoun,
+    is_imperative_amr_surface,
+)
 from .stages.base_stage import BaseStage
 from .stages.placeholders import STAGE_NAMES
 from .types import LayerOutputDict, PipelineDict, STAGE_ORDER
@@ -65,7 +73,8 @@ def _clause_id_for_token(token_index: int, clause_analysis: List[Dict[str, Any]]
 
 def _stage15_relation_and_head(token_id: str, dsb_links: List[Dict[str, Any]]) -> Tuple[Optional[str], Optional[str]]:
     """(relation, head_id) for token as dependent. Stable priority vs arbitrary link order (B2.2/B2.3)."""
-    core_priority = ("INNA_NAME", "SUBJ", "OBJ", "NAIB_SUBJ", "SIFA", "APPOS", "PRED")
+    # IDAFA before PRED so مضاف إليه is not misread as خبر when both links exist (e.g. بِسْمِ اللَّهِ).
+    core_priority = ("INNA_NAME", "SUBJ", "OBJ", "NAIB_SUBJ", "SIFA", "APPOS", "IDAFA", "PRED")
     by_rel: Dict[str, str] = {}
     for link in (dsb_links or []):
         if str(link.get("dependent_id")) != str(token_id):
@@ -123,6 +132,67 @@ def _l5_kind(surface: str, lo: Dict[str, Any]) -> str:
         if (w.get("word") or "").strip() == surface:
             return (w.get("kind") or "").strip().lower()
     return ""
+
+
+def _l17_consonantal_core(surface: str) -> str:
+    """Letters only (strip combining marks) for suffix heuristics."""
+    nfd = unicodedata.normalize("NFD", (surface or "").strip())
+    return "".join(ch for ch in nfd if unicodedata.category(ch) != "Mn")
+
+
+def _l17_mudari3_plural_shape_suffix(surface: str) -> bool:
+    """Quranic plural mudāriʿ endings …ون / …ين (e.g. يَخْشَوْنَ, يُؤْمِنُونَ)."""
+    base = _l17_consonantal_core(surface)
+    return len(base) >= 4 and (base.endswith("ون") or base.endswith("ين"))
+
+
+def _l17_terminal_letter_has_damma(surface: str) -> bool:
+    """True if the last base letter carries ُ (indicative marfūʿ cue on أَفْعَلُ vs ماضٍ أَفْعَلَ)."""
+    nfd = unicodedata.normalize("NFD", (surface or "").strip())
+    if not nfd:
+        return False
+    letters = [ch for ch in nfd if unicodedata.category(ch) != "Mn"]
+    if not letters:
+        return False
+    last = letters[-1]
+    i = nfd.rfind(last)
+    tail = nfd[i:]
+    return "\u064f" in tail
+
+
+def _l17_verb_active_mudari3_marfuu(surface: str) -> bool:
+    """
+    Indicative mudāriʿ marfūʿ (Batch 28.16): not past finite مبني على الفتح.
+
+    L8B `_has_strong_finite_verb_surface` false-positives many يَفْعَلُ shapes (first-syllable
+    fatha + length ≥ 4). Arabic ماضٍ surfaces are فَعَلَ / فُعِلَ — not يَ/تَ/نَ-prefixed in the
+    same way; those prefixes mark mudāriʿ. Hamzah-initial verbs use plural suffixes or terminal
+    ضمة vs فتحة to disambiguate from ماضٍ. Excludes ا+هـ onset (Batch 28.17 imperative / duʿāʾ).
+    """
+    from orchestrator.l8b_verb_bab_governance import _has_strong_finite_verb_surface
+
+    s = (surface or "").strip()
+    if not s:
+        return False
+    if s.startswith(("و", "ف")) and len(s) > 1:
+        s = s[1:]
+    if not s:
+        return False
+    first = s[0]
+    if first not in ("\u064a", "\u062a", "\u0646", "\u0623", "\u0625", "\u0622", "\u0627", "\u0624"):
+        return False
+    if len(s) >= 2 and first == "\u0627" and s[1] == "\u0647":
+        return False
+    # ی / ت / ن are the finite mudāriʿ person prefixes; māḍī third-person surfaces do not use them.
+    if first in ("\u064a", "\u062a", "\u0646"):
+        return True
+    if _l17_mudari3_plural_shape_suffix(s):
+        return True
+    if first in ("\u0623", "\u0625", "\u0622", "\u0627", "\u0624") and _l17_terminal_letter_has_damma(s):
+        return True
+    if _has_strong_finite_verb_surface(s):
+        return False
+    return True
 
 
 def _normalize_surface(surface: str) -> str:
@@ -793,6 +863,709 @@ def _apply_b26_jar_majrur_taalluq_g026(
         }
 
 
+def _b28_8_core_letters(surface: str) -> str:
+    """Batch 28.8 — NFC-ish surface with diacritics stripped for lemma matching."""
+    t = _normalize_surface(surface)
+    return _DIACRITICS.sub("", t)
+
+
+def _apply_b28_8_targeted_resolutions(
+    token_reasoning: List[Dict[str, Any]],
+    tokens: List[str],
+) -> None:
+    """
+    Batch 28.8 — surgical L17 resolution driven by discovery pattern ranking:
+    (1) standalone harf jar lemmas on PARTICLE tokens,
+    (2) single-token wa/fa coordination,
+    (3) relative pronoun surfaces (الذ* / التي patterns).
+
+    Does not change comparator tiers; only raises structured L17 coverage for strict matching.
+    """
+    # Diacritic-stripped lemmas for common single-token prepositions (allowlisted).
+    _JAR_CORE = frozenset(
+        {
+            "في",
+            "ب",
+            "ل",
+            "ك",
+            "من",
+            "على",
+            "عن",
+            "الى",
+            "إلى",
+            "حتى",
+            "مذ",
+            "منذ",
+            "رب",
+            "كي",
+            "لدى",
+            "عند",
+        }
+    )
+
+    def _harf_jar_surface_match(cc: str) -> bool:
+        """Exact lemma or fused prep+pronoun (e.g. فيه، عليهم) — Batch 28.8."""
+        if cc in _JAR_CORE:
+            return True
+        # Fused forms: short suffix after lemma (attached pronoun / clitic).
+        fused_prefixes = (
+            ("في", 6),
+            ("على", 10),
+            ("إلى", 10),
+            ("الى", 10),
+            ("عن", 8),
+            ("من", 8),
+            ("ب", 3),
+            ("ل", 5),
+            ("ك", 3),
+        )
+        for pref, max_len in fused_prefixes:
+            if cc.startswith(pref) and len(cc) <= max_len:
+                return True
+        return False
+
+    def _can(ent: Dict[str, Any]) -> bool:
+        role = (ent.get("syntactic_role") or "").strip()
+        st = (ent.get("status") or "").strip()
+        refs = list(ent.get("gold_rule_refs") or [])
+        if any(str(r).startswith(("G007", "G010", "G016", "G015", "G026")) for r in refs):
+            return False
+        if role in (
+            "مفعول به",
+            "فاعل",
+            "اسم إن",
+            "نعت",
+            "نائب فاعل",
+            "حال",
+            "اسم مجرور",
+            "شبه جملة متعلّقة بالفعل",
+            "حرف توكيد ونصب",
+        ):
+            return False
+        if st == "resolved" and role not in ("أداة", "غير محسوم"):
+            return False
+        return st in ("candidate", "unresolved") or role in ("أداة", "غير محسوم", "—", "")
+
+    for ent in token_reasoning:
+        if not _can(ent):
+            continue
+        tid = str(ent.get("token_id", ""))
+        try:
+            idx = int(tid)
+        except (TypeError, ValueError):
+            continue
+        if idx < 0 or idx >= len(tokens):
+            continue
+        surface = (tokens[idx] or "").strip()
+        fam = (ent.get("grammatical_family") or "").strip()
+        c = _b28_8_core_letters(surface)
+
+        # (1) Harf jar — PARTICLE + allowlisted lemma or fused prep (Batch 28.8)
+        if fam == "PARTICLE" and _harf_jar_surface_match(c) and len(surface) <= 18:
+            _set_role(
+                ent,
+                syntactic_role="حرف جر",
+                governing_factor="ما بعده",
+                governing_factor_token_id=None,
+                i3rab_case_or_mood="مبني",
+                marker="—",
+                confidence=CONF_STRONG,
+                status="resolved",
+                reasoning_step="Batch 28.8: canonical harf jar lemma (particle allowlist)",
+                evidence_sources=["L17:B28_8", "lemma_allowlist"],
+            )
+            ent.setdefault("gold_rule_refs", [])
+            if "B28_8_HARF_JAR" not in ent["gold_rule_refs"]:
+                ent["gold_rule_refs"].append("B28_8_HARF_JAR")
+            continue
+
+        # (2) Wa / fa coordination — single-letter tool (Batch 28.8)
+        if fam == "PARTICLE" and c in ("و", "ف") and len(surface) <= 4:
+            _set_role(
+                ent,
+                syntactic_role="حرف عطف",
+                governing_factor="معطوف عليه",
+                governing_factor_token_id=None,
+                i3rab_case_or_mood="مبني",
+                marker="—",
+                confidence=CONF_STRONG,
+                status="resolved",
+                reasoning_step="Batch 28.8: wa/fa coordination particle",
+                evidence_sources=["L17:B28_8", "surface"],
+            )
+            ent.setdefault("gold_rule_refs", [])
+            if "B28_8_WA_FA_ATF" not in ent["gold_rule_refs"]:
+                ent["gold_rule_refs"].append("B28_8_WA_FA_ATF")
+            continue
+
+        # (3) Relative pronoun surfaces (Batch 28.8)
+        if fam == "NOUN" and len(c) >= 4:
+            is_mawsul = c.startswith("الذ") or c.startswith("اللذ") or c.startswith("التي") or c.startswith("اللتي")
+            if is_mawsul and len(surface) <= 24:
+                _set_role(
+                    ent,
+                    syntactic_role="اسم موصول",
+                    governing_factor="صلة الموصول",
+                    governing_factor_token_id=None,
+                    i3rab_case_or_mood="مبني على الفتح",
+                    marker="—",
+                    confidence=CONF_GOOD,
+                    status="resolved",
+                    reasoning_step="Batch 28.8: relative pronoun surface (الذ*/التي patterns)",
+                    evidence_sources=["L17:B28_8", "surface_pattern"],
+                )
+                ent.setdefault("gold_rule_refs", [])
+                if "B28_8_MAWSUL" not in ent["gold_rule_refs"]:
+                    ent["gold_rule_refs"].append("B28_8_MAWSUL")
+
+
+def _apply_b28_10_targeted_resolutions(
+    token_reasoning: List[Dict[str, Any]],
+    tokens: List[str],
+) -> None:
+    """
+    Batch 28.10 — surgical L17 from Batch 28.9 blocker / discovery evidence (gold_csv runs only).
+
+    (1) NOUN tokens: fused لِ+الْ+… (surface core ``لل*``) → حرف جر (لام جرّ + اسم داخل الوحدة السطحية).
+    (2) NOUN tokens: وَ+الْذِين/التي patterns (core ``والذ*`` / ``والتي``) → اسم موصول.
+    Conservative caps; does not override G007–G016/G026; preserves Batch 28.8 refs when both apply.
+    (وَمَا intentionally omitted: surface is ambiguous between موصول and نفي — would raise true_conflict.)
+    """
+
+    def _can_10(ent: Dict[str, Any], *, allow_noun: bool) -> bool:
+        role = (ent.get("syntactic_role") or "").strip()
+        st = (ent.get("status") or "").strip()
+        refs = list(ent.get("gold_rule_refs") or [])
+        if any(str(r).startswith(("G007", "G010", "G016", "G015", "G026")) for r in refs):
+            return False
+        if role in (
+            "مفعول به",
+            "فاعل",
+            "اسم إن",
+            "نعت",
+            "نائب فاعل",
+            "حال",
+            "اسم مجرور",
+            "شبه جملة متعلّقة بالفعل",
+            "حرف توكيد ونصب",
+        ):
+            return False
+        fam = (ent.get("grammatical_family") or "").strip()
+        if allow_noun:
+            if fam != "NOUN":
+                return False
+        else:
+            if fam != "PARTICLE":
+                return False
+        if st == "resolved" and role not in ("أداة", "غير محسوم"):
+            return False
+        return st in ("candidate", "unresolved") or role in ("أداة", "غير محسوم", "—", "")
+
+    for ent in token_reasoning:
+        tid = str(ent.get("token_id", ""))
+        try:
+            idx = int(tid)
+        except (TypeError, ValueError):
+            continue
+        if idx < 0 or idx >= len(tokens):
+            continue
+        surface = (tokens[idx] or "").strip()
+        c = _b28_8_core_letters(surface)
+        fam = (ent.get("grammatical_family") or "").strip()
+
+        # (1) لِلَّهِ / لِلْ… — NOUN mis-tagged as non-particle fused prep+proper (Batch 28.10)
+        if (
+            fam == "NOUN"
+            and _can_10(ent, allow_noun=True)
+            and c.startswith("لل")
+            and 3 <= len(c) <= 12
+            and len(surface) <= 22
+        ):
+            _set_role(
+                ent,
+                syntactic_role="حرف جر",
+                governing_factor="ما بعده",
+                governing_factor_token_id=None,
+                i3rab_case_or_mood="مبني",
+                marker="—",
+                confidence=CONF_STRONG,
+                status="resolved",
+                reasoning_step="Batch 28.10: fused لام+الْ+اسم (لل…) as single-surface حرف جر",
+                evidence_sources=["L17:B28_10", "lam_al_fused"],
+            )
+            ent.setdefault("gold_rule_refs", [])
+            if "B28_10_LAM_AL_FUSED" not in ent["gold_rule_refs"]:
+                ent["gold_rule_refs"].append("B28_10_LAM_AL_FUSED")
+            continue
+
+        # (2) وَالَّذِينَ — واو + موصول (Batch 28.10)
+        if (
+            fam == "NOUN"
+            and _can_10(ent, allow_noun=True)
+            and (
+                c.startswith("والذ")
+                or c.startswith("واللذ")
+                or c.startswith("والتي")
+                or c.startswith("واللتي")
+            )
+            and 6 <= len(c) <= 22
+            and len(surface) <= 28
+        ):
+            _set_role(
+                ent,
+                syntactic_role="اسم موصول",
+                governing_factor="صلة الموصول",
+                governing_factor_token_id=None,
+                i3rab_case_or_mood="مبني على الفتح",
+                marker="—",
+                confidence=CONF_GOOD,
+                status="resolved",
+                reasoning_step="Batch 28.10: واو+الذِين/التي surface (relative pronoun head)",
+                evidence_sources=["L17:B28_10", "waw_al_mawsul"],
+            )
+            ent.setdefault("gold_rule_refs", [])
+            if "B28_10_WAW_AL_MAWSUL" not in ent["gold_rule_refs"]:
+                ent["gold_rule_refs"].append("B28_10_WAW_AL_MAWSUL")
+            continue
+
+
+def _apply_b28_11_bismillah_mudaf_ilayh(
+    token_reasoning: List[Dict[str, Any]],
+    tokens: List[str],
+) -> None:
+    """
+    Batch 28.11 — ayah-completion: بِسْمِ اللَّهِ (Fatiha 1:1 word 2) as مضاف إليه when Stage15 IDAFA
+    link is missing but the surface is the fixed construct بسم + الله.
+    Narrow; does not override G007–G016/G026.
+    """
+    by_id = {str(e.get("token_id")): e for e in token_reasoning}
+    for i in range(1, len(tokens)):
+        c0 = _b28_8_core_letters(tokens[i - 1] or "")
+        c1 = _b28_8_core_letters(tokens[i] or "")
+        if c0 != "بسم" or c1 != "الله":
+            continue
+        ent = by_id.get(str(i))
+        if ent is None:
+            continue
+        if (ent.get("grammatical_family") or "").strip() != "NOUN":
+            continue
+        refs = list(ent.get("gold_rule_refs") or [])
+        if any(str(r).startswith(("G007", "G010", "G016", "G015", "G026")) for r in refs):
+            continue
+        role = (ent.get("syntactic_role") or "").strip()
+        if role == "مضاف إليه" and (ent.get("status") or "").strip() == "resolved":
+            continue
+        _set_role(
+            ent,
+            syntactic_role="مضاف إليه",
+            governing_factor="المضاف",
+            governing_factor_token_id=str(i - 1),
+            i3rab_case_or_mood="مجرور",
+            marker="الكسرة",
+            confidence=CONF_STRONG,
+            status="resolved",
+            reasoning_step="Batch 28.11: بِسْمِ اللَّهِ مضاف إليه (surface idafa)",
+            evidence_sources=["L17:B28_11", "bism_allah_construct"],
+        )
+        ent.setdefault("gold_rule_refs", [])
+        if "B28_11_BISMILLAH_MUDAF_ILAYH" not in ent["gold_rule_refs"]:
+            ent["gold_rule_refs"].append("B28_11_BISMILLAH_MUDAF_ILAYH")
+
+
+def _apply_b28_14_mubtada_pred_head(
+    token_reasoning: List[Dict[str, Any]],
+    tokens: List[str],
+    dsb_links: List[Dict[str, Any]],
+) -> None:
+    """
+    Batch 28.14 — nominal **مبتدأ** when Stage15 marks this token as **head** of a
+    ``PRED`` link whose dependent is **خبر** (``nominal_mubtada_to_khabar`` / ``arabic_role=KHABAR``).
+
+    ``_build_one_token_reasoning`` only consults relations where the token is **dependent**;
+    the mubtada is the **head** of that link, so it stayed ``غير محسوم`` (e.g. Fatiha 1:2 ``الْحَمْدُ``).
+    Evidence-driven from existing Stage15 links only; no lexical ayah list.
+
+    **Scope:** ``head_id == "0"`` only (sentence-initial nominal mubtada). Broader PRED heads
+    are left to future work — avoids interfering with verbal clauses where a non-initial
+    Stage15 ``PRED`` edge may appear from other rules.
+    """
+    by_id = {str(e.get("token_id")): e for e in token_reasoning}
+    for link in dsb_links or []:
+        if (link.get("relation") or "").strip() != "PRED":
+            continue
+        ar = (link.get("arabic_role") or "").strip().upper()
+        rule = (link.get("rule") or "").strip().lower()
+        if ar != "KHABAR" and "mubtada" not in rule and "khabar" not in rule:
+            continue
+        hid = str(link.get("head_id") or "")
+        did = str(link.get("dependent_id") or "")
+        if hid != "0":
+            continue
+        if not hid or not did:
+            continue
+        ent = by_id.get(hid)
+        if ent is None:
+            continue
+        if (ent.get("grammatical_family") or "").strip() != "NOUN":
+            continue
+        role = (ent.get("syntactic_role") or "").strip()
+        st = (ent.get("status") or "").strip()
+        if st == "resolved" and role not in ("", "غير محسوم", "—"):
+            continue
+        refs = list(ent.get("gold_rule_refs") or [])
+        if any(str(r).startswith(("G007", "G010", "G016", "G015", "G026")) for r in refs):
+            continue
+        dep_surf = ""
+        try:
+            di = int(did)
+            if 0 <= di < len(tokens):
+                dep_surf = (tokens[di] or "").strip()
+        except (ValueError, TypeError):
+            pass
+        _set_role(
+            ent,
+            syntactic_role="مبتدأ",
+            governing_factor=dep_surf or "الخبر",
+            governing_factor_token_id=did,
+            i3rab_case_or_mood="مرفوع",
+            marker="الضمة",
+            confidence=CONF_STRONG,
+            status="resolved",
+            reasoning_step="Batch 28.14: Stage15 PRED→خبر head — مبتدأ (nominal clause)",
+            evidence_sources=["STAGE15", "L17:B28_14"],
+        )
+        ent.setdefault("gold_rule_refs", [])
+        if "B28_14_MUBTADA_PRED_HEAD" not in ent["gold_rule_refs"]:
+            ent["gold_rule_refs"].append("B28_14_MUBTADA_PRED_HEAD")
+
+
+# Batch 28.19 — short nominal clause: مبتدأ/خبر when L10B is nominal, no verb, Stage15 has ≤1 link.
+CONF_B28_19_MUBTADA = 0.78
+CONF_B28_19_KHABAR = 0.75
+
+
+def _l10b_main_clause_type(lo: Dict[str, Any]) -> str:
+    tr = (lo.get("L10B_DEEP_SYNTAX") or {}).get("transformation_result") or {}
+    summary = tr.get("syntax_summary") or {}
+    return (summary.get("main_clause_type") or "").strip().lower()
+
+
+def _b28_19_blocked_by_structural_refs(ent: Dict[str, Any]) -> bool:
+    refs = list(ent.get("gold_rule_refs") or [])
+    return any(str(r).startswith(("G007", "G010", "G016", "G015", "G026")) for r in refs)
+
+
+def _b28_19_ent_fillable(ent: Dict[str, Any]) -> bool:
+    """True if this entry may receive B28_19 nominal-short roles (Batch 28.14 parity)."""
+    if _b28_19_blocked_by_structural_refs(ent):
+        return False
+    st = (ent.get("status") or "").strip()
+    role = (ent.get("syntactic_role") or "").strip()
+    if st == "resolved" and role not in ("", "غير محسوم", "—"):
+        return False
+    return True
+
+
+def _b28_19_sentence_has_verb(
+    tokens: List[str],
+    lo: Dict[str, Any],
+    dsb_links: List[Dict[str, Any]],
+) -> bool:
+    for idx in range(len(tokens)):
+        tid = str(idx)
+        surf = (tokens[idx] or "").strip()
+        rel, _ = _stage15_relation_and_head(tid, dsb_links)
+        if _grammatical_family(tid, surf, lo, rel) == "VERB":
+            return True
+    return False
+
+
+def _b28_19_skip_khabar_second(
+    ent: Dict[str, Any],
+    token_id: str,
+    dsb_links: List[Dict[str, Any]],
+    tokens: List[str],
+) -> bool:
+    """Second noun is not خبر when already مجرور / مضاف إليه / إنّ name, SIFA/نعت, etc."""
+    rel, _ = _stage15_relation_and_head(token_id, dsb_links)
+    if rel in ("JAR_MAJRUR", "IDAFA", "INNA_NAME", "SIFA"):
+        return True
+    role = (ent.get("syntactic_role") or "").strip()
+    if role in ("اسم مجرور", "مضاف إليه", "اسم إن", "نعت"):
+        return True
+    if (ent.get("i3rab_case_or_mood") or "").strip() == "مجرور":
+        return True
+    try:
+        ti = int(token_id)
+    except (TypeError, ValueError):
+        ti = -1
+    if 0 <= ti < len(tokens):
+        if _nominal_case_bucket_from_surface((tokens[ti] or "").strip()) == "مجرور":
+            return True
+    return False
+
+
+def _apply_b28_19_nominal_short(
+    token_reasoning: List[Dict[str, Any]],
+    lo: Dict[str, Any],
+    tokens: List[str],
+    dsb_links: List[Dict[str, Any]],
+) -> None:
+    """
+    Batch 28.19 (nominal-short inference) — **B28_19_NOMINAL_SHORT**
+
+    When L10B ``main_clause_type`` is **nominal**, there is no verbal predicate in the
+    sentence, Stage 15 has at most one dependency link, and the sentence has 1–3 **NOUN**
+    tokens, infer **مبتدأ** then **خبر** in surface order. Does not require SUBJ/PRED links.
+
+    Narrow guards: no ``INNA_NAME`` link; skip خبر when the second noun is already مجرور /
+    مضاف إليه context; skip single-token **و+اسم** surfaces (attached و) to avoid false
+    مبتدأ on Quranic وَال… heads that are often معطوف or structurally marked elsewhere.
+
+    **Note:** Comparator batch id **28.19** is also used for ``_infer_case_bucket_from_l17``
+    (مبني vs genitive). This rule is **L17 structural** only; ref tag ``B28_19_NOMINAL_SHORT``.
+    """
+    if _l10b_main_clause_type(lo) != "nominal":
+        return
+    links = dsb_links or []
+    if len(links) > 1:
+        return
+    for link in links:
+        if (link.get("relation") or "").strip() == "INNA_NAME":
+            return
+    if _b28_19_sentence_has_verb(tokens, lo, dsb_links):
+        return
+
+    by_id = {str(e.get("token_id")): e for e in token_reasoning}
+    noun_idxs: List[int] = []
+    for idx in range(len(tokens)):
+        ent = by_id.get(str(idx))
+        if ent is None:
+            continue
+        if (ent.get("grammatical_family") or "").strip() != "NOUN":
+            continue
+        noun_idxs.append(idx)
+
+    n_nouns = len(noun_idxs)
+    if n_nouns < 1 or n_nouns > 3:
+        return
+
+    first_i = noun_idxs[0]
+    if _has_attached_waw_prefix((tokens[first_i] or "").strip()):
+        return
+
+    ent0 = by_id.get(str(first_i))
+    if ent0 is None:
+        return
+    r0 = (ent0.get("syntactic_role") or "").strip()
+    if r0 != "مبتدأ" and _b28_19_ent_fillable(ent0):
+        _set_role(
+            ent0,
+            syntactic_role="مبتدأ",
+            governing_factor="جملة اسمية (قصيرة)",
+            governing_factor_token_id=None,
+            i3rab_case_or_mood="مرفوع",
+            marker="الضمة",
+            confidence=CONF_B28_19_MUBTADA,
+            status="resolved",
+            reasoning_step="Batch 28.19: nominal short — مبتدأ (L10B nominal, no verb, ≤1 Stage15 link)",
+            evidence_sources=["L10B", "L17:B28_19"],
+        )
+        ent0.setdefault("gold_rule_refs", [])
+        if "B28_19_NOMINAL_SHORT" not in ent0["gold_rule_refs"]:
+            ent0["gold_rule_refs"].append("B28_19_NOMINAL_SHORT")
+
+    if n_nouns < 2:
+        return
+    second_i = noun_idxs[1]
+    ent1 = by_id.get(str(second_i))
+    if ent1 is None:
+        return
+    if _b28_19_skip_khabar_second(ent1, str(second_i), dsb_links, tokens):
+        return
+    r1 = (ent1.get("syntactic_role") or "").strip()
+    if r1 == "خبر" and (ent1.get("status") or "").strip() == "resolved":
+        return
+    if not _b28_19_ent_fillable(ent1):
+        return
+    gov_tid = str(first_i)
+    gov_surf = (tokens[first_i] or "").strip()
+    _set_role(
+        ent1,
+        syntactic_role="خبر",
+        governing_factor=gov_surf or "المبتدأ",
+        governing_factor_token_id=gov_tid,
+        i3rab_case_or_mood="مرفوع",
+        marker="الضمة",
+        confidence=CONF_B28_19_KHABAR,
+        status="resolved",
+        reasoning_step="Batch 28.19: nominal short — خبر (L10B nominal, no verb, ≤1 Stage15 link)",
+        evidence_sources=["L10B", "L17:B28_19"],
+    )
+    ent1.setdefault("gold_rule_refs", [])
+    if "B28_19_NOMINAL_SHORT" not in ent1["gold_rule_refs"]:
+        ent1["gold_rule_refs"].append("B28_19_NOMINAL_SHORT")
+
+
+def _apply_b28_16_idafa_kasra_after_naat(
+    token_reasoning: List[Dict[str, Any]],
+    tokens: List[str],
+    dsb_links: List[Dict[str, Any]],
+    lo: Dict[str, Any],
+) -> None:
+    """
+    Batch 28.16 — **مضاف إليه** when Stage15 did not emit **IDAFA**, but a **نعت** immediately precedes a
+    definite (**ال…**) noun with kasra genitive on the surface, and the نعت is governed by a **NOUN** head
+    (``governing_factor_token_id``). Parity with ``Pass_B28_16_idafa_kasra_definite`` for the dependent side.
+    """
+    by_id = {str(e.get("token_id")): e for e in token_reasoning}
+    for i in range(1, len(tokens)):
+        prev_e = by_id.get(str(i - 1))
+        ent_i = by_id.get(str(i))
+        if prev_e is None or ent_i is None:
+            continue
+        if (prev_e.get("syntactic_role") or "").strip() != "نعت":
+            continue
+        if (ent_i.get("grammatical_family") or "").strip() != "NOUN":
+            continue
+        if _b28_19_blocked_by_structural_refs(ent_i):
+            continue
+        rel_i, _ = _stage15_relation_and_head(str(i), dsb_links)
+        if rel_i == "IDAFA":
+            continue
+        surf_i = (tokens[i] or "").strip()
+        if not _normalize_surface(surf_i).startswith("ال"):
+            continue
+        if _nominal_case_bucket_from_surface(surf_i) != "مجرور":
+            continue
+        g = prev_e.get("governing_factor_token_id")
+        if g is None:
+            continue
+        try:
+            hi = int(g)
+        except (TypeError, ValueError):
+            continue
+        if hi < 0 or hi >= len(tokens):
+            continue
+        head_surf = (tokens[hi] or "").strip()
+        if _grammatical_family(str(hi), head_surf, lo, None) != "NOUN":
+            continue
+        st = (ent_i.get("status") or "").strip()
+        role_i = (ent_i.get("syntactic_role") or "").strip()
+        if st == "resolved" and role_i not in ("", "غير محسوم", "—", "خبر"):
+            continue
+        _set_role(
+            ent_i,
+            syntactic_role="مضاف إليه",
+            governing_factor="المضاف",
+            governing_factor_token_id=str(hi),
+            i3rab_case_or_mood="مجرور",
+            marker="الكسرة",
+            confidence=CONF_GOOD,
+            status="resolved",
+            reasoning_step="Batch 28.16: إضافة بعد نعت — مضاف إليه (كسرة + اللام، بدون Stage15 IDAFA)",
+            evidence_sources=["STAGE15", "L17:B28_16"],
+        )
+        ent_i.setdefault("gold_rule_refs", [])
+        if "B28_16_IDAFA_KASRA_AFTER_NAAT" not in ent_i["gold_rule_refs"]:
+            ent_i["gold_rule_refs"].append("B28_16_IDAFA_KASRA_AFTER_NAAT")
+
+
+def _apply_b28_16_mudaf_head_idafa(
+    token_reasoning: List[Dict[str, Any]],
+    tokens: List[str],
+    dsb_links: List[Dict[str, Any]],
+) -> None:
+    """
+    Batch 28.16 — nominal **مضاف** when Stage15 marks this token as **head** of ``IDAFA``
+    (mudaf → mudaf_ilayh). ``_build_one_token_reasoning`` only assigns ``مضاف إليه`` for the
+    dependent side; the regent can remain ``خبر``/``غير محسوم`` when a ``PRED`` link also exists.
+    """
+    by_id = {str(e.get("token_id")): e for e in token_reasoning}
+    for link in dsb_links or []:
+        if (link.get("relation") or "").strip() != "IDAFA":
+            continue
+        hid = str(link.get("head_id") or "")
+        did = str(link.get("dependent_id") or "")
+        if not hid or not did:
+            continue
+        ent = by_id.get(hid)
+        if ent is None:
+            continue
+        if (ent.get("grammatical_family") or "").strip() != "NOUN":
+            continue
+        try:
+            di = int(did)
+        except (TypeError, ValueError):
+            continue
+        dep_surf = (tokens[di] or "").strip() if 0 <= di < len(tokens) else ""
+        role = (ent.get("syntactic_role") or "").strip()
+        if role == "مضاف إليه":
+            continue
+        _set_role(
+            ent,
+            syntactic_role="مضاف",
+            governing_factor=dep_surf or "المضاف إليه",
+            governing_factor_token_id=did,
+            i3rab_case_or_mood="مجرور",
+            marker="الكسرة",
+            confidence=CONF_GOOD,
+            status="resolved",
+            reasoning_step="Batch 28.16: Stage15 IDAFA head — مضاف (إضافة)",
+            evidence_sources=["STAGE15", "L17:B28_16"],
+        )
+        ent.setdefault("gold_rule_refs", [])
+        if "B28_16_IDAFA_MUDAF" not in ent["gold_rule_refs"]:
+            ent["gold_rule_refs"].append("B28_16_IDAFA_MUDAF")
+
+
+def _apply_b28_16_repair_naib_subj_when_mudari_verb(
+    token_reasoning: List[Dict[str, Any]],
+    tokens: List[str],
+    dsb_links: List[Dict[str, Any]],
+) -> None:
+    """
+    When L8B marked a verb passive (Stage15 NAIB_SUBJ) but restoration set **فعل مضارع** active,
+    dependents still carried نائب فاعل. Re-resolve prepositional dependents as مجرور (Batch 28.16).
+    """
+    by_id = {str(e.get("token_id")): e for e in token_reasoning}
+    for link in dsb_links or []:
+        if (link.get("relation") or "").strip() != "NAIB_SUBJ":
+            continue
+        hid = str(link.get("head_id") or "")
+        did = str(link.get("dependent_id") or "")
+        ve = by_id.get(hid)
+        if ve is None or (ve.get("syntactic_role") or "").strip() != "فعل مضارع":
+            continue
+        de = by_id.get(did)
+        if de is None:
+            continue
+        try:
+            di = int(did)
+        except (ValueError, TypeError):
+            continue
+        if di < 0 or di >= len(tokens):
+            continue
+        surf = (tokens[di] or "").strip()
+        if not _has_prepositional_blocker(surf):
+            continue
+        _set_role(
+            de,
+            syntactic_role="اسم مجرور",
+            governing_factor="حرف الجر",
+            governing_factor_token_id=None,
+            i3rab_case_or_mood="مجرور",
+            marker="الكسرة",
+            confidence=CONF_GOOD,
+            status="resolved",
+            reasoning_step="Batch 28.16: NAIB_SUBJ repaired — governing verb is active mudāriʿ; PP object not نائب فاعل",
+            evidence_sources=["STAGE15", "L17:B28_16"],
+        )
+        de.setdefault("gold_rule_refs", [])
+        if "B28_16_NAIB_REPAIR_MUDARI" not in de["gold_rule_refs"]:
+            de["gold_rule_refs"].append("B28_16_NAIB_REPAIR_MUDARI")
+
+
 def _apply_b24_hal_mansub_g015(
     token_reasoning: List[Dict[str, Any]],
     lo: Dict[str, Any],
@@ -1116,6 +1889,25 @@ def _build_one_token_reasoning(
         confidence = CONF_STRONG
         status = "resolved"
 
+    # Rule 6a — مضاف إليه (Stage15 IDAFA: head=mudaf, dependent=mudaf ilayh)
+    elif family == "NOUN" and dsb_relation == "IDAFA" and dsb_head_id is not None:
+        try:
+            hi = int(dsb_head_id)
+        except (TypeError, ValueError):
+            hi = -1
+        head_surf = (tokens[hi] or "").strip() if 0 <= hi < len(tokens) else ""
+        syntactic_role = "مضاف إليه"
+        governing_factor = "المضاف"
+        governing_factor_token_id = dsb_head_id
+        i3rab_case_or_mood = "مجرور"
+        marker = "الكسرة"
+        reasoning_steps.extend(
+            ["Stage15:IDAFA", "Rule: مضاف إليه في إضافة (B28_11)", f"mudaf_surface≈{head_surf[:12]}"]
+        )
+        evidence_sources.extend(["STAGE15", "L17:B28_11"])
+        confidence = CONF_STRONG
+        status = "resolved"
+
     # Rule 6b — إنَّ governance
     elif family == "NOUN" and dsb_relation == "INNA_NAME":
         syntactic_role = "اسم إن"
@@ -1138,13 +1930,34 @@ def _build_one_token_reasoning(
         confidence = CONF_STRONG
         status = "resolved"
 
-    # Rule 1 — Active verb
-    elif family == "VERB" and (not voice or voice == "active"):
-        syntactic_role = "فعل"
+    # Rule 1b — Fiʿl amr (Batch 28.17): ا+هـ imperative; must precede finite/mudāriʿ split.
+    elif family == "VERB" and is_imperative_amr_surface(surface):
+        syntactic_role = "فعل أمر"
         governing_factor = ""
-        i3rab_case_or_mood = "مبني على الفتح"
-        marker = "الفتح"
-        reasoning_steps.extend(["L5/L8B:VERB", "L8B:voice=active or none", "Rule: active past verb"])
+        i3rab_case_or_mood = "مبني على حذف حرف العلة"
+        marker = "السكون"
+        reasoning_steps.extend(
+            ["L17:B28_17", "Surface: fiʿl amr (ا+هـ)", "Rule: imperative verb"]
+        )
+        evidence_sources.extend(["L17:B28_17", "SURFACE"])
+        confidence = 0.88
+        status = "resolved"
+
+    # Rule 1 — Active verb (past مبني على الفتح vs mudāriʿ marfūʿ — Batch 28.16)
+    elif family == "VERB" and (not voice or voice == "active"):
+        governing_factor = ""
+        if _l17_verb_active_mudari3_marfuu(surface):
+            syntactic_role = "فعل مضارع"
+            i3rab_case_or_mood = "مرفوع"
+            marker = "الضمة"
+            reasoning_steps.extend(
+                ["L5/L8B:VERB", "L8B:voice=active or none", "Rule: mudāriʿ marfūʿ (B28_16)"]
+            )
+        else:
+            syntactic_role = "فعل"
+            i3rab_case_or_mood = "مبني على الفتح"
+            marker = "الفتح"
+            reasoning_steps.extend(["L5/L8B:VERB", "L8B:voice=active or none", "Rule: active past verb (مبني على الفتح)"])
         evidence_sources.extend(["L5", "L8B"])
         confidence = CONF_GOOD
         status = "resolved"
@@ -1171,15 +1984,42 @@ def _build_one_token_reasoning(
         confidence = CONF_STRONG
         status = "resolved"
 
-    # Rule 5 — OBJ (direct object)
+    # Rule 5 — OBJ (direct object); Batch 28.17: detached إِيَّا… + وَإِيَّا… coordination
     elif family == "NOUN" and dsb_relation == "OBJ":
-        syntactic_role = "مفعول به"
-        governing_factor = governing_verb or "الفعل"
-        i3rab_case_or_mood = "منصوب"
-        marker = "الفتحة"
-        reasoning_steps.extend(["Stage15:OBJ", "L8B:head transitive", "Rule: direct object"])
-        evidence_sources.extend(["STAGE15", "L8B"])
-        confidence = CONF_STRONG
+        ws = (surface or "").strip()
+        wstk = ws[1:] if ws.startswith("\u0648") and len(ws) > 1 else ws
+        if ws.startswith("\u0648") and is_detached_iyya_pronoun(wstk):
+            syntactic_role = "معطوف"
+            try:
+                ix = int(token_id)
+            except (TypeError, ValueError):
+                ix = -1
+            if ix >= 2:
+                governing_factor = (tokens[ix - 2] or "").strip() or "المعطوف عليه"
+                governing_factor_token_id = str(ix - 2)
+            else:
+                governing_factor = governing_verb or "المعطوف عليه"
+            i3rab_case_or_mood = "منصوب"
+            marker = "الفتحة"
+            reasoning_steps.extend(
+                ["Stage15:OBJ", "L17:B28_17", "Rule: معطوف (وَ+إِيَّا…)", "coordinated object"]
+            )
+        elif is_detached_iyya_pronoun(ws):
+            syntactic_role = "مفعول به"
+            governing_factor = governing_verb or "الفعل"
+            i3rab_case_or_mood = "منصوب"
+            marker = "الفتحة"
+            reasoning_steps.extend(
+                ["Stage15:OBJ", "L17:B28_17", "Rule: ضمير منفصل إِيَّا… (مفعول به منصوب)"]
+            )
+        else:
+            syntactic_role = "مفعول به"
+            governing_factor = governing_verb or "الفعل"
+            i3rab_case_or_mood = "منصوب"
+            marker = "الفتحة"
+            reasoning_steps.extend(["Stage15:OBJ", "L8B:head transitive", "Rule: direct object"])
+        evidence_sources.extend(["STAGE15", "L8B", "L17:B28_17"])
+        confidence = CONF_STRONG if syntactic_role == "مفعول به" else 0.88
         status = "resolved"
 
     # Rule 5b — SIFA (نعت); case follows موصوف (morphological cues)
@@ -1259,7 +2099,7 @@ def _build_one_token_reasoning(
         else:
             reasoning_steps.append("L11B unavailable")
 
-    return {
+    rr: Dict[str, Any] = {
         "token_id": token_id,
         "surface": surface,
         "grammatical_family": family,
@@ -1275,6 +2115,23 @@ def _build_one_token_reasoning(
         "clause_id": clause_id,
         "limitations": limitations,
     }
+    if dsb_relation == "IDAFA" and (syntactic_role or "").strip() == "مضاف إليه":
+        rr["gold_rule_refs"] = ["B28_11_IDAFA_MUDAF_ILAYH"]
+    if (syntactic_role or "").strip() == "فعل مضارع":
+        rr.setdefault("gold_rule_refs", [])
+        if "B28_16_MUDARI3_MARFUU" not in rr["gold_rule_refs"]:
+            rr["gold_rule_refs"].append("B28_16_MUDARI3_MARFUU")
+    if (syntactic_role or "").strip() == "فعل أمر":
+        rr.setdefault("gold_rule_refs", [])
+        if "B28_17_IMPERATIVE_AMR" not in rr["gold_rule_refs"]:
+            rr["gold_rule_refs"].append("B28_17_IMPERATIVE_AMR")
+    _srf = (surface or "").strip()
+    _iyy = _srf[1:] if _srf.startswith("\u0648") and len(_srf) > 1 else _srf
+    if dsb_relation == "OBJ" and is_detached_iyya_pronoun(_iyy):
+        rr.setdefault("gold_rule_refs", [])
+        if "B28_17_IYYA_DETACHED_PRONOUN" not in rr["gold_rule_refs"]:
+            rr["gold_rule_refs"].append("B28_17_IYYA_DETACHED_PRONOUN")
+    return rr
 
 
 def _roles_compatible(a: str, b: str) -> bool:
@@ -1414,6 +2271,10 @@ def _apply_b22_structural_g007_g010(
 
         # OBJ
         if not _b22_head_supports_maf3ul_from_obj(str(hi), tokens, lo):
+            continue
+        dep_surf = (tokens[di] or "").strip()
+        dep_core = dep_surf[1:] if dep_surf.startswith("\u0648") and len(dep_surf) > 1 else dep_surf
+        if dep_surf.startswith("\u0648") and is_detached_iyya_pronoun(dep_core):
             continue
         link_conf = float(link.get("confidence") or 0.78)
         prev_conf = float(entry.get("confidence") or 0)
@@ -2049,9 +2910,36 @@ def _apply_reference_governance_post_pass(
         verb_entry = by_id.get(str(idx))
         if verb_entry is None:
             continue
-        profile = _l8b_profile_for_token(str(idx), surface, lo)
-        voice = (profile.get("voice") or "").strip().lower() if profile else ""
-        if voice == "passive":
+        if is_imperative_amr_surface(surface):
+            _set_role(
+                verb_entry,
+                syntactic_role="فعل أمر",
+                governing_factor="",
+                governing_factor_token_id=None,
+                i3rab_case_or_mood="مبني على حذف حرف العلة",
+                marker="السكون",
+                confidence=0.88,
+                status="resolved",
+                reasoning_step="Strong true-verb restoration: fiʿl amr (B28_17)",
+                evidence_sources=["L17:B28_17", "SURFACE"],
+            )
+            verb_entry.setdefault("gold_rule_refs", [])
+            if "B28_17_IMPERATIVE_AMR" not in verb_entry["gold_rule_refs"]:
+                verb_entry["gold_rule_refs"].append("B28_17_IMPERATIVE_AMR")
+            continue
+        profile = _l8b_profile_for_token(str(idx), surface, lo) or {}
+        voice = (profile.get("voice") or "").strip().lower()
+        vconf = float(profile.get("confidence") or 0)
+        mudari_mar = _l17_verb_active_mudari3_marfuu(surface)
+        # L8B may label Form-I active plurals as passive with low confidence (e.g. يُؤْمِنُونَ).
+        passive_spurious = (
+            voice == "passive"
+            and mudari_mar
+            and vconf < 0.55
+            and _l17_mudari3_plural_shape_suffix(surface)
+        )
+        effective_passive = voice == "passive" and not passive_spurious
+        if effective_passive:
             _set_role(
                 verb_entry,
                 syntactic_role="فعل",
@@ -2064,6 +2952,22 @@ def _apply_reference_governance_post_pass(
                 reasoning_step="Strong true-verb restoration (passive)",
                 evidence_sources=["L8B", "L14_JAMID_MUSHTAQ"],
             )
+        elif mudari_mar:
+            _set_role(
+                verb_entry,
+                syntactic_role="فعل مضارع",
+                governing_factor="",
+                governing_factor_token_id=None,
+                i3rab_case_or_mood="مرفوع",
+                marker="الضمة",
+                confidence=CONF_GOOD,
+                status="resolved",
+                reasoning_step="Strong true-verb restoration (active mudāriʿ marfūʿ, B28_16)",
+                evidence_sources=["L8B", "L14_JAMID_MUSHTAQ"],
+            )
+            verb_entry.setdefault("gold_rule_refs", [])
+            if "B28_16_MUDARI3_MARFUU" not in verb_entry["gold_rule_refs"]:
+                verb_entry["gold_rule_refs"].append("B28_16_MUDARI3_MARFUU")
         else:
             _set_role(
                 verb_entry,
@@ -2074,7 +2978,7 @@ def _apply_reference_governance_post_pass(
                 marker="الفتح",
                 confidence=CONF_GOOD,
                 status="resolved",
-                reasoning_step="Strong true-verb restoration (active)",
+                reasoning_step="Strong true-verb restoration (active past)",
                 evidence_sources=["L8B", "L14_JAMID_MUSHTAQ"],
             )
 
@@ -2086,7 +2990,7 @@ def _apply_reference_governance_post_pass(
         if subj_entry is None:
             continue
         subj_rel, _ = _stage15_relation_and_head(str(subj_idx), dsb_links)
-        if voice == "passive":
+        if effective_passive:
             if subj_rel == "JAR_MAJRUR" or _has_prepositional_blocker(tokens[subj_idx] or ""):
                 continue
             _set_role(
@@ -2128,7 +3032,7 @@ def _apply_reference_governance_post_pass(
                 evidence_sources=["L8B", "token_order"],
             )
 
-        if voice == "passive":
+        if effective_passive:
             continue
         obj_idx = noun_candidates[1] if len(noun_candidates) >= 2 else None
         if obj_idx is None:
@@ -2537,6 +3441,30 @@ def build_rule_based_i3rab(lo: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     khabar_in_analysis = _apply_b27_khabar_in_clause_resolution(
         token_reasoning, lo, tokens, dsb_links, khabar_in_candidates
     )
+
+    # Batch 28.8 — last pass so earlier structural rules keep precedence.
+    _apply_b28_8_targeted_resolutions(token_reasoning, tokens)
+
+    # Batch 28.10 — after 28.8; narrow fused-lam / waw-mawsul surfaces from 28.9 evidence.
+    _apply_b28_10_targeted_resolutions(token_reasoning, tokens)
+
+    # Batch 28.11 — ayah-level completion: بسم الله مضاف إليه (after 28.10).
+    _apply_b28_11_bismillah_mudaf_ilayh(token_reasoning, tokens)
+
+    # Batch 28.14 — مبتدأ from Stage15 PRED head (after 28.11; narrow).
+    _apply_b28_14_mubtada_pred_head(token_reasoning, tokens, dsb_links)
+
+    # Batch 28.19 — short nominal مبتدأ/خبر without SUBJ/PRED (after 28.14; L10B nominal + ≤1 link).
+    _apply_b28_19_nominal_short(token_reasoning, lo, tokens, dsb_links)
+
+    # Batch 28.16 — مضاف from Stage15 IDAFA head (after 28.14; structural idafa regent).
+    _apply_b28_16_mudaf_head_idafa(token_reasoning, tokens, dsb_links)
+
+    # Batch 28.16 — مضاف إليه after نعت when Stage15 omitted IDAFA (definite kasra + ال).
+    _apply_b28_16_idafa_kasra_after_naat(token_reasoning, tokens, dsb_links, lo)
+
+    # Batch 28.16 — repair Stage15 NAIB_SUBJ when verb resolved to active mudāriʿ.
+    _apply_b28_16_repair_naib_subj_when_mudari_verb(token_reasoning, tokens, dsb_links)
 
     resolved = sum(1 for e in token_reasoning if e.get("status") == "resolved")
     candidate = sum(1 for e in token_reasoning if e.get("status") == "candidate")

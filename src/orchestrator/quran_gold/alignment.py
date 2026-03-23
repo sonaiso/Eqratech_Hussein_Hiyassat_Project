@@ -199,22 +199,30 @@ class AlignmentResult:
 def align_gold_words_to_pipeline_tokens(
     gold_words: Sequence[str],
     token_surfaces: Sequence[str],
+    *,
+    repair_pass: int = 0,
 ) -> List[RichAlignmentResult]:
     """
     Occurrence-aware forward alignment of gold CSV words to pipeline token surfaces.
 
     - Monotonic: matched pipeline index strictly increases.
     - Same normalized gold string repeated → consume occurrences in token order.
+    - ``repair_pass > 0``: match using extra ``strip_match_noise`` on gold surfaces (tooling retry).
     """
     n_g = len(gold_words)
     n_t = len(token_surfaces)
     count_mismatch = n_g != n_t
-    gold_norm = [normalize_arabic_surface(g) for g in gold_words]
+    if repair_pass > 0:
+        work_surfaces = [strip_match_noise(g) if strip_match_noise(g) else g for g in gold_words]
+    else:
+        work_surfaces = list(gold_words)
+    gold_norm = [normalize_arabic_surface(g) for g in work_surfaces]
     results: List[RichAlignmentResult] = []
     cursor = 0
 
     for gi in range(n_g):
-        gold_raw = gold_words[gi]
+        csv_word = gold_words[gi]
+        gold_raw = work_surfaces[gi]
         gn = gold_norm[gi]
         if not gn:
             results.append(
@@ -223,7 +231,7 @@ def align_gold_words_to_pipeline_tokens(
                     token_index=None,
                     outcome=AlignmentOutcome.ALIGNMENT_AMBIGUOUS,
                     reason="empty_gold_word",
-                    gold_word_raw=gold_raw,
+                    gold_word_raw=csv_word,
                     gold_word_normalized=gn,
                     ayah_token_surface="",
                     ayah_token_normalized="",
@@ -260,7 +268,7 @@ def align_gold_words_to_pipeline_tokens(
                             token_index=j,
                             outcome=AlignmentOutcome.ALIGNED_BY_OCCURRENCE,
                             reason=SEG_SPLIT_MERGE,
-                            gold_word_raw=gold_raw,
+                            gold_word_raw=csv_word,
                             gold_word_normalized=g2,
                             ayah_token_surface=pair,
                             ayah_token_normalized=t2,
@@ -302,7 +310,7 @@ def align_gold_words_to_pipeline_tokens(
                     token_index=None,
                     outcome=oc,
                     reason=seg_fail,
-                    gold_word_raw=gold_raw,
+                    gold_word_raw=csv_word,
                     gold_word_normalized=gn,
                     ayah_token_surface="",
                     ayah_token_normalized="",
@@ -340,7 +348,7 @@ def align_gold_words_to_pipeline_tokens(
                 token_index=j_pick,
                 outcome=outc,
                 reason=detail,
-                gold_word_raw=gold_raw,
+                gold_word_raw=csv_word,
                 gold_word_normalized=g2,
                 ayah_token_surface=tr,
                 ayah_token_normalized=t2,

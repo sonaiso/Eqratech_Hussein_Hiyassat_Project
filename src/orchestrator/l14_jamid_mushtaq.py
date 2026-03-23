@@ -8,6 +8,7 @@ Output: token_classifications with derivational_class and jamid_or_mushtaq.
 from __future__ import annotations
 
 import re
+import unicodedata
 from typing import Any, Dict, List, Optional, Tuple
 
 from .arabic_word_state import (
@@ -237,6 +238,39 @@ def _l8b_voice_confident_candidate_profile(
     return None
 
 
+def _arabic_letters_only(surface: str) -> str:
+    """Base Arabic letters U+0621–U+064A only (NFC); omits combining marks and shadda."""
+    nfc = unicodedata.normalize("NFC", (surface or "").strip())
+    return "".join(ch for ch in nfc if "\u0621" <= ch <= "\u064a")
+
+
+def is_imperative_amr_surface(surface: str) -> bool:
+    """
+    Batch 28.17 — Quranic fiʿl amr with همزة على الألف + هاء (اهْدِ، اهْدِنَا، …).
+    Excludes mudāriʿ ا+ه false positives handled in L17 Batch 28.16 by treating this as **أمر** only here.
+    """
+    s = (surface or "").strip()
+    if s.startswith(("و", "ف")) and len(s) > 1:
+        s = s[1:]
+    if len(s) < 3:
+        return False
+    return s[0] == "\u0627" and s[1] == "\u0647"
+
+
+def is_detached_iyya_pronoun(surface: str) -> bool:
+    """
+    Batch 28.17 — ضمير منفصل منصوب إِيَّا + ضمير (إِيَّاكَ، إِيَّانَا، …).
+    Letter skeleton (NFC, U+0621–U+064A) keeps إ with hamza; إِيَّاكَ → ``إياك``.
+    Strips optional و/ف coordination prefix for وَإِيَّاكَ-style surfaces.
+    """
+    core = _arabic_letters_only(surface)
+    if core.startswith("\u0648"):
+        core = core[1:]
+    if core.startswith("\u0641"):
+        core = core[1:]
+    return len(core) >= 4 and core.startswith("\u0625\u064a\u0627")
+
+
 def has_strong_true_verb_evidence(token_id: str, surface: str, lo: Dict[str, Any]) -> bool:
     """
     True only for resolved/high-confidence verbs, very narrow voice-confident finite-verb candidates,
@@ -247,6 +281,8 @@ def has_strong_true_verb_evidence(token_id: str, surface: str, lo: Dict[str, Any
     k = (kind or "").strip().lower()
     if k in ("operator", "particle", "حرف"):
         return False
+    if is_imperative_amr_surface(surface):
+        return True
     if _l8b_strong_verb_profile(surface, token_id, lo) is not None:
         return True
     if _l8b_voice_confident_candidate_profile(surface, token_id, lo) is not None:

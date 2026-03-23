@@ -7,6 +7,7 @@ Reads L5, L8, L8B, L10B; does not mutate L10B. ROOT represented only in root_res
 
 from __future__ import annotations
 
+import unicodedata
 from typing import Any, Dict, List, Optional, Tuple
 
 from .relation_inventory import (
@@ -36,7 +37,11 @@ from .relation_inventory import (
     REL_SIFA,
     REL_SUBJ,
 )
-from ..l14_jamid_mushtaq import has_strong_true_verb_evidence
+from ..l14_jamid_mushtaq import (
+    has_strong_true_verb_evidence,
+    is_detached_iyya_pronoun,
+    is_imperative_amr_surface,
+)
 
 
 def _tokens_from_lo(lo: Dict[str, Any]) -> List[str]:
@@ -646,6 +651,13 @@ def _apply_strong_verb_local_subj_obj(
         first_n = content_nouns[0]
         second_n = content_nouns[1] if len(content_nouns) >= 2 else None
         first_surf = (tokens[first_n] or "").strip()
+        pre_verb_obj_link = verb_idx > 0 and any(
+            l.get("head_id") == str(verb_idx)
+            and l.get("dependent_id") == str(verb_idx - 1)
+            and l.get("relation") == REL_OBJ
+            for l in dependency_links
+        )
+        first_w_stripped = first_surf[1:] if first_surf.startswith("\u0648") and len(first_surf) > 1 else first_surf
         first_definite = _normalize_surface(first_surf).startswith("ال")
         effective_transitive = transitive
         if (
@@ -664,7 +676,11 @@ def _apply_strong_verb_local_subj_obj(
             and not is_passive
         )
         if not has_subj:
-            if is_passive:
+            if is_imperative_amr_surface(surface or "") and has_obj:
+                pass
+            elif pre_verb_obj_link and is_detached_iyya_pronoun(first_w_stripped):
+                pass
+            elif is_passive:
                 _add_link(
                     dependency_links, corrections_log, str(verb_idx), str(first_n),
                     relation=REL_NAIB_SUBJ, arabic_role=AR_NAIB_FAIL, confidence=0.82,
@@ -1111,11 +1127,34 @@ def build_dependency_syntax(lo: Dict[str, Any]) -> Optional[Dict[str, Any]]:
                         break
         if first_idx is not None and second_idx is not None:
             if not _has_explicit_coordination_evidence(tokens, op_words, first_idx, second_idx):
-                _add_link(
-                    dependency_links, corrections_log, str(first_idx), str(second_idx),
-                    relation=REL_PRED, arabic_role=AR_KHABAR, confidence=0.75,
-                    rule="nominal_mubtada_to_khabar", inferred=True,
-                )
+                if is_imperative_amr_surface((tokens[first_idx] or "").strip()):
+                    root_id = str(first_idx)
+                    root_form = (tokens[first_idx] or "").strip()
+                    root_rule = "b28_17_imperative_clause_initial"
+                    root_confidence = 0.82
+                    _add_link(
+                        dependency_links, corrections_log, str(first_idx), str(second_idx),
+                        relation=REL_OBJ, arabic_role=AR_MAF3UL_BIH, confidence=0.82,
+                        rule="Pass_B28_17_imperative_to_object", inferred=True,
+                    )
+                    if second_idx + 1 < len(tokens) and not l8b_map.get(second_idx + 1):
+                        k3 = next(
+                            (w.get("kind") or "" for w in words5 if (w.get("word") or "").strip() == (tokens[second_idx + 1] or "").strip()),
+                            "",
+                        )
+                        ph3 = (node_by_id.get(str(second_idx + 1)) or {}).get("pos_hint") or ""
+                        if _is_noun_like(k3, ph3):
+                            _add_link(
+                                dependency_links, corrections_log, str(second_idx), str(second_idx + 1),
+                                relation=REL_SIFA, arabic_role=AR_NA3T, confidence=0.78,
+                                rule="Pass_B28_17_object_naat", inferred=True,
+                            )
+                else:
+                    _add_link(
+                        dependency_links, corrections_log, str(first_idx), str(second_idx),
+                        relation=REL_PRED, arabic_role=AR_KHABAR, confidence=0.75,
+                        rule="nominal_mubtada_to_khabar", inferred=True,
+                    )
 
     elif main_clause_type == "verbal":
         # Verbal: canonical directions — verb/root → SUBJ/OBJ/NAIB_SUBJ (governing verb is always head).
@@ -1150,6 +1189,15 @@ def build_dependency_syntax(lo: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         is_passive = (profile.get("voice") or "").strip().lower() == "passive"
         transitivity = (profile.get("transitivity") or "").strip().lower()
         transitive = "transitive" in transitivity or profile.get("objects", 0) or profile.get("exp_objects", 0)
+        # Batch 28.17: pre-verb detached إِيَّا… pronoun — object before finite verb (إِيَّاكَ نَعْبُدُ).
+        if verb_idx > 0 and not is_passive:
+            ps = (tokens[verb_idx - 1] or "").strip()
+            if is_detached_iyya_pronoun(ps):
+                _add_link(
+                    dependency_links, corrections_log, str(verb_idx), str(verb_idx - 1),
+                    relation=REL_OBJ, arabic_role=AR_MAF3UL_BIH, confidence=0.82,
+                    rule="Pass_B28_17_preverb_iyya_object", inferred=True,
+                )
         # Post-verb noun: subject or naib fa'il (head=verb, dependent=noun)
         # Root cause for missing OBJ in simple transitives:
         # weak/candidate L8B profiles on nouns were treated as verbs, so Stage 15 skipped the true subject
@@ -1183,7 +1231,18 @@ def build_dependency_syntax(lo: Dict[str, Any]) -> Optional[Dict[str, Any]]:
                     second_after_verb = j
                     break
         if first_after_verb is not None:
-            if is_passive:
+            fsurf = (tokens[first_after_verb] or "").strip()
+            fcore = fsurf[1:] if fsurf.startswith("\u0648") and len(fsurf) > 1 else fsurf
+            if (
+                not is_passive
+                and is_detached_iyya_pronoun(fcore)
+            ):
+                _add_link(
+                    dependency_links, corrections_log, str(verb_idx), str(first_after_verb),
+                    relation=REL_OBJ, arabic_role=AR_MAF3UL_BIH, confidence=0.82,
+                    rule="Pass_B28_17_postverb_waw_iyya_object", inferred=True,
+                )
+            elif is_passive:
                 _add_link(
                     dependency_links, corrections_log, str(verb_idx), str(first_after_verb),
                     relation=REL_NAIB_SUBJ, arabic_role=AR_NAIB_FAIL, confidence=0.8,
@@ -1382,6 +1441,15 @@ def build_dependency_syntax(lo: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             mudaf_idx = int(from_id)
         except (TypeError, ValueError):
             continue
+        if 0 <= mudaf_idx < len(tokens) and is_imperative_amr_surface((tokens[mudaf_idx] or "").strip()):
+            corrections_log.append({
+                "source_l10b_signal": {"type": "idafa_edge", "id": from_id, "value": f"{from_id}->{to_id}"},
+                "stage15_decision": {"relation": "IDAFA_suppressed", "head_id": from_id, "dependent_id": to_id},
+                "override_reason": "Batch 28.17: L10B idafa head is fiʿl amr (اهْدِ…), not مضاف",
+                "confidence": 0.82,
+                "evidence_signals": ["B28_17_imperative_not_mudaf"],
+            })
+            continue
         # Weak idafa suppression (L10B rule): if mudaf (from_id) immediately follows a passive verb, suppress.
         prev_idx = mudaf_idx - 1
         l10b_suppression = (e.get("idafa_suppression") or "").strip()
@@ -1401,6 +1469,34 @@ def build_dependency_syntax(lo: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             rule="Pass_B_L10B_idafa_edge", inferred=True,
         )
         idafa_pairs.add((str(from_id), str(to_id)))
+
+    # 3b) Batch 28.16 — kasra-final مضاف + following definite noun (يَوْمِ الدِّينِ) when L10B emitted no idafa edge.
+    # Uses last combining kasra (U+0650) only; avoids internal-kasra false positives (e.g. صَالِحٌ).
+    def _b28_16_kasra_ending(t: str) -> bool:
+        nfd = unicodedata.normalize("NFD", (t or "").strip())
+        return bool(nfd) and nfd[-1] == "\u0650"
+
+    for i in range(len(tokens) - 1):
+        t1 = (tokens[i] or "").strip()
+        t2 = (tokens[i + 1] or "").strip()
+        if not _b28_16_kasra_ending(t1) or not t2.startswith("ال"):
+            continue
+        if (str(i), str(i + 1)) in idafa_pairs:
+            continue
+        if i in l8b_map:
+            continue
+        if any((x.get("word") or "").strip() == t1 and x.get("operator") for x in op_words):
+            continue
+        prev_idx = i - 1
+        passive_before = prev_idx >= 0 and (l8b_map.get(prev_idx) or {}).get("voice") == "passive"
+        if passive_before:
+            continue
+        _add_link(
+            dependency_links, corrections_log, str(i), str(i + 1),
+            relation=REL_IDAFA, arabic_role=AR_MUDAF, confidence=0.72,
+            rule="Pass_B28_16_idafa_kasra_definite", inferred=True,
+        )
+        idafa_pairs.add((str(i), str(i + 1)))
 
     # 4) SIFA: head = noun (mawsuf), dependent = adjective (sifa). Direction: noun → SIFA → adjective.
     word_to_kind: Dict[str, str] = {}
@@ -1424,6 +1520,49 @@ def build_dependency_syntax(lo: Dict[str, Any]) -> Optional[Dict[str, Any]]:
                     rule="Pass_B_sifa_L5_or_pos_hint", inferred=True,
                 )
                 break
+
+    # 3c) Batch 28.19 — SIFA dependent (نعت) + following definite noun when kasra is missing on the
+    # نعت surface but Pass 3b (kasra-final) did not fire. Extends B28_16 idafa for majrūr صفة chains.
+    idafa_pairs_post_sifa = {
+        (l.get("head_id"), l.get("dependent_id"))
+        for l in dependency_links
+        if l.get("relation") == REL_IDAFA
+    }
+    sifa_dependent_ids = {
+        str(l.get("dependent_id"))
+        for l in dependency_links
+        if (l.get("relation") or "").strip() == REL_SIFA and l.get("dependent_id") is not None
+    }
+
+    def _b28_16_kasra_ending_post_sifa(t: str) -> bool:
+        nfd = unicodedata.normalize("NFD", (t or "").strip())
+        return bool(nfd) and nfd[-1] == "\u0650"
+
+    for i in range(len(tokens) - 1):
+        t1 = (tokens[i] or "").strip()
+        t2 = (tokens[i + 1] or "").strip()
+        if str(i) not in sifa_dependent_ids:
+            continue
+        if _b28_16_kasra_ending_post_sifa(t1):
+            continue
+        if not t2.startswith("ال"):
+            continue
+        if (str(i), str(i + 1)) in idafa_pairs_post_sifa:
+            continue
+        if i in l8b_map:
+            continue
+        if any((x.get("word") or "").strip() == t1 and x.get("operator") for x in op_words):
+            continue
+        prev_idx = i - 1
+        passive_before = prev_idx >= 0 and (l8b_map.get(prev_idx) or {}).get("voice") == "passive"
+        if passive_before:
+            continue
+        _add_link(
+            dependency_links, corrections_log, str(i), str(i + 1),
+            relation=REL_IDAFA, arabic_role=AR_MUDAF, confidence=0.68,
+            rule="Pass_B28_19_idafa_after_sifa_definite", inferred=True,
+        )
+        idafa_pairs_post_sifa.add((str(i), str(i + 1)))
 
     # ----- Pass C: Coordination, Apposition, Ambiguity discipline, Candidate markers -----
     coverage = "nominal_verbal_pp_idafa_sifa_coord_appos"
