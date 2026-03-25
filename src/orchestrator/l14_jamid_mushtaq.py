@@ -32,6 +32,7 @@ from .builders import build_layer_output, get_previous_output
 from .stages.base_stage import BaseStage
 from .stages.placeholders import STAGE_NAMES
 from .types import LayerOutputDict, PipelineDict
+from .l8b_verb_bab_governance import _has_strong_finite_verb_surface, is_fused_yaa_nida_vocative
 
 # Diacritics, shadda, and tatweel to strip for wazn normalization
 _DIACRITICS = re.compile(r"[\u064b-\u0652\u0670\u0640]")
@@ -204,6 +205,9 @@ def _has_explicit_nominal_blocker(surface: str, kind: str) -> bool:
     k = (kind or "").strip().lower()
     if k in ("name", "proper_noun", "proper noun", "علم"):
         return True
+    # Patch 20 — L5 closed-class / deictic: never promote via finite-verb surface skeleton alone.
+    if k in ("demonstrative", "mabni", "pronoun", "ضمير"):
+        return True
     if norm.startswith(("ال", "وال", "فال")):
         return True
     if norm.endswith(("ة", "ات")):
@@ -257,6 +261,91 @@ def is_imperative_amr_surface(surface: str) -> bool:
     return s[0] == "\u0627" and s[1] == "\u0647"
 
 
+def is_qul_family_amr_surface(surface: str) -> bool:
+    """
+    Batch 28.30 — قُلْ / أَقُلْ / قُلْنَا / قُلُوا / قُلْهُمْ (fiʿl amr of قَالَ).
+    Narrow letter-skeleton match so Pass E does not treat these as post-verbal *nominal* SUBJ
+    candidates after a matrix verb when L5 tags them noun-like.
+
+    Rejects قَلْب / قَلِيل / أَقْلَم (third letter not ن/و/ه/ا after ``قل``, or ``أقل`` + non-clitic tail).
+    """
+    s = (surface or "").strip()
+    if s.startswith(("و", "ف")) and len(s) > 1:
+        s = s[1:]
+    core = _arabic_letters_only(s)
+    if not core:
+        return False
+    _QAF = "\u0642"
+    _LAM = "\u0644"
+    _ALEF_HAM = "\u0623"
+    if core.startswith(_ALEF_HAM + _QAF + _LAM):
+        if len(core) == 3:
+            return True
+        if len(core) <= 8:
+            tail = core[3:]
+            if tail.startswith(
+                ("ه", "ها", "هم", "هن", "هما", "ك", "كم", "كن", "كما"),
+            ):
+                return True
+        return False
+    # قُولُوا — plural imperative of قَالَ (ق + و + ل + …, not the قُلْ ق+ل stem).
+    if core.startswith("قول") and core.endswith("وا") and 5 <= len(core) <= 7:
+        return True
+    if not (core[0] == _QAF and len(core) >= 2 and core[1] == _LAM):
+        return False
+    if len(core) == 2:
+        return True
+    third = core[2]
+    if third in ("\u0646", "\u0648", "\u0647", "\u0627"):
+        return len(core) <= 6
+    return False
+
+
+def is_qala_root_reporting_surface(surface: str) -> bool:
+    """
+    Batch 28.31 — finite verb surfaces of root ق-و-ل (قَالَ، قَالُوا، …), narrow skeleton.
+    """
+    s = (surface or "").strip()
+    if s.startswith(("و", "ف")) and len(s) > 1:
+        s = s[1:]
+    core = _arabic_letters_only(s)
+    if not core:
+        return False
+    return core.startswith("قال") and 3 <= len(core) <= 8
+
+
+def is_reporting_speech_matrix_verb_surface(surface: str) -> bool:
+    """
+    Batch 28.31 — matrix verb that can introduce quoted speech (قُلْ family + قَالَ family).
+    Not a generic ``any verb`` guard.
+    """
+    if is_qul_family_amr_surface(surface):
+        return True
+    return is_qala_root_reporting_surface(surface)
+
+
+def is_reporting_na_finite_surface(surface: str) -> bool:
+    """
+    Batch 28.30 (Priority 2) — narrow **نا** plural past forms common in Quranic speech frames.
+    Letter skeletons only (no ayah lookup). Excludes short **هنا** / **أنا**-length false shapes.
+
+    Whitelist: آمَنَّا، سَمِعْنَا، أَطَعْنَا (أمنا، سمعنا، أطعنا).
+    """
+    s = (surface or "").strip()
+    if s.startswith(("و", "ف")) and len(s) > 1:
+        s = s[1:]
+    core = _arabic_letters_only(s)
+    if len(core) < 4 or len(core) > 8:
+        return False
+    # Explicit NFC letter skeletons (U+0621–U+064A). آ (U+0622) vs أ (U+0623) on hamzated forms.
+    return core in (
+        "\u0623\u0645\u0646\u0627",
+        "\u0622\u0645\u0646\u0627",
+        "\u0633\u0645\u0639\u0646\u0627",
+        "\u0623\u0637\u0639\u0646\u0627",
+    )
+
+
 def is_detached_iyya_pronoun(surface: str) -> bool:
     """
     Batch 28.17 — ضمير منفصل منصوب إِيَّا + ضمير (إِيَّاكَ، إِيَّانَا، …).
@@ -281,12 +370,41 @@ def has_strong_true_verb_evidence(token_id: str, surface: str, lo: Dict[str, Any
     k = (kind or "").strip().lower()
     if k in ("operator", "particle", "حرف"):
         return False
+    # Dual noun surfaces (…ان) match finite-verb vowel heuristics; never count as verbal evidence.
+    if k in ("noun", "اسم", "name", "proper_noun", "proper noun", "علم"):
+        inner = strip_common_nominal_proclitics(surface)
+        if len(inner) >= 2 and inner[-2:] in ("\u0627\u0646", "\u0623\u0646"):
+            return False
     if is_imperative_amr_surface(surface):
         return True
+    # Batch 28.30 — قُلْ / قُولُوا / قُلْنَا… must win L14 VERB even when L5 tags noun-like.
+    if is_qul_family_amr_surface(surface):
+        return True
+    if is_reporting_na_finite_surface(surface):
+        return True
+    # Batch 28.30 — fused يَا + munādā (e.g. يَاآدَمُ): L5 may say verb; not finite verbal evidence.
+    if is_fused_yaa_nida_vocative(surface):
+        return False
+    # Detached إِيَّا… can match finite fatha heuristics; never count as verb evidence here (28.17 / 28.30).
+    if is_detached_iyya_pronoun(surface):
+        return False
     if _l8b_strong_verb_profile(surface, token_id, lo) is not None:
         return True
     if _l8b_voice_confident_candidate_profile(surface, token_id, lo) is not None:
         return True
+    # Batch 28.30 — hollow/finite past (قَالَ, شَاءَ) when L5 mis-tags as noun; wazn «فعل» must not force SIFA.
+    # Patch 20 — tanween / ال / تاء تأنيث / إشارة / ضمير block false «فَعَلَ» skeleton hits on nouns (e.g. عَذَابٌ, أُولَئِكَ).
+    # Hollow اسم فاعل أجوف (صَائِم، قَائِل) matches the same vowel skeleton as hollow past verbs — not verbal evidence when L5 is noun-family.
+    if _has_strong_finite_verb_surface(surface) and not _has_explicit_nominal_blocker(surface, kind):
+        if k in ("noun", "اسم", "name", "proper_noun", "proper noun", "علم"):
+            ws = ref_word_state_for_token(lo, token_id)
+            stem_ref = (ws.get("canonical_stem") or ws.get("stem") or "").strip() or derivational_stem(surface)
+            if is_hollow_ism_fail_candidate(stem_ref):
+                pass
+            else:
+                return True
+        else:
+            return True
     if k in ("verb", "فعل") and not _has_explicit_nominal_blocker(surface, kind):
         return True
     return False
@@ -359,6 +477,20 @@ def _classify_one(
     evidence_sources: List[str] = []
     ambiguity_entry: Optional[Dict[str, Any]] = None
     candidates: List[Dict[str, Any]] = []
+
+    # RULE 0 — Batch 28.30 fused يَا + munādā (proper-name vocative); not a verb token for dependency scans.
+    if is_fused_yaa_nida_vocative(surface):
+        return ({
+            "token_id": token_id,
+            "surface": surface,
+            "root": root,
+            "wazn": wazn or template,
+            "derivational_class": "JAMID",
+            "jamid_or_mushtaq": "JAMID",
+            "confidence": 0.86,
+            "rule": "B28_30_fused_yaa_nida_munada",
+            "evidence_sources": ["L14", "B28_30"],
+        }, None)
 
     # RULE 7 — VERB (before mushtaq)
     if safe_family == "VERB":

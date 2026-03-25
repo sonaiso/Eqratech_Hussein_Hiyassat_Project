@@ -30,6 +30,11 @@ ALIF_MAQSURA = "\u0649"
 ALIF_MADDA = "\u0622"   # آ
 ALIF_WASLA = "\u0671"   # ٱ
 
+SUN_LETTERS = {
+    "ت", "ث", "د", "ذ", "ر", "ز", "س", "ش",
+    "ص", "ض", "ط", "ظ", "ل", "ن"
+}
+
 # -----------------------------
 # Basic helpers
 # -----------------------------
@@ -100,7 +105,8 @@ def normalize_missing_harakat(word: str) -> str:
 # -----------------------------
 # Exclusions (your request)
 # -----------------------------
-EXCLUDE_EXACT = {"حم", "دمت", "ص", "طس", "طسم", "طه", "عسق", "على", "ق"}
+# Note: do not list bare "على" — it matches the common preposition عَلَى after strip_harakat_only.
+EXCLUDE_EXACT = {"حم", "دمت", "ص", "طس", "طسم", "طه", "عسق", "ق"}
 MUQATTAAT = {
     "الم", "المص", "الر", "المر", "كهيعص", "طه", "طسم", "طس", "يس",
     "حم", "حم عسق", "عسق", "ق", "ن", "ص"
@@ -163,18 +169,77 @@ def normalize_initial_hamza(word: str) -> str:
 # -----------------------------
 # CV generator
 # -----------------------------
-def cv_pattern(word: str) -> str:
+def apply_al_tareef_pronunciation(units):
     """
-    - WRITTEN harakat only
-    - Shadda => CC
-    - Madd letters => V only if previous has matching written haraka
-    - Initial (ٱ/أ/إ/آ) => force starting CV (C+V) and remove that letter unit
+    Pronunciation-aware handling of definite article:
+    - if word starts with ٱل / ال
+    - and the next consonant is a sun letter:
+        remove the lam from pronunciation
+        keep / enforce shadda on the following letter
+    - if moon letter:
+        keep lam as pronounced consonant
+    """
+    if len(units) < 3:
+        return units
+
+    first_letter = units[0][0]
+    second_letter = units[1][0]
+    third_letter, third_marks = units[2]
+
+    if first_letter not in {ALIF_WASLA, ALIF}:
+        return units
+
+    if second_letter != "ل":
+        return units
+
+    if not is_arabic_letter(third_letter):
+        return units
+
+    if third_letter in SUN_LETTERS:
+        if SHADDA not in third_marks:
+            third_marks = [SHADDA] + third_marks
+        return [units[0], (third_letter, third_marks)] + units[3:]
+
+    return units
+
+def _symbol_from_marks(marks: list) -> str:
+    mapping = [
+        (FATHA, "a"),
+        (TANWIN_FATH, "a"),
+        (DAMMA, "o"),
+        (TANWIN_DAMM, "o"),
+        (KASRA, "i"),
+        (TANWIN_KASR, "i"),
+    ]
+    for mark, symbol in mapping:
+        if mark in marks:
+            return symbol
+    return ""
+
+
+def normalize_long_vowels(cv: str) -> str:
+    if not cv:
+        return ""
+    return (
+        cv.replace("VaVa", "VA")
+        .replace("ViVi", "VI")
+        .replace("VoVo", "VO")
+    )
+
+
+def cv_pattern_and_advanced(word: str) -> tuple[str, str]:
+    """
+    Single source of truth for CV + cv_advanced (vowel-quality).
+    Same preprocessing as legacy cv_pattern: article pronunciation, shadda, initial hamza/wasl.
     """
     w = normalize_word(word)
-    units = expand_shadda(split_letters_and_marks(w))
+    units = split_letters_and_marks(w)
+    units = apply_al_tareef_pronunciation(units)
+    units = expand_shadda(units)
 
-    out = []
-    prev_marks = []
+    simple: list[str] = []
+    advanced: list[str] = []
+    prev_marks: list = []
 
     first_idx = None
     for i, (ch, _m) in enumerate(units):
@@ -185,7 +250,10 @@ def cv_pattern(word: str) -> str:
     if first_idx is not None:
         first_letter = units[first_idx][0]
         if first_letter in {ALIF_WASLA, "أ", "إ", "آ"}:
-            out.extend(["C", "V"])
+            simple.extend(["C", "V"])
+            fm = units[first_idx][1]
+            sym0 = _symbol_from_marks(fm) or "a"
+            advanced.extend(["C", "V", sym0])
             units = units[:first_idx] + units[first_idx + 1 :]
 
     for letter, marks in units:
@@ -193,26 +261,88 @@ def cv_pattern(word: str) -> str:
             prev_marks = marks
             continue
 
+        symbol = _symbol_from_marks(marks)
         is_madd = False
         if letter == ALIF:
             is_madd = has_any(prev_marks, {FATHA, TANWIN_FATH})
+            if is_madd:
+                symbol = _symbol_from_marks(prev_marks) or symbol or "a"
         elif letter == WAW:
             is_madd = has_any(prev_marks, {DAMMA, TANWIN_DAMM})
+            if is_madd:
+                symbol = _symbol_from_marks(prev_marks) or symbol or "o"
         elif letter == YA or letter == ALIF_MAQSURA:
             is_madd = has_any(prev_marks, {KASRA, TANWIN_KASR})
+            if is_madd:
+                symbol = _symbol_from_marks(prev_marks) or symbol or "i"
 
         if letter == ALIF_MADDA:
-            out.append("C")
+            simple.append("C")
+            advanced.extend(["C", "V", "a"])
         elif is_madd:
-            out.append("V")
+            simple.append("V")
+            advanced.extend(["V", symbol or "a"])
         else:
-            out.append("C")
+            simple.append("C")
+            advanced.append("C")
             if has_any(marks, SHORT_VOWELS):
-                out.append("V")
+                simple.append("V")
+                if symbol:
+                    advanced.extend(["V", symbol])
 
         prev_marks = marks
 
-    return "".join(out)
+    return "".join(simple), normalize_long_vowels("".join(advanced))
+
+
+def cv_pattern(word: str) -> str:
+    """
+    Pronunciation-aware CV:
+    - WRITTEN harakat only
+    - Shadda => CC
+    - Madd letters => V only if previous has matching written haraka
+    - Initial (ٱ/أ/إ/آ) => force starting CV (C+V) and remove that letter unit
+    - Definite article:
+        * moon lam stays
+        * sun lam assimilates into next letter
+    """
+    return cv_pattern_and_advanced(word)[0]
+
+
+def cv_advanced_pattern(word: str) -> str:
+    """Vowel-quality CV (a/i/o) aligned with cv_pattern preprocessing."""
+    return cv_pattern_and_advanced(word)[1]
+
+
+def analyze_token_for_pipeline(token: str) -> dict:
+    """
+    One token -> cv / cv_advanced / normalization. Used by fvafk pipeline (L6).
+    Excludes muqattaat etc. via should_exclude (same as batch main).
+    """
+    w = normalize_word(token)
+    if should_exclude(token):
+        return {
+            "cv": "",
+            "cv_advanced": "",
+            "word_input": w,
+            "word_normalized": w,
+            "excluded": True,
+            "cv_law_ok": False,
+            "cv_law_reason": "excluded",
+        }
+    w_norm = normalize_initial_hamza(w)
+    w_norm = normalize_missing_harakat(w_norm)
+    cv_s, cv_a = cv_pattern_and_advanced(w_norm)
+    ok, reason = follows_cv_law(cv_s)
+    return {
+        "cv": cv_s,
+        "cv_advanced": cv_a,
+        "word_input": w,
+        "word_normalized": w_norm,
+        "excluded": False,
+        "cv_law_ok": ok,
+        "cv_law_reason": reason,
+    }
 
 # -----------------------------
 # CV-law validator
@@ -278,7 +408,7 @@ def main():
 
         w_norm = normalize_initial_hamza(w)
         w_norm = normalize_missing_harakat(w_norm)  # ✅ THIS WAS MISSING
-        cv = cv_pattern(w_norm)
+        cv, _cv_adv = cv_pattern_and_advanced(w_norm)
         ok, reason = follows_cv_law(cv)
 
         if ok:

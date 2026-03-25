@@ -123,6 +123,7 @@ class PhonologyTrace:
             "summary": {
                 "accept_count": sum(1 for s in self.steps if s.status == GateStatus.ACCEPT),
                 "repair_count": sum(1 for s in self.steps if s.status == GateStatus.REPAIR),
+                "warn_count": sum(1 for s in self.steps if s.status == GateStatus.WARN),
                 "reject_count": sum(1 for s in self.steps if s.status == GateStatus.REJECT),
             }
         }
@@ -146,11 +147,26 @@ class PhonologyTrace:
         ]
         
         for i, step in enumerate(self.steps, 1):
-            symbol = "✓" if step.status == GateStatus.ACCEPT else "⚡" if step.status == GateStatus.REPAIR else "✗"
+            symbol = (
+                "✓"
+                if step.status == GateStatus.ACCEPT
+                else "⚡"
+                if step.status == GateStatus.REPAIR
+                else "⚠"
+                if step.status == GateStatus.WARN
+                else "✗"
+            )
             lines.append(f"  {i:2}. {symbol} {step.gate_id:15} {step.time_ms:6.2f}ms")
         
         summary = self.to_dict()["summary"]
-        lines.extend(["", f"Summary: {summary['accept_count']} accept, {summary['repair_count']} repair, {summary['reject_count']} reject", "=" * 60])
+        wc = summary.get("warn_count", 0)
+        lines.extend(
+            [
+                "",
+                f"Summary: {summary['accept_count']} accept, {summary['repair_count']} repair, {wc} warn, {summary['reject_count']} reject",
+                "=" * 60,
+            ]
+        )
         return "\n".join(lines)
 
 

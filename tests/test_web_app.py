@@ -78,7 +78,7 @@ def test_analyze_gate_shape(client):
     for g in gates:
         assert "gate" in g
         assert "status" in g
-        assert g["status"] in ("ACCEPT", "REPAIR", "REJECT")
+        assert g["status"] in ("ACCEPT", "REPAIR", "REJECT", "WARN")
 
 
 def test_analyze_with_morphology(client):

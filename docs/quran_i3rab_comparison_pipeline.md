@@ -14,6 +14,30 @@ Compare `data/quran_i3rab.csv` (gold per word) to the orchestrator pipeline outp
 
 **Batch 28.15** — **Accepted-row metadata only** (no comparator/orchestrator/stage-order change): for each row appended to `erqa_i3rab.csv`, authoritative columns `accepted_role`, `accepted_case_bucket`, `accepted_marker`, `accepted_structured_signature`, `accepted_governing_factor`, and `system_i3rab` are derived from the **final accepted role + canonical display line** via `canonicalize_accepted_metadata` in `orchestrator/quran_gold/accepted_row_serializer.py`. Legacy multi-code signatures (e.g. `ism_majrur,mubtada`) and stale L17 case/marker traces no longer leak into accepted fields; `raw_system_i3rab_before_hardening` keeps pre-canonical analyzer text. Invariants helper: `validate_accepted_row_invariants`. Tests: `tests/quran_gold/test_batch_28_15_metadata_canonicalization.py` (unit + optional `@pytest.mark.slow` CLI subprocess checks for 1:1–1:3 writes).
 
+## Partition A — ERQA integrity (`--verify-erqa`)
+
+**Do not** approximate “finished work” with a contiguous Quran prefix (e.g. `--from-surah 1 --from-ayah 1 --max-ayahs 140`): accepted ayahs in `erqa_i3rab.csv` are **not** guaranteed to be the first *N* ayahs of the mushaf.
+
+**Mandatory gate (before upstream patch work that could regress accepted rows):**
+
+```bash
+PYTHONPATH=src python3 scripts/run_quran_i3rab_comparison.py --verify-erqa data/erqa_i3rab.csv
+```
+
+**Patch 19:** `--verify-erqa` **always** builds ayah text from **gold CSV** (`gold_csv` reconstruction). You do not need `--canonical-ayah-source gold_csv` for Partition A; the JSON report’s `canonical_ayah_source` field is **`gold_csv`** for this subcommand.
+
+**Behavior:**
+
+1. Read **all** data rows from the given ERQA CSV.
+2. Collect the **exact** finished ayah set `{(surah, ayah)}` implied by those rows (plus `(surah, ayah, ayah_word_index)` keys; duplicate keys are a data defect).
+3. Re-run **only** those ayahs through `run_pipeline` + gold alignment + comparator (with **no** “already in ERQA” short-circuit — every accepted key is re-checked).
+4. Print JSON: `total_finished_rows`, `total_finished_ayahs`, `duplicate_key_rows`, `corrupted_rows`, `corrupted_ayahs`, `status` (`PASS` / `FAIL`), `failure_sample`, `failure_count`.
+5. Exit code **1** if `status` is `FAIL` (any degradation, duplicate key rows, missing gold row, alignment failure, or loss of `strict_acceptance_eligible` after `--max-repair-attempts`).
+
+Implementation: `orchestrator/quran_gold/ayah_batch_runner.py` (`verify_erqa_integrity`, `ErqaIntegrityReport`), CLI `scripts/run_quran_i3rab_comparison.py` (`_run_verify_erqa`). Tests: `tests/quran_gold/test_verify_erqa_integrity.py`.
+
+**Batch summary (normal runs):** `batch_summary.json` / printed JSON include **`newly_added_rows_this_patch`** and **`newly_added_ayahs_this_patch`** (same counters as new ERQA payloads queued this run — use in patch reports).
+
 ## Quran text source
 
 **Default (unchanged):** full ayah strings are loaded from `data/quran-uthmani.txt` (line format: `surah|ayah|text`). Override with `--quran-text`.
@@ -173,6 +197,7 @@ Acceptance policy is unchanged: only `exact_text_match` and `strict_structural_m
 
 | Flag | Default | Notes |
 | --- | --- | --- |
+| `--verify-erqa PATH` | off | **Partition A:** full ERQA re-validation only (see section above); exit **1** on degradation; no ERQA writes. |
 | `--dry-run` | off | When set: no erqa/wrong append; debug/audit/summary/progress still written. |
 | `--write-mode` | off | Required to append erqa / write batch wrong file. |
 | `--from-surah`, `--from-ayah` | none | Lower bound on ayah keys. |

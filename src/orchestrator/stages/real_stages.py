@@ -211,7 +211,7 @@ class RealL5WordTyping(BaseStage):
 
 
 class RealL6Phonology(BaseStage):
-    """L6: Phonology / CV — from c1, c2a, cv_analysis."""
+    """L6: Phonology / CV — ``c1.cv_analysis`` from ``src/word-2-cv.py`` only (via fvafk.c1.cv_pattern)."""
 
     def __init__(self) -> None:
         super().__init__("L6_PHONOLOGY", STAGE_NAMES["L6_PHONOLOGY"], 6)
@@ -232,7 +232,7 @@ class RealL6Phonology(BaseStage):
             status = "success" if (c1 or c2a) else "partial"
             next_input = {"c1": c1, "c2a": c2a, "cv_analysis": cv_analysis}
             raw = {"c1": c1, "c2a": c2a}
-            reused = {"file": "fvafk/c1, fvafk/c2a", "symbol": "C1Encoder, GateOrchestrator, cv_pattern", "mode": "adapter"}
+            reused = {"file": "src/word2cv_authority.py", "symbol": "compute_authoritative_cv_analysis", "mode": "adapter"}
         else:
             result = {}; status = "missing"; next_input = received or {}; raw = {}; reused = None
         return build_layer_output(

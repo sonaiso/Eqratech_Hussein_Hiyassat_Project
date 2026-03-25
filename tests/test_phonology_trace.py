@@ -326,6 +326,7 @@ def test_trace_summary_counts():
     
     assert summary["accept_count"] == 2
     assert summary["repair_count"] == 1
+    assert summary["warn_count"] == 0
     assert summary["reject_count"] == 0
 
 

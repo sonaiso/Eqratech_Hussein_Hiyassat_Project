@@ -11,6 +11,7 @@ class GateStatus(Enum):
     ACCEPT = auto()
     REPAIR = auto()
     REJECT = auto()
+    WARN = auto()
 
 
 @dataclass

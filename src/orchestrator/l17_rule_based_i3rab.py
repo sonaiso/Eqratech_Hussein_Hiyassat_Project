@@ -21,8 +21,28 @@ B2.7: B2.7-K1_resolve_khabar_in_verbal_clause — clause-level خبر إن analy
       emits khabar_in_analysis; secondary_analysis khabar_in_* on span tokens.
 B28.19: B28_19_NOMINAL_SHORT — short nominal مبتدأ/خبر when L10B nominal, no verb, ≤1 Stage15 link; skip خبر when
       SIFA/نعت or surface kasra-genitive on the candidate.
+B28.20: B28_20_HARF_JAR — unresolved PARTICLE + explicit L4 genitive/preposition evidence → resolved حرف جر.
+B33: B33_FUSED_HARF_JAR_QURAN — Quranic fused **عَلَيْهِمْ** / **مِمَّا** when **L4** omits `operator` (c2b marks **kind=noun**) but gold comparison shows unresolved **harf_jar** rows; **VERB**-family tokens skipped; does not override **موصول** roles.
+B28.21: B28_21_MAFOOL_BIH_FALLBACK — unresolved NOUN + nearest left strong active transitive verb in-clause +
+      no Stage15 OBJ + safe accusative evidence → resolved مفعول به (narrow missing-object recovery).
+B28.22: B28_22_FAEL_FALLBACK — unresolved NOUN + nearest left finite active verb in-clause + no Stage15 SUBJ
+      on token / no intervening SUBJ + safe marfūʿ evidence → resolved فاعل (narrow missing-subject recovery).
+B39: B39_STAGE15_OBJ_MAFOOL_REPAIR (Patch 9) — after **28.22**, when Stage15 **OBJ** links verb→dependent but L17
+      mis-tagged dependent as **فاعل** / **نائب فاعل**, repair to **مفعول به** if head supports G007-style objects
+      and dependent shows B28.21 accusative object cues.
+B40–B42 (Patches 10–12, after **B39**): **B40** `_apply_b40_khabar_after_mubtada` — repair false **مفعول به**/**فاعل**
+      → **خبر** after resolved **مبتدأ** or high-precision pointer surfaces (ذلك/هذا/أولئك/…), skipping **لا ريب**,
+      structural nouns, and short **غير محسوم** gaps; **لا رَيْبَ** is excluded from the finite-verb barrier scan.
+      **B41** `_apply_b41_darf_urf_resolution` — Quranic **ظرف زمان/مكان** templates (**إذا**/**إذ**/لما/كلما/قبل/مع/فوق/تحت/حول),
+      including **و**/**ف** proclitics and hamzah–alef variants; may override **فاعل**/**مفعول به** mis-tags; **G016/G015**
+      refs still block. **B42** `_apply_b42_fused_pp_ism_majrur` — **لل…** (not **لله**) / **بال…** fused PP noun
+      surfaces → **اسم مجرور** when Stage15 omits **JAR_MAJRUR**.
 B28.16: B28_16_IDAFA_KASRA_AFTER_NAAT — definite kasra-final noun after resolved نعت (governed by NOUN head) as
       مضاف إليه when Stage15 omits IDAFA; runs after `_apply_b28_16_mudaf_head_idafa`.
+B28.24: `clause_locality` — unified ``token_id→clause_id`` map: **L10B** ``clause_units`` when L16 is trivial
+      single-**main** only; otherwise **L16** clause spans. Same-clause scans use **Stage 15**-aligned
+      permissive semantics (`same_clause_locality_stage15_style`). `ensure_locality_map` accepts legacy
+      L16 row lists for unit tests.
 """
 
 from __future__ import annotations
@@ -33,6 +53,11 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from .arabic_word_state import ensure_arabic_word_state, ref_word_state_for_token
 from .builders import build_layer_output, get_previous_output
+from .clause_locality import (
+    build_clause_locality_token_map,
+    ensure_locality_map,
+    same_clause_locality_stage15_style,
+)
 from .l14_jamid_mushtaq import (
     has_strong_true_verb_evidence,
     is_detached_iyya_pronoun,
@@ -58,23 +83,20 @@ def _get_tokens(lo: Dict[str, Any]) -> List[str]:
     return [ (t.get("word") or "").strip() for t in tokens if t.get("word") ]
 
 
-def _clause_id_for_token(token_index: int, clause_analysis: List[Dict[str, Any]]) -> Optional[str]:
-    """Return clause_id that contains this token index from Stage 16 clause_analysis."""
-    for c in (clause_analysis or []):
-        try:
-            start = int(c.get("start_token_id") or 0)
-            end = int(c.get("end_token_id") or 0)
-            if start <= token_index <= end:
-                return c.get("clause_id")
-        except (ValueError, TypeError):
-            continue
-    return None
+def _clause_id_for_token(token_index: int, locality_map: Dict[str, str]) -> Optional[str]:
+    """Clause id from Batch 28.24 unified locality map (aligned with Stage 15 when L16 is trivial main-only)."""
+    v = locality_map.get(str(token_index))
+    if v is None or not str(v).strip():
+        return None
+    return str(v)
 
 
 def _stage15_relation_and_head(token_id: str, dsb_links: List[Dict[str, Any]]) -> Tuple[Optional[str], Optional[str]]:
     """(relation, head_id) for token as dependent. Stable priority vs arbitrary link order (B2.2/B2.3)."""
+    # **IDAFA before OBJ** (Patch 17): e.g. **غَيْرِ الْمَغْضُوبِ** — مضاف إليه must not lose to verbal **OBJ**
+    # from the sila verb (**أَنْعَمْتَ** → **OBJ** on **الْمَغْضُوبِ**) when **Pass_B** also emitted **IDAFA**.
     # IDAFA before PRED so مضاف إليه is not misread as خبر when both links exist (e.g. بِسْمِ اللَّهِ).
-    core_priority = ("INNA_NAME", "SUBJ", "OBJ", "NAIB_SUBJ", "SIFA", "APPOS", "IDAFA", "PRED")
+    core_priority = ("INNA_NAME", "SUBJ", "NAIB_SUBJ", "IDAFA", "OBJ", "SIFA", "APPOS", "PRED")
     by_rel: Dict[str, str] = {}
     for link in (dsb_links or []):
         if str(link.get("dependent_id")) != str(token_id):
@@ -269,6 +291,31 @@ def _is_emphatic_inna_operator(surface: str, lo: Dict[str, Any]) -> bool:
     return bool(operator)
 
 
+def _is_l4_harf_jar_operator(surface: str, lo: Dict[str, Any]) -> bool:
+    """
+    True only when L4 metadata explicitly marks the token as a genitive-governing preposition.
+
+    Batch 28.20 uses this instead of a surface allowlist so coverage stays limited to real
+    operator-catalog evidence and does not widen to unrelated particle families.
+    """
+    row = _l4_operator_entry_for_surface(surface, lo) or {}
+    operator = row.get("operator")
+    if not isinstance(operator, dict):
+        return False
+    if (operator.get("effect_signature") or "").strip() != "GEN":
+        return False
+    group = operator.get("group") or {}
+    group_ar = (group.get("arabic") or "").strip() if isinstance(group, dict) else ""
+    note = (operator.get("note") or "").strip()
+    effect = (operator.get("operator_effect") or "").strip()
+    template = (operator.get("i3rab_template") or "").strip()
+    return any(
+        "حرف جر" in text or "حَرْفُ جَر" in text
+        for text in (group_ar, note, effect, template)
+        if text
+    )
+
+
 def _stage15_coord_head_for_dependent(dependent_id: str, dsb_links: List[Dict[str, Any]]) -> Optional[str]:
     for link in (dsb_links or []):
         if str(link.get("dependent_id")) == str(dependent_id) and (link.get("relation") or "").strip() == "COORD":
@@ -332,12 +379,11 @@ def _next_noun_candidate(
     start_idx: int,
     tokens: List[str],
     lo: Dict[str, Any],
-    clause_analysis: List[Dict[str, Any]],
+    locality_map: Dict[str, str],
     stop_before_verb: bool = True,
 ) -> Optional[int]:
-    source_clause = _clause_id_for_token(start_idx, clause_analysis)
     for j in range(start_idx + 1, len(tokens)):
-        if source_clause and _clause_id_for_token(j, clause_analysis) not in (None, source_clause):
+        if not same_clause_locality_stage15_style(locality_map, start_idx, j):
             break
         if stop_before_verb and has_strong_true_verb_evidence(str(j), (tokens[j] or "").strip(), lo):
             break
@@ -365,6 +411,23 @@ def _has_accusative_surface_cue(surface: str) -> bool:
     """Surface-level accusative cue used only to block weak subject promotion."""
     raw = (surface or "").strip()
     return "\u064b" in raw or raw.endswith(("ًا", "اً"))
+
+
+def _b28_21_accusative_object_evidence(surface: str) -> bool:
+    """Tanwīn / alif, bucket منصوب, or definite noun with terminal fatḥa (Batch 28.21 narrow object cue)."""
+    if _has_accusative_surface_cue(surface):
+        return True
+    if _nominal_case_bucket_from_surface(surface) == "منصوب":
+        return True
+    raw = _nfc(surface or "")
+    if len(raw) < 2:
+        return False
+    n = _normalize_surface(surface or "")
+    if len(n) >= 4 and (n.startswith("ال") or n.startswith("وال") or n.startswith("فال")):
+        tail = raw[-6:] if len(raw) >= 6 else raw
+        if "\u064e" in tail and "\u064c" not in tail:
+            return True
+    return False
 
 
 def _nominal_case_bucket_from_surface(surface: str) -> Optional[str]:
@@ -451,7 +514,7 @@ def _b23_pred_allows_naat_over_khabar(
     tokens: List[str],
     lo: Dict[str, Any],
     dsb_links: List[Dict[str, Any]],
-    clause_analysis: List[Dict[str, Any]],
+    locality_map: Dict[str, str],
 ) -> bool:
     """
     PRED (mubtada→khabar) is a weaker analysis than نعت when the head is already
@@ -460,7 +523,7 @@ def _b23_pred_allows_naat_over_khabar(
     if _stage15_subj_or_obj_to_token(head_idx, dsb_links):
         return True
     if _has_accusative_surface_cue(tokens[head_idx] or "") and _has_accusative_surface_cue(tokens[dep_idx] or ""):
-        if _preceding_strong_verb_index(head_idx, tokens, lo, clause_analysis) is not None:
+        if _preceding_strong_verb_index(head_idx, tokens, lo, locality_map) is not None:
             return True
         # Accusative object + accusative attribute after a non-nominal prefix (verb/particle slot).
         # Require head_idx>=1 so sentence-initial مبتدأ (head at index 0) does not vacuously pass.
@@ -484,7 +547,7 @@ def _apply_b23_naat_agreement_g016(
     lo: Dict[str, Any],
     tokens: List[str],
     dsb_links: List[Dict[str, Any]],
-    clause_analysis: List[Dict[str, Any]],
+    locality_map: Dict[str, str],
     l12_by_id: Dict[str, Dict[str, Any]],
 ) -> None:
     """
@@ -527,7 +590,7 @@ def _apply_b23_naat_agreement_g016(
             return
         if rel in ("APPOS", "PRED") and case_ok is not True:
             return
-        if rel == "PRED" and not _b23_pred_allows_naat_over_khabar(hi, di, tokens, lo, dsb_links, clause_analysis):
+        if rel == "PRED" and not _b23_pred_allows_naat_over_khabar(hi, di, tokens, lo, dsb_links, locality_map):
             return
 
         hb = _nominal_case_bucket_from_surface(head_surf)
@@ -1129,6 +1192,909 @@ def _apply_b28_10_targeted_resolutions(
             continue
 
 
+def _apply_b28_20_harf_jar_from_l4(
+    token_reasoning: List[Dict[str, Any]],
+    tokens: List[str],
+    lo: Dict[str, Any],
+) -> None:
+    """
+    Batch 28.20 — unresolved PARTICLE + explicit L4 حرف جر evidence -> resolved حرف جر.
+
+    Guardrails:
+    - no override for already resolved non-tool roles
+    - PARTICLE family only
+    - L4 operator metadata must explicitly indicate genitive governance
+    """
+    for ent in token_reasoning:
+        if (ent.get("grammatical_family") or "").strip() != "PARTICLE":
+            continue
+        role = (ent.get("syntactic_role") or "").strip()
+        status = (ent.get("status") or "").strip()
+        if status == "resolved" and role not in ("", "أداة", "غير محسوم", "—"):
+            continue
+        if status not in ("candidate", "unresolved") and role not in ("", "أداة", "غير محسوم", "—"):
+            continue
+        tid = str(ent.get("token_id") or "")
+        try:
+            idx = int(tid)
+        except (TypeError, ValueError):
+            continue
+        if idx < 0 or idx >= len(tokens):
+            continue
+        surface = (tokens[idx] or "").strip()
+        if not _is_l4_harf_jar_operator(surface, lo):
+            continue
+        _set_role(
+            ent,
+            syntactic_role="حرف جر",
+            governing_factor="ما بعده",
+            governing_factor_token_id=None,
+            i3rab_case_or_mood="مبني",
+            marker="—",
+            confidence=CONF_GOOD,
+            status="resolved",
+            reasoning_step="Batch 28.20: L4 harf jar operator evidence on unresolved particle",
+            evidence_sources=["L4", "L17:B28_20"],
+        )
+        ent.setdefault("gold_rule_refs", [])
+        if "B28_20_HARF_JAR" not in ent["gold_rule_refs"]:
+            ent["gold_rule_refs"].append("B28_20_HARF_JAR")
+
+
+# Stripped surfaces from **494**-row structured-debug **harf_jar** ∧ **no_match** (Quran 1:7, 2:6, 2:20, 2:23);
+# excludes mis-tagged finite verbs (e.g. **يَضْرِبَ**) and any token whose grammatical family is **VERB**.
+_B33_FUSED_HARF_JAR_QURAN_SURFACES = frozenset({"عليهم", "مما"})
+
+
+def _apply_b33_fused_harf_jar_quran_surfaces(
+    token_reasoning: List[Dict[str, Any]],
+    tokens: List[str],
+    lo: Dict[str, Any],
+    dsb_links: List[Dict[str, Any]],
+) -> None:
+    """
+    Batch 33 — fused preposition + clitic surfaces where L4 has no ``operator`` payload (kind=noun) but
+    the school analysis is **حرف جر** + مبني. Narrow Quranic evidence pair only; **B28.20** remains first
+    when L4 exposes GEN حرف جر metadata.
+    """
+    for ent in token_reasoning:
+        role = (ent.get("syntactic_role") or "").strip()
+        status = (ent.get("status") or "").strip()
+        if "موصول" in role:
+            continue
+        if status == "resolved" and role not in ("", "أداة", "غير محسوم", "—"):
+            continue
+        if status not in ("candidate", "unresolved") and role not in ("", "أداة", "غير محسوم", "—"):
+            continue
+        tid = str(ent.get("token_id") or "")
+        try:
+            idx = int(tid)
+        except (TypeError, ValueError):
+            continue
+        if idx < 0 or idx >= len(tokens):
+            continue
+        surface = (tokens[idx] or "").strip()
+        sn = _normalize_surface(surface)
+        if sn not in _B33_FUSED_HARF_JAR_QURAN_SURFACES:
+            continue
+        dsb_relation, _ = _stage15_relation_and_head(tid, dsb_links)
+        if _grammatical_family(tid, surface, lo, dsb_relation) == "VERB":
+            continue
+        if "B28_20_HARF_JAR" in (ent.get("gold_rule_refs") or []):
+            continue
+        _set_role(
+            ent,
+            syntactic_role="حرف جر",
+            governing_factor="ما بعده",
+            governing_factor_token_id=None,
+            i3rab_case_or_mood="مبني",
+            marker="—",
+            confidence=CONF_GOOD,
+            status="resolved",
+            reasoning_step=(
+                "Batch 33: fused Quranic prep surface (عَلَيْهِمْ / مِمَّا) — L4 word lacks operator "
+                "metadata; resolve حرف جر without widening beyond evidence surfaces"
+            ),
+            evidence_sources=["L17:B33", "quran_fused_prep_surface"],
+        )
+        ent.setdefault("gold_rule_refs", [])
+        if "B33_FUSED_HARF_JAR_QURAN" not in ent["gold_rule_refs"]:
+            ent["gold_rule_refs"].append("B33_FUSED_HARF_JAR_QURAN")
+
+
+CONF_B28_21_MAFOOL_BIH = 0.76
+
+
+def _b28_21_dependent_has_blocking_stage15_relation(token_id: str, dsb_links: List[Dict[str, Any]]) -> bool:
+    """SUBJ / existing OBJ / SIFA / IDAFA / JAR_MAJRUR / INNA_NAME / PRED block narrow مفعول به fallback."""
+    block = frozenset(
+        ("SUBJ", "OBJ", "SIFA", "IDAFA", "JAR_MAJRUR", "INNA_NAME", "PRED", "NAIB_SUBJ"),
+    )
+    for link in dsb_links or []:
+        if str(link.get("dependent_id")) != str(token_id):
+            continue
+        if (link.get("relation") or "").strip() in block:
+            return True
+    return False
+
+
+def _b28_21_verb_has_obj_strictly_between(
+    verb_idx: int, dep_idx: int, dsb_links: List[Dict[str, Any]],
+) -> bool:
+    """Another Stage15 OBJ from the same verb landing strictly between verb and dep (object slot already filled)."""
+    for link in dsb_links or []:
+        if (link.get("relation") or "").strip() != "OBJ":
+            continue
+        if str(link.get("head_id")) != str(verb_idx):
+            continue
+        try:
+            oid = int(link.get("dependent_id"))
+        except (TypeError, ValueError):
+            continue
+        if verb_idx < oid < dep_idx:
+            return True
+    return False
+
+
+def _b28_21_verb_transitive_allows_bare_object(lo: Dict[str, Any], verb_idx: int, tokens: List[str]) -> bool:
+    """L8B must license a direct accusative object; block لازم / passive / prep-only governors."""
+    surf = (tokens[verb_idx] or "").strip()
+    prof = _l8b_profile_for_token(str(verb_idx), surf, lo)
+    if not prof:
+        return False
+    if prof.get("prepositional_required"):
+        return False
+    voice = (prof.get("voice") or "").strip().lower()
+    if voice == "passive":
+        return False
+    trans = (prof.get("transitivity") or "").strip().lower()
+    if trans in ("intransitive", "لازم"):
+        return False
+    if trans in ("transitive", "متعدي", "mental_verb", "transformational"):
+        return True
+    if int(prof.get("objects") or 0) >= 1:
+        return True
+    vc = (prof.get("valency_class") or "").strip().lower()
+    if vc in ("transitive_one_object", "transitive_two_object", "ditransitive"):
+        return True
+    # KB often leaves transitivity unknown; allow only active + strong finite/participial evidence (narrow lane).
+    if trans in ("unknown", "") and voice == "active":
+        return has_strong_true_verb_evidence(str(verb_idx), surf, lo)
+    return False
+
+
+def _b28_21_nearest_left_verb_index(
+    idx: int,
+    tokens: List[str],
+    lo: Dict[str, Any],
+    locality_map: Dict[str, str],
+    by_id: Dict[str, Dict[str, Any]],
+) -> Optional[int]:
+    """Strongest verbal governor left of idx within the same unified clause as Stage 15 (Batch 28.24)."""
+    for j in range(idx - 1, -1, -1):
+        if not same_clause_locality_stage15_style(locality_map, idx, j):
+            break
+        surf_j = (tokens[j] or "").strip()
+        if not has_strong_true_verb_evidence(str(j), surf_j, lo):
+            continue
+        ve = by_id.get(str(j))
+        if ve is None:
+            continue
+        fam = (ve.get("grammatical_family") or "").strip()
+        role = (ve.get("syntactic_role") or "").strip()
+        if fam != "VERB" and "فعل" not in role:
+            continue
+        if (ve.get("status") or "").strip() not in ("resolved", "candidate"):
+            continue
+        return j
+    return None
+
+
+def _apply_b28_21_mafool_bih_fallback(
+    token_reasoning: List[Dict[str, Any]],
+    lo: Dict[str, Any],
+    tokens: List[str],
+    dsb_links: List[Dict[str, Any]],
+    locality_map: Any,
+    l12_by_id: Dict[str, Dict[str, Any]],
+) -> None:
+    """
+    Batch 28.21 — unresolved NOUN + in-clause verbal governor + missing Stage15 OBJ → مفعول به.
+
+    Narrow: does not override resolved rows; does not compete with Stage15 SUBJ/SIFA/IDAFA;
+    skips passive verbs, prepositional-only verbs, tokens after حرف جر, and Batch 2.4 حال-shaped spans.
+    """
+    locality_map = ensure_locality_map(lo, locality_map)
+    by_id = {str(e.get("token_id")): e for e in token_reasoning}
+    for ent in token_reasoning:
+        if (ent.get("grammatical_family") or "").strip() != "NOUN":
+            continue
+        if (ent.get("status") or "").strip() != "unresolved":
+            continue
+        tid = str(ent.get("token_id") or "")
+        try:
+            idx = int(tid)
+        except (TypeError, ValueError):
+            continue
+        if idx < 0 or idx >= len(tokens):
+            continue
+        surface = (tokens[idx] or "").strip()
+        if is_detached_iyya_pronoun(surface) or (
+            surface.startswith("\u0648") and len(surface) > 1 and is_detached_iyya_pronoun(surface[1:])
+        ):
+            continue
+        refs = list(ent.get("gold_rule_refs") or [])
+        if any(str(r).startswith(("G007", "G016", "G015")) for r in refs):
+            continue
+        if _b28_21_dependent_has_blocking_stage15_relation(tid, dsb_links):
+            continue
+        if _stage15_sifa_head_for_dependent(tid, dsb_links) is not None:
+            continue
+        if not _b28_21_accusative_object_evidence(surface):
+            continue
+        vidx = _b28_21_nearest_left_verb_index(idx, tokens, lo, locality_map, by_id)
+        if vidx is None:
+            continue
+        if _b28_21_verb_transitive_allows_bare_object(lo, vidx, tokens) is not True:
+            continue
+        if _stage15_obj_from_verb_to_token(vidx, idx, dsb_links):
+            continue
+        if _b28_21_verb_has_obj_strictly_between(vidx, idx, dsb_links):
+            continue
+        if idx > 0:
+            pe = by_id.get(str(idx - 1))
+            ps = (tokens[idx - 1] or "").strip()
+            if pe is not None and (pe.get("syntactic_role") or "").strip() == "حرف جر":
+                continue
+            if _has_prepositional_blocker(ps):
+                continue
+            if pe is not None and _b24_prev_is_marfuu_subject(pe, ps):
+                vh = _stage15_verb_head_for_subj_or_naib(idx - 1, dsb_links)
+                if vh is not None and _b24_hal_dependent_shape_ok(idx, tokens, lo):
+                    continue
+        vsurf = (tokens[vidx] or "").strip()
+        marker = _marker_for_nominal_case("منصوب", tid, l12_by_id)
+        _set_role(
+            ent,
+            syntactic_role="مفعول به",
+            governing_factor=vsurf or "الفعل",
+            governing_factor_token_id=str(vidx),
+            i3rab_case_or_mood="منصوب",
+            marker=marker,
+            confidence=CONF_B28_21_MAFOOL_BIH,
+            status="resolved",
+            reasoning_step="Batch 28.21: narrow missing OBJ — active transitive verb in-clause + accusative noun",
+            evidence_sources=["L8B", "L17:B28_21", "STAGE15"],
+        )
+        ent.setdefault("gold_rule_refs", [])
+        if "B28_21_MAFOOL_BIH_FALLBACK" not in ent["gold_rule_refs"]:
+            ent["gold_rule_refs"].append("B28_21_MAFOOL_BIH_FALLBACK")
+
+
+CONF_B28_22_FAEL = 0.76
+
+
+def _b28_22_dependent_blocks_fael(token_id: str, dsb_links: List[Dict[str, Any]]) -> bool:
+    """SUBJ / OBJ / SIFA / IDAFA / JAR_MAJRUR / INNA_NAME / PRED / NAIB_SUBJ block narrow فاعل fallback."""
+    block = frozenset(
+        ("SUBJ", "OBJ", "SIFA", "IDAFA", "JAR_MAJRUR", "INNA_NAME", "PRED", "NAIB_SUBJ"),
+    )
+    for link in dsb_links or []:
+        if str(link.get("dependent_id")) != str(token_id):
+            continue
+        if (link.get("relation") or "").strip() in block:
+            return True
+    return False
+
+
+def _b28_22_verb_has_subj_strictly_between(
+    verb_idx: int, idx: int, dsb_links: List[Dict[str, Any]],
+) -> bool:
+    """Another Stage15 SUBJ from the same verb between verb and idx (subject slot already filled)."""
+    for link in dsb_links or []:
+        if (link.get("relation") or "").strip() != "SUBJ":
+            continue
+        if str(link.get("head_id")) != str(verb_idx):
+            continue
+        try:
+            sid = int(link.get("dependent_id"))
+        except (TypeError, ValueError):
+            continue
+        if verb_idx < sid < idx:
+            return True
+    return False
+
+
+def _b28_22_nominative_subject_evidence(surface: str) -> bool:
+    """Tanwīn ḍamma / definite non-accusative / clear marfūʿ cues — not accusative object (Batch 28.22)."""
+    if _has_accusative_surface_cue(surface):
+        return False
+    if _nominal_case_bucket_from_surface(surface) == "مرفوع":
+        return True
+    if _definite_nominative_subject_cue(surface):
+        return True
+    raw = _nfc(surface or "")
+    if len(raw) >= 2:
+        tail = raw[-6:] if len(raw) >= 6 else raw
+        if "\u064f" in tail and "\u064b" not in (surface or "") and "\u064d" not in (surface or ""):
+            return True
+    return False
+
+
+def _b28_22_nearest_left_finite_active_verb_index(
+    idx: int,
+    tokens: List[str],
+    lo: Dict[str, Any],
+    locality_map: Dict[str, str],
+    by_id: Dict[str, Dict[str, Any]],
+) -> Optional[int]:
+    """Nearest left finite active verb (B2.2) in the same unified clause as Stage 15 (Batch 28.24)."""
+    for j in range(idx - 1, -1, -1):
+        if not same_clause_locality_stage15_style(locality_map, idx, j):
+            break
+        ve = by_id.get(str(j))
+        if ve is None:
+            continue
+        fam = (ve.get("grammatical_family") or "").strip()
+        role = (ve.get("syntactic_role") or "").strip()
+        if fam != "VERB" and "فعل" not in role:
+            continue
+        if (ve.get("status") or "").strip() not in ("resolved", "candidate"):
+            continue
+        surf_j = (tokens[j] or "").strip()
+        if not _b22_head_supports_fael_from_subj(str(j), tokens, lo):
+            continue
+        return j
+    return None
+
+
+def _apply_b28_22_fael_fallback(
+    token_reasoning: List[Dict[str, Any]],
+    lo: Dict[str, Any],
+    tokens: List[str],
+    dsb_links: List[Dict[str, Any]],
+    locality_map: Any,
+    l12_by_id: Dict[str, Dict[str, Any]],
+) -> None:
+    """
+    Batch 28.22 — unresolved NOUN + in-clause finite active verb + missing Stage15 SUBJ lane → فاعل.
+
+    Narrow: does not override resolved rows; skips passive governors, OBJ-linked dependents,
+    SIFA/IDAFA/PRED, tokens after حرف جر / PP blockers, and verbs that already have a SUBJ between verb and token.
+    """
+    locality_map = ensure_locality_map(lo, locality_map)
+    by_id = {str(e.get("token_id")): e for e in token_reasoning}
+    for ent in token_reasoning:
+        if (ent.get("grammatical_family") or "").strip() != "NOUN":
+            continue
+        if (ent.get("status") or "").strip() != "unresolved":
+            continue
+        tid = str(ent.get("token_id") or "")
+        try:
+            idx = int(tid)
+        except (TypeError, ValueError):
+            continue
+        if idx < 0 or idx >= len(tokens):
+            continue
+        surface = (tokens[idx] or "").strip()
+        if is_detached_iyya_pronoun(surface) or (
+            surface.startswith("\u0648") and len(surface) > 1 and is_detached_iyya_pronoun(surface[1:])
+        ):
+            continue
+        refs = list(ent.get("gold_rule_refs") or [])
+        if any(str(r).startswith(("G007", "G015", "G016")) for r in refs):
+            continue
+        if _b28_22_dependent_blocks_fael(tid, dsb_links):
+            continue
+        if _stage15_sifa_head_for_dependent(tid, dsb_links) is not None:
+            continue
+        if not _b28_22_nominative_subject_evidence(surface):
+            continue
+        vidx = _b28_22_nearest_left_finite_active_verb_index(idx, tokens, lo, locality_map, by_id)
+        if vidx is None:
+            continue
+        if _b28_22_verb_has_subj_strictly_between(vidx, idx, dsb_links):
+            continue
+        if idx > 0:
+            pe = by_id.get(str(idx - 1))
+            ps = (tokens[idx - 1] or "").strip()
+            if pe is not None and (pe.get("syntactic_role") or "").strip() == "حرف جر":
+                continue
+            if _has_prepositional_blocker(ps):
+                continue
+        vsurf = (tokens[vidx] or "").strip()
+        marker = _marker_for_nominal_case("مرفوع", tid, l12_by_id)
+        _set_role(
+            ent,
+            syntactic_role="فاعل",
+            governing_factor=vsurf or "الفعل",
+            governing_factor_token_id=str(vidx),
+            i3rab_case_or_mood="مرفوع",
+            marker=marker,
+            confidence=CONF_B28_22_FAEL,
+            status="resolved",
+            reasoning_step="Batch 28.22: narrow missing SUBJ — finite active verb in-clause + marfūʿ noun",
+            evidence_sources=["L8B", "L17:B28_22", "STAGE15"],
+        )
+        ent.setdefault("gold_rule_refs", [])
+        if "B28_22_FAEL_FALLBACK" not in ent["gold_rule_refs"]:
+            ent["gold_rule_refs"].append("B28_22_FAEL_FALLBACK")
+
+
+CONF_B39_STAGE15_OBJ_MAFOOL_REPAIR = 0.79
+
+
+def _apply_b39_stage15_obj_mafool_repair(
+    token_reasoning: List[Dict[str, Any]],
+    lo: Dict[str, Any],
+    tokens: List[str],
+    dsb_links: List[Dict[str, Any]],
+    l12_by_id: Dict[str, Dict[str, Any]],
+) -> None:
+    """
+    Master Execution Patch 9 — Stage 15 OBJ(head→dependent) but L17 mis-tagged dependent as **فاعل** /
+    **نائب فاعل**; narrow repair to **مفعول به** when the OBJ governor supports objects and the surface
+    shows accusative object cues (same gates as B2.2-G007 head support + B28.21 accusative evidence).
+    """
+    by_id = {str(e.get("token_id")): e for e in token_reasoning}
+    for link in dsb_links or []:
+        if (link.get("relation") or "").strip() != "OBJ":
+            continue
+        hid, did = link.get("head_id"), link.get("dependent_id")
+        if hid is None or did is None:
+            continue
+        try:
+            hi = int(hid)
+            di = int(did)
+        except (TypeError, ValueError):
+            continue
+        if hi < 0 or hi >= len(tokens) or di < 0 or di >= len(tokens):
+            continue
+        ent = by_id.get(str(di))
+        if ent is None:
+            continue
+        if (ent.get("grammatical_family") or "").strip() != "NOUN":
+            continue
+        sr = (ent.get("syntactic_role") or "").strip()
+        if sr not in ("فاعل", "نائب فاعل"):
+            continue
+        if not _b22_head_supports_maf3ul_from_obj(str(hi), tokens, lo):
+            continue
+        surface = (tokens[di] or "").strip()
+        if not _b28_21_accusative_object_evidence(surface):
+            continue
+        head_surf = (tokens[hi] or "").strip()
+        prev_conf = float(ent.get("confidence") or 0)
+        link_conf = float(link.get("confidence") or 0.78)
+        boosted = min(0.94, max(link_conf, prev_conf, CONF_B39_STAGE15_OBJ_MAFOOL_REPAIR))
+        _set_role(
+            ent,
+            syntactic_role="مفعول به",
+            governing_factor=head_surf or "الفعل",
+            governing_factor_token_id=str(hi),
+            i3rab_case_or_mood="منصوب",
+            marker=_accusative_marker_for_token(str(di), l12_by_id),
+            confidence=boosted,
+            status="resolved",
+            reasoning_step="Patch 9 B39: Stage15 OBJ edge — repair mis-tagged فاعل/نائب فاعل → مفعول به",
+            evidence_sources=["STAGE15", "L17:B39"],
+        )
+        ent.setdefault("gold_rule_refs", [])
+        if "B39_STAGE15_OBJ_MAFOOL_REPAIR" not in ent["gold_rule_refs"]:
+            ent["gold_rule_refs"].append("B39_STAGE15_OBJ_MAFOOL_REPAIR")
+
+
+CONF_B40_KHABAR = 0.77
+CONF_B41_DARF = 0.78
+CONF_B42_MAJRUR = 0.79
+
+
+def _b40_skip_between_mubtada_khabar(ent: Dict[str, Any], surface: str) -> bool:
+    fam = (ent.get("grammatical_family") or "").strip()
+    role = (ent.get("syntactic_role") or "").strip()
+    if fam == "PARTICLE":
+        return True
+    if "حرف" in role and "اسم" not in role:
+        return True
+    if role in ("حرف جر", "حرف نفي", "حرف عطف"):
+        return True
+    n = _normalize_surface(surface or "")
+    if len(n) <= 4 and n in ("هم", "هما", "هن", "هي", "هو", "انا", "نحن", "انتم", "انتن", "انت"):
+        return True
+    return False
+
+
+def _b40_pointer_mubtada_surface(surface: str) -> bool:
+    """High-precision demonstrative / deictic anchors when L17 left the token unresolved."""
+    n = _normalize_surface(surface or "")
+    if n.startswith(("و", "ف")) and len(n) > 2:
+        n = n[1:]
+    return n in (
+        "ذلك",
+        "هذا",
+        "هذه",
+        "تلك",
+        "هذان",
+        "هاتان",
+        "اولئك",
+        "أولئك",
+        "هؤلاء",
+        "الذين",
+        "اللذين",
+        "اللتين",
+        "اللاتي",
+    )
+
+
+def _b40_spurious_verb_clitic_tail(surface: str) -> bool:
+    """Finite verb mis-tag on obvious noun+clitic tails (e.g. رَبِّهِمْ) between pointer and خبر."""
+    n = _normalize_surface(surface or "")
+    if len(n) < 4:
+        return False
+    return n.endswith(("هم", "هما", "هن", "ها", "هو", "ني", "نا", "كم", "كن", "كما"))
+
+
+def _b40_uncertain_nominal_gap_ok(ent: Dict[str, Any], surface: str) -> bool:
+    """Allow skipping one unresolved noun between مبتدأ/pointer and a late خبر (e.g. ذَلِكَ الْكِتَابُ … هُدًى)."""
+    fam = (ent.get("grammatical_family") or "").strip()
+    if fam not in ("NOUN", "", "UNKNOWN"):
+        return False
+    jr = (ent.get("syntactic_role") or "").strip()
+    if jr not in ("غير محسوم", "—", ""):
+        return False
+    if _definite_nominative_subject_cue(surface):
+        return True
+    return bool(_b28_22_nominative_subject_evidence(surface))
+
+
+CONF_B40_POINTER_ANCHOR = 0.72
+
+
+def _b40_khabar_surface_ok(surface: str) -> bool:
+    if _b28_22_nominative_subject_evidence(surface):
+        return True
+    raw = (surface or "").strip()
+    if "\u064b" in raw or raw.endswith("ًا") or raw.endswith("اً"):
+        if not _likely_mansub_plural_yn(raw):
+            return True
+    return False
+
+
+def _b40_finite_true_verb_between(
+    mi: int,
+    j: int,
+    tokens: List[str],
+    lo: Dict[str, Any],
+    by_id: Dict[str, Dict[str, Any]],
+) -> bool:
+    for k in range(mi + 1, j):
+        if k > mi:
+            ps = _normalize_surface((tokens[k - 1] or "").strip())
+            cs = _normalize_surface((tokens[k] or "").strip())
+            # لا رَيْبَ — اسم لا (L5 may label ريب as finite verb); must not block خبر after شبه الجملة.
+            if ps == "لا" and cs == "ريب":
+                continue
+        surf = (tokens[k] or "").strip()
+        if has_strong_true_verb_evidence(str(k), surf, lo):
+            return True
+        e = by_id.get(str(k))
+        if not e:
+            continue
+        if (e.get("grammatical_family") or "").strip() == "VERB":
+            r = (e.get("syntactic_role") or "").strip()
+            if "فعل" in r and "حرف" not in r:
+                return True
+    return False
+
+
+def _apply_b40_khabar_after_mubtada(
+    token_reasoning: List[Dict[str, Any]],
+    lo: Dict[str, Any],
+    tokens: List[str],
+    dsb_links: List[Dict[str, Any]],
+    locality_map: Any,
+    l12_by_id: Dict[str, Dict[str, Any]],
+) -> None:
+    """
+    Patch 10 — resolved **مبتدأ** + same-clause dependent wrongly tagged **مفعول به** / **فاعل**
+    (false verbal object/subject) → **خبر** when marfūʿ / tanwīn-fatḥ خبر cues hold and no finite
+    true verb intervenes. Does not use gold CSV.
+
+    Also: high-precision **pointer** surfaces (ذلك/هذا/أولئك/…) when still unresolved, skipping
+    intermediate structural nouns (بدل/نعت/مضاف/…) and up to two **غير محسوم** definite/marfūʿ gaps
+    (ذَلِكَ الْكِتَابُ … هُدًى).
+    """
+    locality_map = ensure_locality_map(lo, locality_map)
+    by_id = {str(e.get("token_id")): e for e in token_reasoning}
+    _B40_SKIP_NOUN_ROLES = frozenset(
+        ("بدل", "نعت", "مضاف", "معطوف", "توكيد", "خبر", "مضاف إليه", "نعت تفسيري")
+    )
+
+    def _walk_from_anchor(mi: int, m_surf: str, anchor_conf: float, anchor_note: str) -> None:
+        if mi < 0 or mi >= len(tokens):
+            return
+        j = mi + 1
+        uncertain_gaps = 0
+        spurious_verb_skips = 0
+        while j < len(tokens):
+            if not same_clause_locality_stage15_style(locality_map, mi, j):
+                break
+            if is_inside_inna_coord_chain(str(j), by_id, tokens, dsb_links, locality_map):
+                break
+            je = by_id.get(str(j))
+            if je is None:
+                j += 1
+                continue
+            surf_j = (tokens[j] or "").strip()
+            if j > mi:
+                ps = _normalize_surface((tokens[j - 1] or "").strip())
+                cs = _normalize_surface(surf_j)
+                if ps == "لا" and cs == "ريب":
+                    j += 1
+                    continue
+            if _b40_skip_between_mubtada_khabar(je, surf_j):
+                j += 1
+                continue
+            fam_j = (je.get("grammatical_family") or "").strip()
+            jr = (je.get("syntactic_role") or "").strip()
+            if fam_j == "VERB" and "فعل" in jr and spurious_verb_skips < 2 and _b40_spurious_verb_clitic_tail(surf_j):
+                spurious_verb_skips += 1
+                j += 1
+                continue
+            if fam_j == "VERB" and "فعل" in jr and _b40_pointer_mubtada_surface(surf_j):
+                j += 1
+                continue
+            if fam_j != "NOUN":
+                break
+            if jr == "اسم إن":
+                break
+            if jr in _B40_SKIP_NOUN_ROLES:
+                j += 1
+                continue
+            if jr == "نائب فاعل" and _b40_khabar_surface_ok(surf_j):
+                j += 1
+                continue
+            if jr in ("غير محسوم", "—", "") and uncertain_gaps < 2 and _b40_uncertain_nominal_gap_ok(je, surf_j):
+                uncertain_gaps += 1
+                j += 1
+                continue
+            if jr not in ("مفعول به", "فاعل"):
+                break
+            refs = list(je.get("gold_rule_refs") or [])
+            if any(str(r).startswith(("G016", "G015", "G026")) for r in refs):
+                break
+            if not _b40_khabar_surface_ok(surf_j):
+                break
+            if _b40_finite_true_verb_between(mi, j, tokens, lo, by_id):
+                break
+            marker = _marker_for_nominal_case("مرفوع", str(j), l12_by_id)
+            use_conf = min(CONF_B40_KHABAR, anchor_conf)
+            _set_role(
+                je,
+                syntactic_role="خبر",
+                governing_factor=m_surf or "المبتدأ",
+                governing_factor_token_id=str(mi),
+                i3rab_case_or_mood="مرفوع",
+                marker=marker or "الضمة",
+                confidence=use_conf,
+                status="resolved",
+                reasoning_step=(
+                    "Patch 10 B40: nominal predicate after مبتدأ/pointer — repair false مفعول به/فاعل → خبر"
+                    + (f" ({anchor_note})" if anchor_note else "")
+                ),
+                evidence_sources=["L17:B40", "STAGE15"],
+            )
+            je.setdefault("gold_rule_refs", [])
+            if "B40_KHABAR_AFTER_MUBTADA" not in je["gold_rule_refs"]:
+                je["gold_rule_refs"].append("B40_KHABAR_AFTER_MUBTADA")
+            break
+
+    for ment in token_reasoning:
+        if (ment.get("syntactic_role") or "").strip() != "مبتدأ":
+            continue
+        if (ment.get("status") or "").strip() != "resolved":
+            continue
+        try:
+            mi = int(ment.get("token_id"))
+        except (TypeError, ValueError):
+            continue
+        m_surf = (tokens[mi] or "").strip()
+        _walk_from_anchor(mi, m_surf, CONF_B40_KHABAR, "")
+
+    for ment in token_reasoning:
+        try:
+            mi = int(ment.get("token_id"))
+        except (TypeError, ValueError):
+            continue
+        if mi < 0 or mi >= len(tokens):
+            continue
+        m_surf = (tokens[mi] or "").strip()
+        if not _b40_pointer_mubtada_surface(m_surf):
+            continue
+        fam = (ment.get("grammatical_family") or "").strip()
+        sr = (ment.get("syntactic_role") or "").strip()
+        if fam in ("NOUN", "", "UNKNOWN"):
+            if sr not in ("غير محسوم", "—", ""):
+                continue
+        elif fam == "VERB" and "فعل" in sr:
+            # L5 sometimes tags demonstratives (e.g. أُولَئِكَ) as finite verb shells.
+            pass
+        else:
+            continue
+        _walk_from_anchor(mi, m_surf, CONF_B40_POINTER_ANCHOR, "pointer-anchor")
+
+
+def _b41_idha_zaman_surface(core: str) -> bool:
+    """إذا / أذا / آذا / ٱذا (diacritic-stripped Quranic surfaces, after optional و/ف strip)."""
+    if len(core) < 3:
+        return False
+    if core[0] not in "أإآٱا":
+        return False
+    return core[1] == "ذ" and core[2] == "ا"
+
+
+def _b41_ith_zaman_surface(core: str) -> bool:
+    """إذ (two letters, alef family + ذ) — وَإِذْ / إذْ, not إذا."""
+    if len(core) < 2:
+        return False
+    if core[0] not in "أإآٱا":
+        return False
+    return core[1] == "ذ" and len(core) == 2
+
+
+def _b41_darf_classification(surface: str) -> Optional[Tuple[str, str, str]]:
+    """
+    Returns (syntactic_role, i3rab_case_or_mood, marker) for high-frequency Quranic ظرف surfaces.
+    """
+    n = _normalize_surface(surface or "")
+    if len(n) < 2:
+        return None
+    # len>=3 so وَإِذْ → إذ (3 chars) is not left as وإذ (would miss ظرف).
+    core = n[1:] if n[0] in "وف" and len(n) >= 3 else n
+    if _b41_idha_zaman_surface(core) or _b41_idha_zaman_surface(n):
+        return ("ظرف زمان", "منصوب", "الفتحة")
+    if _b41_ith_zaman_surface(core) or _b41_ith_zaman_surface(n):
+        return ("ظرف زمان", "منصوب", "الفتحة")
+    if core.startswith("لما") or n.startswith("فلما") or n.startswith("ولما"):
+        return ("ظرف زمان", "منصوب", "الفتحة")
+    if core.startswith("كلما") or n.startswith("كلما"):
+        return ("ظرف زمان", "منصوب", "الفتحة")
+    if n.startswith("قبل"):
+        return ("ظرف زمان", "مجرور", "الكسرة")
+    if n.startswith("مع"):
+        return ("ظرف مكان", "مرفوع", "الضمة")
+    if n.startswith("فوق") or n.startswith("تحت"):
+        return ("ظرف مكان", "منصوب", "الفتحة")
+    if n.startswith("حول"):
+        return ("ظرف مكان", "منصوب", "الفتحة")
+    return None
+
+
+def _apply_b41_darf_urf_resolution(
+    token_reasoning: List[Dict[str, Any]],
+    tokens: List[str],
+) -> None:
+    """Patch 11 — Quranic **إذا** / **لما** / **كلما** / **قبل** / **مع** / **فوق** / **تحت** / **حول** clusters → ظرف (not generic أداة / mis-parsed فعل)."""
+    for ent in token_reasoning:
+        try:
+            idx = int(ent.get("token_id"))
+        except (TypeError, ValueError):
+            continue
+        if idx < 0 or idx >= len(tokens):
+            continue
+        surface = (tokens[idx] or "").strip()
+        spec = _b41_darf_classification(surface)
+        if not spec:
+            continue
+        role, case, marker = spec
+        sr0 = (ent.get("syntactic_role") or "").strip()
+        if sr0 in ("ظرف زمان", "ظرف مكان"):
+            continue
+        if sr0 in ("اسم مجرور", "مضاف إليه", "اسم إن", "مبتدأ", "خبر"):
+            continue
+        refs = list(ent.get("gold_rule_refs") or [])
+        # G007/G010 often tag false مفعول/فاعل on ظرف surfaces (e.g. مِنْ قَبْلُ) — B41 must still win.
+        if any(str(r).startswith(("G016", "G015")) for r in refs):
+            continue
+        # Explicit allowlist — do not use `"فعل" in sr0` (فاعل does not contain contiguous فعل).
+        if sr0 not in (
+            "أداة",
+            "غير محسوم",
+            "فعل",
+            "فعل مضارع",
+            "فعل أمر",
+            "فعل ماضي",
+            "فاعل",
+            "نائب فاعل",
+            "مفعول به",
+            "—",
+            "",
+        ):
+            continue
+        _set_role(
+            ent,
+            syntactic_role=role,
+            governing_factor="الجملة",
+            governing_factor_token_id=None,
+            i3rab_case_or_mood=case,
+            marker=marker,
+            confidence=CONF_B41_DARF,
+            status="resolved",
+            reasoning_step="Patch 11 B41: Quranic ظرف زمان/مكان — surface-template resolution",
+            evidence_sources=["L17:B41"],
+        )
+        ent.setdefault("gold_rule_refs", [])
+        if "B41_DARF_URF" not in ent["gold_rule_refs"]:
+            ent["gold_rule_refs"].append("B41_DARF_URF")
+
+
+def _b42_fused_lam_al_ba_al_majrur_surface(surface: str) -> bool:
+    n = _normalize_surface(surface or "")
+    if len(n) < 4:
+        return False
+    if n.startswith("لل") and not n.startswith("لله"):
+        return True
+    if n.startswith("بال") or n.startswith("وبال") or n.startswith("فبال"):
+        return True
+    if n.startswith("فلل") or n.startswith("ولل"):
+        return True
+    return False
+
+
+def _apply_b42_fused_pp_ism_majrur(
+    token_reasoning: List[Dict[str, Any]],
+    tokens: List[str],
+    dsb_links: List[Dict[str, Any]],
+) -> None:
+    """
+    Patch 12 — fused **لل…** / **بال…** (and و/ف‑prefixed) noun surfaces when Stage15 omitted **JAR_MAJRUR**
+    but morphology is PP-like → **اسم مجرور** (complements Rule 6 initial build).
+    """
+    by_id = {str(e.get("token_id")): e for e in token_reasoning}
+    for ent in token_reasoning:
+        try:
+            idx = int(ent.get("token_id"))
+        except (TypeError, ValueError):
+            continue
+        if idx < 0 or idx >= len(tokens):
+            continue
+        surface = (tokens[idx] or "").strip()
+        if not _b42_fused_lam_al_ba_al_majrur_surface(surface):
+            continue
+        rel, _ = _stage15_relation_and_head(str(idx), dsb_links)
+        if rel == "JAR_MAJRUR":
+            continue
+        fam = (ent.get("grammatical_family") or "").strip()
+        if fam not in ("NOUN", "UNKNOWN", "PARTICLE", "VERB"):
+            continue
+        sr0 = (ent.get("syntactic_role") or "").strip()
+        if sr0 == "اسم مجرور" and (ent.get("status") or "").strip() == "resolved":
+            continue
+        if sr0 in ("اسم إن", "مضاف إليه", "نعت"):
+            continue
+        if sr0 not in ("غير محسوم", "فعل", "فعل مضارع", "فاعل", "نائب فاعل", "مفعول به", "أداة", "—", ""):
+            if "فعل" not in sr0 and sr0 != "حرف جر":
+                continue
+        refs = list(ent.get("gold_rule_refs") or [])
+        if any(str(r).startswith(("G016", "G015")) for r in refs):
+            continue
+        _set_role(
+            ent,
+            syntactic_role="اسم مجرور",
+            governing_factor="حرف الجر",
+            governing_factor_token_id=None,
+            i3rab_case_or_mood="مجرور",
+            marker="الكسرة",
+            confidence=CONF_B42_MAJRUR,
+            status="resolved",
+            reasoning_step="Patch 12 B42: fused لل/بال… — اسم مجرور when JAR_MAJRUR link missing",
+            evidence_sources=["L17:B42"],
+        )
+        ent.setdefault("gold_rule_refs", [])
+        if "B42_FUSED_PP_ISM_MAJRUR" not in ent["gold_rule_refs"]:
+            ent["gold_rule_refs"].append("B42_FUSED_PP_ISM_MAJRUR")
+
+
 def _apply_b28_11_bismillah_mudaf_ilayh(
     token_reasoning: List[Dict[str, Any]],
     tokens: List[str],
@@ -1654,12 +2620,11 @@ def _preceding_strong_verb_index(
     idx: int,
     tokens: List[str],
     lo: Dict[str, Any],
-    clause_analysis: List[Dict[str, Any]],
+    locality_map: Dict[str, str],
 ) -> Optional[int]:
-    """Nearest token left of idx in the same clause with strong verb evidence."""
-    source_clause = _clause_id_for_token(idx, clause_analysis)
+    """Nearest token left of idx in the same clause (Stage 15–aligned permissive locality, Batch 28.24)."""
     for j in range(idx - 1, -1, -1):
-        if source_clause and _clause_id_for_token(j, clause_analysis) not in (None, source_clause):
+        if not same_clause_locality_stage15_style(locality_map, idx, j):
             break
         surf = (tokens[j] or "").strip()
         if has_strong_true_verb_evidence(str(j), surf, lo):
@@ -1691,7 +2656,7 @@ def get_coord_chain_governing_context(
     by_id: Dict[str, Dict[str, Any]],
     tokens: List[str],
     dsb_links: List[Dict[str, Any]],
-    clause_analysis: List[Dict[str, Any]],
+    locality_map: Dict[str, str],
 ) -> Optional[Dict[str, Any]]:
     """Return inherited إنَّ chain context when token remains inside that accusative coordination chain."""
     entry = by_id.get(str(token_id))
@@ -1717,10 +2682,8 @@ def get_coord_chain_governing_context(
 
     if idx <= 0 or not _has_attached_waw_prefix(tokens[idx] or ""):
         return None
-    source_clause = _clause_id_for_token(idx, clause_analysis)
     for prev in range(idx - 1, -1, -1):
-        prev_clause = _clause_id_for_token(prev, clause_analysis)
-        if source_clause and prev_clause not in (None, source_clause):
+        if not same_clause_locality_stage15_style(locality_map, idx, prev):
             break
         prev_entry = by_id.get(str(prev))
         if _entry_is_inna_accusative_chain_member(prev_entry):
@@ -1735,22 +2698,21 @@ def is_inside_inna_coord_chain(
     by_id: Dict[str, Dict[str, Any]],
     tokens: List[str],
     dsb_links: List[Dict[str, Any]],
-    clause_analysis: List[Dict[str, Any]],
+    locality_map: Dict[str, str],
 ) -> bool:
-    return get_coord_chain_governing_context(token_id, by_id, tokens, dsb_links, clause_analysis) is not None
+    return get_coord_chain_governing_context(token_id, by_id, tokens, dsb_links, locality_map) is not None
 
 
 def _noun_candidate_indices_after(
     start_idx: int,
     tokens: List[str],
     lo: Dict[str, Any],
-    clause_analysis: List[Dict[str, Any]],
+    locality_map: Dict[str, str],
     limit: int = 3,
 ) -> List[int]:
     out: List[int] = []
-    source_clause = _clause_id_for_token(start_idx, clause_analysis)
     for j in range(start_idx + 1, len(tokens)):
-        if source_clause and _clause_id_for_token(j, clause_analysis) not in (None, source_clause):
+        if not same_clause_locality_stage15_style(locality_map, start_idx, j):
             break
         if has_strong_true_verb_evidence(str(j), (tokens[j] or "").strip(), lo):
             break
@@ -1770,15 +2732,15 @@ def _supported_local_ism_fail_object_position(
     tokens: List[str],
     lo: Dict[str, Any],
     dsb_links: List[Dict[str, Any]],
-    clause_analysis: List[Dict[str, Any]],
+    locality_map: Dict[str, str],
     by_id: Dict[str, Dict[str, Any]],
 ) -> bool:
     """Narrow participial-governance pattern only; no broad noun-adjacency attachment."""
     if dependent_idx != governor_idx + 1:
         return False
-    if is_inside_inna_coord_chain(str(governor_idx), by_id, tokens, dsb_links, clause_analysis):
+    if is_inside_inna_coord_chain(str(governor_idx), by_id, tokens, dsb_links, locality_map):
         return False
-    if is_inside_inna_coord_chain(str(dependent_idx), by_id, tokens, dsb_links, clause_analysis):
+    if is_inside_inna_coord_chain(str(dependent_idx), by_id, tokens, dsb_links, locality_map):
         return False
     surface = (tokens[dependent_idx] or "").strip()
     if _has_prepositional_blocker(surface) or _has_attached_waw_prefix(surface):
@@ -2245,6 +3207,9 @@ def _apply_b22_structural_g007_g010(
         head_surf = (tokens[hi] or "").strip()
 
         if rel == "SUBJ":
+            win_rel, _ = _stage15_relation_and_head(str(di), dsb_links)
+            if win_rel != "SUBJ":
+                continue
             if (entry.get("syntactic_role") or "").strip() == "اسم إن":
                 continue
             if not _b22_head_supports_fael_from_subj(str(hi), tokens, lo):
@@ -2269,7 +3234,10 @@ def _apply_b22_structural_g007_g010(
                 entry["gold_rule_refs"].append("G010_FAIL_MARFUR")
             continue
 
-        # OBJ
+        # OBJ — only when **OBJ** is the winning Stage15 relation (Patch 17: IDAFA > OBJ).
+        win_rel, _ = _stage15_relation_and_head(str(di), dsb_links)
+        if win_rel != "OBJ":
+            continue
         if not _b22_head_supports_maf3ul_from_obj(str(hi), tokens, lo):
             continue
         dep_surf = (tokens[di] or "").strip()
@@ -2695,14 +3663,9 @@ def _stage15_sifa_head_for_dependent(dependent_id: str, dsb_links: List[Dict[str
 
 
 def _stage15_relation(dependent_id: str, dsb_links: List[Dict[str, Any]]) -> Optional[str]:
-    """Relation for token as dependent. Prefer SUBJ/OBJ/NAIB_SUBJ then SIFA."""
-    for link in (dsb_links or []):
-        if str(link.get("dependent_id")) != str(dependent_id):
-            continue
-        rel = (link.get("relation") or "").strip()
-        if rel in ("SUBJ", "OBJ", "NAIB_SUBJ", "SIFA"):
-            return rel
-    return None
+    """Relation for token as dependent — same priority as ``_stage15_relation_and_head`` (incl. IDAFA > OBJ)."""
+    rel, _ = _stage15_relation_and_head(dependent_id, dsb_links)
+    return rel
 
 
 def _l12_agreement_compatible(f1: Dict[str, Any], f2: Dict[str, Any]) -> Optional[bool]:
@@ -2854,7 +3817,7 @@ def _apply_reference_governance_post_pass(
     lo: Dict[str, Any],
     tokens: List[str],
     dsb_links: List[Dict[str, Any]],
-    clause_analysis: List[Dict[str, Any]],
+    locality_map: Dict[str, str],
     l12_by_id: Dict[str, Dict[str, Any]],
 ) -> List[str]:
     """Targeted restoration pass: إنَّ governance, coordination inheritance, ism-fa'il governance, final local verb clause."""
@@ -2884,7 +3847,7 @@ def _apply_reference_governance_post_pass(
         if dep_from_stage15 is not None:
             dep_idx = idx + 1
         else:
-            dep_idx = _next_noun_candidate(idx, tokens, lo, clause_analysis, stop_before_verb=True)
+            dep_idx = _next_noun_candidate(idx, tokens, lo, locality_map, stop_before_verb=True)
         if dep_idx is None:
             continue
         dep_entry = by_id.get(str(dep_idx))
@@ -2982,7 +3945,7 @@ def _apply_reference_governance_post_pass(
                 evidence_sources=["L8B", "L14_JAMID_MUSHTAQ"],
             )
 
-        noun_candidates = _noun_candidate_indices_after(idx, tokens, lo, clause_analysis, limit=3)
+        noun_candidates = _noun_candidate_indices_after(idx, tokens, lo, locality_map, limit=3)
         subj_idx = noun_candidates[0] if noun_candidates else None
         if subj_idx is None:
             continue
@@ -3118,11 +4081,11 @@ def _apply_reference_governance_post_pass(
         head_entry = by_id.get(str(idx))
         if head_entry is None:
             continue
-        obj_idx = _next_noun_candidate(idx, tokens, lo, clause_analysis, stop_before_verb=True)
+        obj_idx = _next_noun_candidate(idx, tokens, lo, locality_map, stop_before_verb=True)
         if obj_idx is None:
             continue
         if not _supported_local_ism_fail_object_position(
-            idx, obj_idx, tokens, lo, dsb_links, clause_analysis, by_id
+            idx, obj_idx, tokens, lo, dsb_links, locality_map, by_id
         ):
             continue
         obj_entry = by_id.get(str(obj_idx))
@@ -3237,7 +4200,7 @@ def _apply_reference_governance_post_pass(
             continue
         if not _has_accusative_surface_cue(surface):
             continue
-        vidx = _preceding_strong_verb_index(idx, tokens, lo, clause_analysis)
+        vidx = _preceding_strong_verb_index(idx, tokens, lo, locality_map)
         if vidx is None:
             continue
         entry = by_id.get(str(idx))
@@ -3298,7 +4261,7 @@ def _apply_reference_governance_post_pass(
     for idx, surface in enumerate(tokens):
         if surface not in _V3_ZARF_ZAMAN_LEXICON:
             continue
-        vidx = _preceding_strong_verb_index(idx, tokens, lo, clause_analysis)
+        vidx = _preceding_strong_verb_index(idx, tokens, lo, locality_map)
         if vidx is None:
             continue
         entry = by_id.get(str(idx))
@@ -3392,8 +4355,7 @@ def build_rule_based_i3rab(lo: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
     dsb = lo.get("DEPENDENCY_SYNTAX_BUILDER") or {}
     dsb_links = dsb.get("dependency_links") or []
-    ce = lo.get("CLAUSE_ENGINE") or {}
-    clause_analysis = ce.get("clause_analysis") or ce.get("clauses") or []
+    locality_map = build_clause_locality_token_map(lo)
     l11b_tr = (lo.get("L11B_CAUSAL_I3RAB") or {}).get("transformation_result") or {}
     l11b_reasoning = l11b_tr.get("token_i3rab_reasoning") or []
     l12_by_id = _l12_features_by_token_id(lo)
@@ -3403,7 +4365,7 @@ def build_rule_based_i3rab(lo: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     for idx in range(len(tokens)):
         surface = (tokens[idx] or "").strip()
         token_id = str(idx)
-        clause_id = _clause_id_for_token(idx, clause_analysis)
+        clause_id = _clause_id_for_token(idx, locality_map)
         dsb_relation, dsb_head_id = _stage15_relation_and_head(token_id, dsb_links)
         l11b_entry = next((e for e in l11b_reasoning if str(e.get("token_id")) == token_id), None)
         entry = _build_one_token_reasoning(
@@ -3420,7 +4382,7 @@ def build_rule_based_i3rab(lo: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             lo,
             tokens,
             dsb_links,
-            clause_analysis,
+            locality_map,
             l12_by_id,
         )
     )
@@ -3431,7 +4393,7 @@ def build_rule_based_i3rab(lo: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     _apply_b22_structural_g007_g010(token_reasoning, lo, tokens, dsb_links, l12_by_id)
 
     _apply_b23_naat_agreement_g016(
-        token_reasoning, lo, tokens, dsb_links, clause_analysis, l12_by_id,
+        token_reasoning, lo, tokens, dsb_links, locality_map, l12_by_id,
     )
 
     _apply_b24_hal_mansub_g015(token_reasoning, lo, tokens, dsb_links, l12_by_id)
@@ -3447,6 +4409,12 @@ def build_rule_based_i3rab(lo: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
     # Batch 28.10 — after 28.8; narrow fused-lam / waw-mawsul surfaces from 28.9 evidence.
     _apply_b28_10_targeted_resolutions(token_reasoning, tokens)
+
+    # Batch 28.20 — unresolved PARTICLE + explicit L4 حرف جر evidence.
+    _apply_b28_20_harf_jar_from_l4(token_reasoning, tokens, lo)
+
+    # Batch 33 — Quranic fused عَلَيْهِمْ / مِمَّا when L4 omits operator (see module header).
+    _apply_b33_fused_harf_jar_quran_surfaces(token_reasoning, tokens, lo, dsb_links)
 
     # Batch 28.11 — ayah-level completion: بسم الله مضاف إليه (after 28.10).
     _apply_b28_11_bismillah_mudaf_ilayh(token_reasoning, tokens)
@@ -3465,6 +4433,24 @@ def build_rule_based_i3rab(lo: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
     # Batch 28.16 — repair Stage15 NAIB_SUBJ when verb resolved to active mudāriʿ.
     _apply_b28_16_repair_naib_subj_when_mudari_verb(token_reasoning, tokens, dsb_links)
+
+    # Batch 28.21 — unresolved NOUN + missing Stage15 OBJ + in-clause transitive verb.
+    _apply_b28_21_mafool_bih_fallback(
+        token_reasoning, lo, tokens, dsb_links, locality_map, l12_by_id,
+    )
+
+    # Batch 28.22 — unresolved NOUN + missing Stage15 SUBJ + in-clause finite active verb (last L17 batch).
+    _apply_b28_22_fael_fallback(
+        token_reasoning, lo, tokens, dsb_links, locality_map, l12_by_id,
+    )
+
+    # Master Execution Patch 9 — after 28.22: OBJ-linked dependents still mis-tagged as subject-like roles.
+    _apply_b39_stage15_obj_mafool_repair(token_reasoning, lo, tokens, dsb_links, l12_by_id)
+
+    # Patches 10–12 — nominal خبر, ظرف surfaces, fused PP اسم مجرور (upstream L17 only).
+    _apply_b40_khabar_after_mubtada(token_reasoning, lo, tokens, dsb_links, locality_map, l12_by_id)
+    _apply_b41_darf_urf_resolution(token_reasoning, tokens)
+    _apply_b42_fused_pp_ism_majrur(token_reasoning, tokens, dsb_links)
 
     resolved = sum(1 for e in token_reasoning if e.get("status") == "resolved")
     candidate = sum(1 for e in token_reasoning if e.get("status") == "candidate")

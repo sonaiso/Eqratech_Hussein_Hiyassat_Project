@@ -3,6 +3,11 @@
 """
 Quran iʿrāb comparison: gold CSV vs pipeline (Batch 28.3 — ayah-bounded, strict comparator).
 
+Partition A integrity: ``--verify-erqa PATH`` re-validates every row in the ERQA file against the
+current pipeline (exact finished ayah set from the file — not a contiguous ``--max-ayahs`` prefix).
+Ayah strings for this check always use **gold CSV** reconstruction (Patch 19), independent of
+``--canonical-ayah-source`` on normal comparison runs.
+
 See docs/quran_i3rab_comparison_pipeline.md.
 """
 
@@ -198,7 +203,11 @@ def _first_n_by_status(
 
 
 def _run_scan_pass_strict(args, root: Path, defaults: Dict[str, Path]) -> int:
-    from orchestrator.quran_gold.ayah_batch_runner import AyahDecision, evaluate_ayah
+    from orchestrator.quran_gold.ayah_batch_runner import (
+        AyahDecision,
+        choose_best_ayah_batch_result_after_repairs,
+        evaluate_ayah,
+    )
     from orchestrator.quran_gold.ayah_loader import default_quran_text_path, get_ayah_text, load_ayah_text_index
     from orchestrator.quran_gold.batch_quarantine import load_progress_state, write_progress_state
     from orchestrator.quran_gold.pass_strict_batch import (
@@ -266,7 +275,7 @@ def _run_scan_pass_strict(args, root: Path, defaults: Dict[str, Path]) -> int:
             ayah_text = reconstruct_ayah_text_from_indexed(indexed, surah, ayah)
         else:
             ayah_text = get_ayah_text(surah, ayah, text_path=text_path) or ""
-        final_res = None
+        attempt_results: List[Any] = []
         for attempt in range(args.max_repair_attempts):
             res = evaluate_ayah(
                 surah,
@@ -277,12 +286,12 @@ def _run_scan_pass_strict(args, root: Path, defaults: Dict[str, Path]) -> int:
                 repair_pass=attempt,
                 require_strict_comparator=args.require_strict_comparator,
             )
-            final_res = res
+            attempt_results.append(res)
             if res.decision == AyahDecision.PASS_STRICT:
                 break
 
-        assert final_res is not None
-        ar = final_res
+        assert attempt_results
+        ar = choose_best_ayah_batch_result_after_repairs(attempt_results)
         row = discovery_row_from_result(ar, surah, ayah)
         merged[(surah, ayah)] = row
 
@@ -320,7 +329,11 @@ def _run_scan_pass_strict(args, root: Path, defaults: Dict[str, Path]) -> int:
 
 def _run_write_pass_strict_only(args, root: Path, defaults: Dict[str, Path]) -> int:
     from orchestrator.quran_gold.accepted_row_serializer import ERQA_ACCEPTED_ROW_FIELDNAMES
-    from orchestrator.quran_gold.ayah_batch_runner import AyahDecision, evaluate_ayah
+    from orchestrator.quran_gold.ayah_batch_runner import (
+        AyahDecision,
+        choose_best_ayah_batch_result_after_repairs,
+        evaluate_ayah,
+    )
     from orchestrator.quran_gold.ayah_loader import default_quran_text_path, get_ayah_text, load_ayah_text_index
     from orchestrator.quran_gold.batch_quarantine import append_repair_log, load_progress_state, write_progress_state
     from orchestrator.quran_gold.pass_strict_batch import (
@@ -469,7 +482,7 @@ def _run_write_pass_strict_only(args, root: Path, defaults: Dict[str, Path]) -> 
             ayah_text = reconstruct_ayah_text_from_indexed(indexed, surah, ayah)
         else:
             ayah_text = get_ayah_text(surah, ayah, text_path=text_path) or ""
-        final_res = None
+        attempt_results: List[Any] = []
         for attempt in range(args.max_repair_attempts):
             res = evaluate_ayah(
                 surah,
@@ -480,6 +493,7 @@ def _run_write_pass_strict_only(args, root: Path, defaults: Dict[str, Path]) -> 
                 repair_pass=attempt,
                 require_strict_comparator=args.require_strict_comparator,
             )
+            attempt_results.append(res)
             repair_rows.append(
                 {
                     "timestamp": ts_start,
@@ -494,12 +508,11 @@ def _run_write_pass_strict_only(args, root: Path, defaults: Dict[str, Path]) -> 
                     "notes": f"repair_pass={attempt}",
                 }
             )
-            final_res = res
             if res.decision == AyahDecision.PASS_STRICT:
                 break
 
-        assert final_res is not None
-        ar = final_res
+        assert attempt_results
+        ar = choose_best_ayah_batch_result_after_repairs(attempt_results)
 
         rt = ar.rows_total or 1
         align_cov = (rt - ar.rows_skipped_alignment) / rt
@@ -670,6 +683,55 @@ def _filter_ayah_keys(
     return out
 
 
+def _run_verify_erqa(args: argparse.Namespace, root: Path, defaults: Dict[str, Path]) -> int:
+    """Partition A — ERQA integrity check (exact ayah set from file, not contiguous Quran prefix)."""
+    from orchestrator.quran_gold.ayah_batch_runner import verify_erqa_integrity
+
+    erqa_path = args.verify_erqa.resolve() if args.verify_erqa else None
+    if erqa_path is None or not erqa_path.is_file():
+        print(f"--verify-erqa: file not found: {erqa_path}", file=sys.stderr)
+        return 2
+
+    # Patch 19: Partition A always reconstructs ayah text from gold CSV (same authority as A/B/C benchmarks).
+    use_gold_csv_ayah = True
+    text_path = ""
+
+    gold_path = args.gold.resolve()
+    if not gold_path.is_file():
+        print(f"Gold CSV not found: {gold_path}", file=sys.stderr)
+        return 2
+
+    indexed = _read_gold_indexed(gold_path)
+
+    def ayah_text_fn(surah: int, ayah: int) -> str:
+        return _ayah_text_for_comparison(
+            indexed, surah, ayah, use_gold_csv_ayah=use_gold_csv_ayah, text_path=text_path
+        )
+
+    rep = verify_erqa_integrity(
+        str(erqa_path),
+        indexed,
+        ayah_text_fn,
+        max_repair_attempts=args.max_repair_attempts,
+    )
+    report = {
+        "partition": "A_erqa_integrity",
+        "erqa_path": str(erqa_path),
+        "gold_path": str(gold_path),
+        "canonical_ayah_source": "gold_csv" if use_gold_csv_ayah else "uthmani",
+        "total_finished_rows": rep.total_finished_rows,
+        "total_finished_ayahs": rep.total_finished_ayahs,
+        "duplicate_key_rows": rep.duplicate_key_rows,
+        "corrupted_rows": rep.corrupted_rows,
+        "corrupted_ayahs": rep.corrupted_ayahs,
+        "status": rep.status,
+        "failure_sample": rep.failures[:50],
+        "failure_count": len(rep.failures),
+    }
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+    return 0 if rep.status == "PASS" else 1
+
+
 def run() -> int:
     _ensure_src_path()
     root = _project_root()
@@ -697,6 +759,17 @@ def run() -> int:
     ap.add_argument("--max-ayahs", type=int, default=None, help="Max ayahs to process this run")
     ap.add_argument("--resume", action="store_true", help="Resume from --progress state")
     ap.add_argument("--dry-run", action="store_true", help="No erqa/wrong/repair writes; debug/summary may still write")
+    ap.add_argument(
+        "--verify-erqa",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help=(
+            "Partition A integrity: read all accepted rows from ERQA CSV, derive the exact finished "
+            "(surah,ayah) set, re-run pipeline+comparator for those keys only; print JSON report; "
+            "exit 1 if any row/ayah degrades. Does not append ERQA. Use e.g. data/erqa_i3rab.csv"
+        ),
+    )
     ap.add_argument(
         "--write-mode",
         action="store_true",
@@ -812,6 +885,10 @@ def run() -> int:
     if args.summary is not None:
         args.batch_summary = args.summary
 
+    if args.verify_erqa is not None:
+        _ensure_src_path()
+        return _run_verify_erqa(args, root, defaults)
+
     if args.discovery_only:
         args.emit_discovery_csvs = True
         args.canonical_ayah_source = "gold_csv"
@@ -822,7 +899,11 @@ def run() -> int:
     if args.write_mode_pass_strict_only:
         return _run_write_pass_strict_only(args, root, defaults)
 
-    from orchestrator.quran_gold.ayah_batch_runner import AyahDecision, evaluate_ayah
+    from orchestrator.quran_gold.ayah_batch_runner import (
+        AyahDecision,
+        choose_best_ayah_batch_result_after_repairs,
+        evaluate_ayah,
+    )
     from orchestrator.quran_gold.ayah_loader import default_quran_text_path, load_ayah_text_index
     from orchestrator.quran_gold.batch_quarantine import (
         append_repair_log,
@@ -966,7 +1047,7 @@ def run() -> int:
         ayah_text = _ayah_text_for_comparison(
             indexed, surah, ayah, use_gold_csv_ayah=use_gold_csv_ayah, text_path=text_path
         )
-        final_res = None
+        attempt_results: List[Any] = []
         for attempt in range(args.max_repair_attempts):
             res = evaluate_ayah(
                 surah,
@@ -977,6 +1058,7 @@ def run() -> int:
                 repair_pass=attempt,
                 require_strict_comparator=args.require_strict_comparator,
             )
+            attempt_results.append(res)
             repair_rows.append(
                 {
                     "timestamp": ts,
@@ -991,12 +1073,11 @@ def run() -> int:
                     "notes": f"repair_pass={attempt}",
                 }
             )
-            final_res = res
             if res.decision == AyahDecision.PASS_STRICT:
                 break
 
-        assert final_res is not None
-        ar = final_res
+        assert attempt_results
+        ar = choose_best_ayah_batch_result_after_repairs(attempt_results)
 
         # Segmentation audit row (lightweight)
         gold_words = [r.word for _, r in indexed if r.surah == surah and r.ayah == ayah]
@@ -1226,6 +1307,7 @@ def run() -> int:
         still_blocked_targets=still_blocked_targets,
     )
 
+    _new_ayah_keys = {(int(r["surah"]), int(r["ayah"])) for r in new_erqa_batch}
     summary: Dict[str, Any] = {
         "batch_id": batch_id,
         "timestamp": ts,
@@ -1233,6 +1315,8 @@ def run() -> int:
         "rows_aligned_counter": rows_aligned,
         "alignment_coverage": round(alignment_coverage, 4),
         "accepted_rows_this_batch": len(new_erqa_batch),
+        "newly_added_rows_this_patch": len(new_erqa_batch),
+        "newly_added_ayahs_this_patch": len(_new_ayah_keys),
         "wrong_rows_this_batch": len(wrong_batch),
         "stop_reason": stop_reason,
         "dry_run": args.dry_run,

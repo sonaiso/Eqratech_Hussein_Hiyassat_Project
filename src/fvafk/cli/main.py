@@ -306,9 +306,8 @@ class MinimalCLI:
         total_time = (time.perf_counter() - start) * 1000
 
         unit_rows = [self._segment_to_unit(s) for s in segments]
-        cv_analysis = analyze_text_for_cv_after_phonology(
-            text, engine="phonology_v2" if phonology_v2 else "c2a"
-        )
+        # CV / cv_advanced: always src/word-2-cv.py (see fvafk.c1.cv_pattern)
+        cv_analysis = analyze_text_for_cv_after_phonology(text)
 
         result: Dict[str, Any] = {
             "input": text,

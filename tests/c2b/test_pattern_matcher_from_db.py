@@ -1,6 +1,6 @@
 """
 Pattern matcher tests using TEST database (Awzan-test-data.csv).
-Tests are generated from data/awzan_ok - Awzan-test-data.csv
+Resolves CSV from repo ``data/`` (supports spaced or hyphenated filename).
 """
 
 import csv
@@ -10,16 +10,42 @@ from fvafk.c2b.pattern_matcher import PatternMatcher, PatternDatabase, PatternTe
 from fvafk.c2b.root_extractor import RootExtractor
 from fvafk.c2b.morpheme import Root, RootType, PatternType
 
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_DATA = _REPO_ROOT / "data"
+
+# Original export name vs. filesystem-safe copy (same content).
+_AWZAN_TEST_CSV_NAMES = (
+    "awzan_ok - Awzan-test-data.csv",
+    "awzan_ok-Awzan-test-data.csv",
+)
+
+
+def resolve_awzan_test_csv_path() -> Path | None:
+    """First existing test CSV under ``data/``, or None."""
+    for name in _AWZAN_TEST_CSV_NAMES:
+        p = _DATA / name
+        if p.is_file():
+            return p
+    return None
+
+
+def require_awzan_test_csv_path() -> Path:
+    p = resolve_awzan_test_csv_path()
+    if p is None:
+        tried = ", ".join(str(_DATA / n) for n in _AWZAN_TEST_CSV_NAMES)
+        raise FileNotFoundError(
+            f"Test data not found. Tried: {tried}. "
+            "Copy Awzan-test-data.csv into data/ using one of those names."
+        )
+    return p
+
 
 class AwzanTestPatternDatabase(PatternDatabase):
     """Pattern database that loads from TEST CSV (Awzan-test-data.csv). Not named Test* so pytest does not collect it."""
-    
+
     def _initialize_patterns(self) -> None:
         """Override to load from test data CSV"""
-        csv_path = Path("data/awzan_ok - Awzan-test-data.csv")
-        
-        if not csv_path.exists():
-            raise FileNotFoundError(f"Test data not found: {csv_path}")
+        csv_path = require_awzan_test_csv_path()
         
         patterns_list = []
         seen = set()
@@ -63,6 +89,11 @@ class TestPatternMatcherFromDatabase:
     @pytest.fixture
     def db(self):
         """Pattern database fixture - USES TEST DATA"""
+        if resolve_awzan_test_csv_path() is None:
+            pytest.skip(
+                "Awzan test CSV missing under data/. Expected one of: "
+                + ", ".join(repr(n) for n in _AWZAN_TEST_CSV_NAMES)
+            )
         return AwzanTestPatternDatabase()
 
     @pytest.fixture
@@ -78,10 +109,12 @@ class TestPatternMatcherFromDatabase:
     @pytest.fixture
     def test_data(self):
         """Load test data from CSV"""
-        csv_path = Path("data/awzan_ok - Awzan-test-data.csv")
-        
-        if not csv_path.exists():
-            pytest.skip(f"Test data not found at {csv_path}")
+        csv_path = resolve_awzan_test_csv_path()
+        if not csv_path:
+            pytest.skip(
+                "Test data not found; place awzan test CSV in data/ as "
+                + " or ".join(repr(n) for n in _AWZAN_TEST_CSV_NAMES)
+            )
         
         test_cases = []
         with open(csv_path, 'r', encoding='utf-8') as f:

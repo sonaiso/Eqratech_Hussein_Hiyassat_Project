@@ -67,11 +67,13 @@ def parse_gold_i3rab_prose(text: str) -> GoldStructuredI3rab:
         gram_family = "particle"
         fam_stat = "resolved"
 
-    # --- syntactic role (longer phrases first)
+    # --- syntactic role (longer phrases first in list; **leftmost match in text** wins)
     role: Optional[str] = None
     role_stat = "absent"
-    # Order matters: clause-initial analyses (حرف جر، جار ومجرور، …) before later
-    # mentions such as مفعول به inside شبه جملة / محل clauses in long gold prose.
+    # List order is tie-break when two patterns match at the same index (rare).
+    # Leftmost span beats later ones so: (1) leading «حَرْفُ جَرٍّ» wins over a later «شِبْهُ الْجُمْلَةِ»
+    # in compound cells; (2) matrix «فَاعِلٌ» before a trailing «بِحَرْفِ جَرٍّ مَحْذُوفٍ» inside المصدر
+    # المؤول still wins (Master Execution Patch 6).
     _pairs: List[Tuple[str, str]] = [
         ("muqatta_huruf", r"حُرُوفٌ\s*مُقَطَّع|مُقَطَّعَةٌ|مُقَطَّعَة|مقطعة|حُرُوف\s*مقطع"),
         ("naib_fael", r"نائب\s*فاعل|نَائِب\s*فَاعِل"),
@@ -92,13 +94,18 @@ def parse_gold_i3rab_prose(text: str) -> GoldStructuredI3rab:
         ("darf", r"ظَرْف|ظرف"),
         ("fael", r"فَاعِلٌ|فاعل"),
     ]
-    for key, pat in _pairs:
-        if re.search(pat, t) or re.search(pat, t_nd):
-            if key == "fael" and ("نائب" in t_nd or "نَائِب" in t):
-                continue
-            role = key
-            role_stat = "resolved"
-            break
+    candidates: List[Tuple[int, int, str]] = []
+    for i, (key, pat) in enumerate(_pairs):
+        m = re.search(pat, t) or re.search(pat, t_nd)
+        if not m:
+            continue
+        if key == "fael" and ("نائب" in t_nd or "نَائِب" in t):
+            continue
+        candidates.append((m.start(), i, key))
+    if candidates:
+        candidates.sort(key=lambda x: (x[0], x[1]))
+        role = candidates[0][2]
+        role_stat = "resolved"
 
     # --- case bucket (prefer explicit مَجْرُور before other محل clauses in long prose)
     case_b: Optional[str] = None

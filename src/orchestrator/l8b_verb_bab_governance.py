@@ -347,11 +347,30 @@ def _is_known_non_verb(kind: str, surface: str) -> bool:
     return False
 
 
+def is_fused_yaa_nida_vocative(surface: str) -> bool:
+    """
+    Batch 28.30 — fused **يَا** + munādā (e.g. **يَاآدَمُ**). Not a finite verb; must not match
+    past فَعَلَ heuristics on the first syllables or be promoted via L5 ``verb`` mis-tags.
+    Optional leading **و** / **ف** (عطف) stripped.
+    """
+    s = (surface or "").strip()
+    if s.startswith(("\u0648", "\u0641")) and len(s) > 1:
+        s = s[1:]
+    # يَا = ي + fatha + alif, then munādā (≥2 letters, e.g. آدَمُ)
+    if len(s) < 5:
+        return False
+    if not s.startswith("\u064a\u064e\u0627"):
+        return False
+    return True
+
+
 def _has_strong_finite_verb_surface(surface: str) -> bool:
     """
     True if surface shows strong finite-verb vocalization (past فَعَلَ, فُعِلَ, hollow, defective, derived).
     Does NOT treat فاعل, مفعول, مُتَفَعِّل as verbs.
     """
+    if is_fused_yaa_nida_vocative(surface):
+        return False
     pairs = _get_letter_vowels(surface)
     if len(pairs) < 2:
         return False
@@ -386,9 +405,10 @@ def _has_strong_finite_verb_surface(surface: str) -> bool:
     # Hollow passive: قِيلَ — first kasra, second letter ي/و, at least 3 root letters
     if len(letters) >= 3 and vowels[0] == "kasra" and letters[1] in "\u064a\u0648":
         return True
-    # Hollow active: قَالَ — first fatha, second ا/و/ي, at least 3 root letters
+    # Hollow active: قَالَ — first fatha, second ا/و/ي; last syllable must be past fatha (not majrūr kasra on nouns like يَوْمِ).
     if len(letters) >= 3 and vowels[0] == "fatha" and letters[1] in "\u0627\u0648\u064a":
-        return True
+        if vowels[-1] == "fatha":
+            return True
     # Defective: أُتِيَ — damma, kasra, last ي/ى + fatha
     if len(pairs) >= 3 and vowels[0] == "damma" and vowels[1] == "kasra":
         if letters[-1] in "\u064a\u0649" and vowels[-1] == "fatha":

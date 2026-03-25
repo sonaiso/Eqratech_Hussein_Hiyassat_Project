@@ -21,7 +21,7 @@ This document lists the main entry points into the linguistic pipeline and the o
 - `--multi-word` — run multi-word analysis (tokenize → per-word morphology + c2d + rhetoric)
 - `--output-csv PATH` — write CSV (similar to out_with_sources)
 - `--arabic-tags` — translate tag values to Arabic in CSV
-- `--phonology-v2` — use phonology_v2 engine for CV
+- `--phonology-v2` — optional phonology_v2 **trace** only; **`c1.cv_analysis`** always uses **`src/word-2-cv.py`** (not C2a segments / not syllabifier CV)
 - `--limit-lines N` — when reading file, limit lines
 - `--verbose` — include units, gate details
 

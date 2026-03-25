@@ -4,6 +4,17 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
+import type { ErqaMatch } from "../../../lib/erqaLookup";
+import { buildDirectPipelineUiPayload } from "../../../lib/directAnalysisSynthesis";
+import {
+  buildErqaFinalReportArabic,
+  buildErqaL17StyleMarkdown,
+  buildErqaWordLines,
+  findErqaMatch,
+  loadErqaRows,
+  normalizeArabicText,
+  tokenizeNormalized,
+} from "../../../lib/erqaLookup";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -38,74 +49,6 @@ function summarizePipeline(pipeline: any) {
   return { validity, confidence, sentenceType, rootsFound, waznFound, i3rabFound };
 }
 
-/** Markdown view of L11 surface iʿrāb (token_results). */
-function buildL11Markdown(pipeline: unknown): string {
-  const lo = (pipeline as { layer_outputs?: Record<string, unknown> })?.layer_outputs ?? {};
-  const tr = (lo.L11_I3RAB as { transformation_result?: { token_results?: unknown[] } })
-    ?.transformation_result;
-  const tokens = tr?.token_results;
-  if (!Array.isArray(tokens) || !tokens.length) {
-    return "## L11 — الإعراب السطحي\n\n_(لا توجد نتائج L11 في JSON.)_";
-  }
-  const lines: string[] = ["## L11 — الإعراب السطحي", ""];
-  for (const t of tokens) {
-    const row = t as { surface?: string; i3rab_text?: string };
-    const surf = (row.surface ?? "").trim();
-    const i3 = (row.i3rab_text ?? "").trim();
-    if (!surf && !i3) continue;
-    lines.push(`- **${surf || "—"}** — ${i3 || "—"}`);
-  }
-  return lines.join("\n");
-}
-
-/** Markdown view of L17 rule-based layer (Batch 2.5+). */
-function buildL17Markdown(pipeline: unknown): string {
-  const lo = (pipeline as { layer_outputs?: Record<string, unknown> })?.layer_outputs ?? {};
-  const l17 = lo.L17_RULE_BASED_I3RAB as
-    | { transformation_result?: Record<string, unknown> }
-    | undefined;
-  const tr = l17?.transformation_result;
-  if (!tr) {
-    return "## L17 — الإعراب القواعدي\n\n_(طبقة L17 غير موجودة في مخرجات الـ pipeline.)_";
-  }
-  const lines: string[] = ["## L17 — الإعراب القواعدي (الطبقة الجديدة)", ""];
-  const rs = tr.reasoning_summary as
-    | { resolved_tokens?: number; candidate_tokens?: number; unresolved_tokens?: number }
-    | undefined;
-  if (rs) {
-    lines.push(
-      `**ملخص:** محلول: ${rs.resolved_tokens ?? "—"} | مرشح: ${rs.candidate_tokens ?? "—"} | غير محلول: ${rs.unresolved_tokens ?? "—"}`,
-      ""
-    );
-  }
-  const tokenReasoning = tr.token_reasoning as Array<Record<string, unknown>> | undefined;
-  if (Array.isArray(tokenReasoning) && tokenReasoning.length) {
-    for (const row of tokenReasoning) {
-      const surf = String(row.surface ?? "").trim();
-      const role = String(row.syntactic_role ?? "").trim();
-      const i3 = String(row.i3rab_case_or_mood ?? "").trim();
-      const marker = String(row.marker ?? "").trim();
-      const status = String(row.status ?? "").trim();
-      const steps = row.reasoning_steps;
-      const stepStr = Array.isArray(steps) ? (steps as string[]).join(" ← ") : "";
-      lines.push(`### ${surf || "—"}`);
-      lines.push(`- **الوظيفة:** ${role || "—"}`);
-      lines.push(`- **الإعراب / الصيغة:** ${i3 || "—"}`);
-      if (marker && marker !== "—") lines.push(`- **العلامة:** ${marker}`);
-      lines.push(`- **الحالة:** ${status || "—"}`);
-      if (stepStr) lines.push(`- **خطوات التعليل:** ${stepStr}`);
-      lines.push("");
-    }
-  } else {
-    lines.push("_(لا توجد صفوف token_reasoning.)_", "");
-  }
-  const kia = tr.khabar_in_analysis;
-  if (kia != null && typeof kia === "object" && Object.keys(kia as object).length) {
-    lines.push("### تحليل خبر «إن»", "```json", JSON.stringify(kia, null, 2), "```");
-  }
-  return lines.join("\n").trim();
-}
-
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const text: string = (body?.text ?? "").toString().trim();
@@ -117,6 +60,15 @@ export async function POST(req: NextRequest) {
 
   // IMPORTANT: app is in ui/, pipeline repo root is one level up
   const repoRoot = path.resolve(process.cwd(), "..");
+
+  let erqaMatch: ErqaMatch | null = null;
+  try {
+    const rows = await loadErqaRows(repoRoot);
+    const toks = tokenizeNormalized(normalizeArabicText(text));
+    erqaMatch = findErqaMatch(rows, toks);
+  } catch (e) {
+    console.error("[analyze] ERQA lookup skipped:", e);
+  }
 
   const tmpId = randomUUID();
   const jsonPath = path.join(os.tmpdir(), `pipeline_${tmpId}.json`);
@@ -134,11 +86,57 @@ export async function POST(req: NextRequest) {
         write("step_updated", { id, status, detail, ts: Date.now() });
 
       stepCreated("s0", "تهيئة الطلب", "running");
-      stepCreated("s1", "تشغيل التحليل المحلي (pipeline)", "queued");
-      stepCreated("s2", "قراءة JSON وتوليد ملخص", "queued");
-      stepCreated("s3", "إخراج النتيجة النهائية", "queued");
+      if (erqaMatch) {
+        stepCreated("s1", "مطابقة النص مع erqa_i3rab.csv", "queued");
+        stepCreated("s2", "تنسيق الإعراب المقبول (ERQA)", "queued");
+        stepCreated("s3", "إخراج النتيجة النهائية", "queued");
+      } else {
+        stepCreated("s1", "تشغيل التحليل المحلي (pipeline)", "queued");
+        stepCreated("s2", "قراءة JSON وتوليد ملخص", "queued");
+        stepCreated("s3", "إخراج النتيجة النهائية", "queued");
+      }
 
       stepUpdated("s0", "done");
+
+      if (erqaMatch) {
+        stepUpdated("s1", "done", `سورة ${erqaMatch.surah} ، آية ${erqaMatch.ayah}`);
+        stepUpdated("s2", "done");
+        stepUpdated("s3", "running");
+        const wordI3rabLines = buildErqaWordLines(erqaMatch);
+        const l17Markdown = buildErqaL17StyleMarkdown(erqaMatch);
+        const finalText = buildErqaFinalReportArabic(erqaMatch);
+        write("final", {
+          text: finalText,
+          summary: {
+            validity: "ERQA",
+            confidence: "—",
+            sentenceType: `سورة ${erqaMatch.surah} ، آية ${erqaMatch.ayah}`,
+            rootsFound: 0,
+            waznFound: 0,
+            i3rabFound: erqaMatch.rows.length,
+          },
+          l11Markdown: "",
+          l11MarkdownFull: "",
+          l17Markdown,
+          wordI3rabLines,
+          analysisSource: "quran_erqa",
+          analysisSourceLabel: "Quran Accepted Analysis (ERQA)",
+          directDisplayPolicy: "quran_erqa",
+          weakL17: false,
+          l11Downgraded: false,
+          erqaMatch: {
+            surah: erqaMatch.surah,
+            ayah: erqaMatch.ayah,
+            matchKind: erqaMatch.kind,
+            startWordIndex: erqaMatch.startWordIndex,
+            tokenCount: erqaMatch.rows.length,
+          },
+        });
+        stepUpdated("s3", "done");
+        controller.close();
+        return;
+      }
+
       stepUpdated("s1", "running");
 
       const child = spawn(
@@ -214,9 +212,20 @@ export async function POST(req: NextRequest) {
             fullReport.trim() ||
             `ملخص التحليل:\n- الصلاحية: ${summary.validity}\n- الثقة: ${summary.confidence}\n- نوع الجملة: ${summary.sentenceType}\n- عدد الكلمات ذات الجذر: ${summary.rootsFound}\n- عدد الكلمات ذات الوزن: ${summary.waznFound}\n- عدد الكلمات ذات الإعراب: ${summary.i3rabFound}\n`;
 
-          const l11Markdown = buildL11Markdown(pipeline);
-          const l17Markdown = buildL17Markdown(pipeline);
-          write("final", { text: finalText, summary, l11Markdown, l17Markdown });
+          const ui = buildDirectPipelineUiPayload(pipeline);
+          write("final", {
+            text: finalText,
+            summary,
+            l11Markdown: ui.l11Markdown,
+            l11MarkdownFull: ui.l11MarkdownFull,
+            l17Markdown: ui.l17Markdown,
+            wordI3rabLines: ui.wordI3rabLines,
+            analysisSource: "direct_pipeline",
+            analysisSourceLabel: ui.analysisSourceLabel,
+            directDisplayPolicy: ui.displayPolicy,
+            weakL17: ui.weakL17,
+            l11Downgraded: ui.l11Downgraded,
+          });
           stepUpdated("s3", "done");
           controller.close();
         } catch (e: any) {

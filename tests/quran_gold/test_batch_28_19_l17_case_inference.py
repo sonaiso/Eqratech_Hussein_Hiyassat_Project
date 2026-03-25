@@ -40,3 +40,19 @@ def test_majrur_still_genitive():
         "marker": "الكسرة",
     }
     assert _infer_case_bucket_from_l17(l17) == "genitive"
+
+
+def test_patch18_ism_majrur_genitive_despite_mabni_in_reasoning_steps():
+    """Patch 18: fused PP cells — «مبني» in evidence must not beat primary **اسم مجرور** (was **built** → mismatch)."""
+    l17 = {
+        "status": "resolved",
+        "confidence": 0.85,
+        "syntactic_role": "اسم مجرور",
+        "i3rab_case_or_mood": "مجرور",
+        "marker": "الكسرة",
+        "reasoning_steps": [
+            'الْوَاوُ "" حَرْفُ عَطْفٍ مَبْنِيٌّ عَلَى الْفَتْحِ',
+            "Stage15:JAR_MAJROR",
+        ],
+    }
+    assert _infer_case_bucket_from_l17(l17) == "genitive"

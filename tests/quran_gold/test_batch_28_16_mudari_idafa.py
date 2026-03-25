@@ -60,7 +60,10 @@ def test_idafa_yawm_iddin_stage15_and_l17_roles():
     lo = r.get("layer_outputs") or {}
     dsb = lo.get("DEPENDENCY_SYNTAX_BUILDER") or {}
     idafa = [x for x in (dsb.get("dependency_links") or []) if x.get("relation") == "IDAFA"]
-    assert any(x.get("rule") == "Pass_B28_16_idafa_kasra_definite" for x in idafa)
+    assert any(
+        x.get("rule") in ("Pass_B28_16_idafa_kasra_definite", "Pass_B_L10B_idafa_edge")
+        for x in idafa
+    )
     assert any(x.get("head_id") == "1" and x.get("dependent_id") == "2" for x in idafa)
     tr = _l17_tr(lo).get("token_reasoning") or []
     y = _by_surface(tr, "يَوْمِ")

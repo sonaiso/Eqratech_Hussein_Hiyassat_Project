@@ -50,8 +50,9 @@ def test_files_load_successfully():
     assert isinstance(items, list)
     # At least one category should have been loaded if data dir exists
     data_dir = ROOT / "data" / "connectives_api"
-    if data_dir.exists():
-        assert len(items) >= 1, "Expected at least one connective from data/connectives_api"
+    has_json = data_dir.is_dir() and any(data_dir.glob("connectives_category_*.json"))
+    if has_json:
+        assert len(items) >= 1, "Expected at least one connective when category JSON files exist"
     for c in items[:3]:
         assert "token" in c
         assert "normalized_token" in c

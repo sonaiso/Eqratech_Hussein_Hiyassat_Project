@@ -7,9 +7,12 @@ One ayah → one decision: PASS_STRICT, FAIL_*, or REVIEW_NEEDED.
 
 from __future__ import annotations
 
+import csv
+import os
+from collections import Counter
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple
 
 from orchestrator import run_pipeline
 from orchestrator.quran_gold.alignment import AlignmentOutcome, align_gold_words_to_pipeline_tokens
@@ -49,6 +52,25 @@ class AyahBatchResult:
     truth_audit_rows: List[Dict[str, Any]] = field(default_factory=list)
     preview_candidate_rows: List[Dict[str, Any]] = field(default_factory=list)
     reason: str = ""
+
+
+def choose_best_ayah_batch_result_after_repairs(results: Sequence[AyahBatchResult]) -> AyahBatchResult:
+    """
+    Multi-pass repair (``repair_pass``): do not let a later attempt overwrite better alignment.
+
+    - If any attempt is ``PASS_STRICT``, return the **first** such result (repair stops there).
+    - Otherwise return the **earliest** result with minimum ``rows_skipped_alignment`` (max aligned rows).
+    """
+    if not results:
+        raise ValueError("choose_best_ayah_batch_result_after_repairs: empty results")
+    for res in results:
+        if res.decision == AyahDecision.PASS_STRICT:
+            return res
+    min_skips = min(r.rows_skipped_alignment for r in results)
+    for res in results:
+        if res.rows_skipped_alignment == min_skips:
+            return res
+    return results[-1]
 
 
 def _alignment_debug_stub(
@@ -402,4 +424,228 @@ def evaluate_ayah(
         structured_debug_rows=structured_debug_rows,
         truth_audit_rows=truth_audit_rows,
         preview_candidate_rows=preview_candidate_rows,
+    )
+
+
+@dataclass
+class ErqaIntegrityReport:
+    """Partition A — re-validate every accepted ERQA row (exact finished ayah set from the file)."""
+
+    total_finished_rows: int
+    total_finished_ayahs: int
+    corrupted_rows: int
+    corrupted_ayahs: int
+    status: str  # PASS | FAIL
+    duplicate_key_rows: int
+    failures: List[Dict[str, Any]]
+
+
+def _read_erqa_csv_keys_in_order(erqa_path: str) -> Tuple[List[Tuple[int, int, int]], int]:
+    """
+    Return (ordered list of (surah, ayah, ayah_word_index) per CSV data row, total row count).
+    Uses the same index fallback as ``load_erqa_keys`` when ``ayah_word_index`` is empty.
+    """
+    if not os.path.isfile(erqa_path):
+        return [], 0
+    keys: List[Tuple[int, int, int]] = []
+    per_ayah_fallback: Dict[Tuple[int, int], int] = {}
+    with open(erqa_path, newline="", encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            try:
+                surah = int((row.get("surah") or "").strip())
+                ayah = int((row.get("ayah") or "").strip())
+            except (TypeError, ValueError):
+                continue
+            raw_idx = (row.get("ayah_word_index") or "").strip()
+            if raw_idx != "":
+                try:
+                    idx = int(raw_idx)
+                except ValueError:
+                    continue
+            else:
+                k = (surah, ayah)
+                idx = per_ayah_fallback.get(k, 0)
+                per_ayah_fallback[k] = idx + 1
+            keys.append((surah, ayah, idx))
+    return keys, len(keys)
+
+
+def verify_erqa_integrity(
+    erqa_path: str,
+    indexed: Sequence[Tuple[int, Any]],
+    ayah_text_fn: Callable[[int, int], str],
+    *,
+    max_repair_attempts: int = 2,
+) -> ErqaIntegrityReport:
+    """
+    Partition A integrity: read all ERQA rows, derive the exact ``(surah, ayah)`` set, re-run
+    pipeline + alignment + comparator for each accepted key (with **empty** cumulative skip set).
+
+    A row **corrupts** if: duplicate ``(surah, ayah, ayah_word_index)`` in the CSV, gold key missing
+    from ``quran_i3rab.csv``, alignment fails, or ``strict_acceptance_eligible`` is false after repair
+    attempts.
+    """
+    ordered_keys, total_finished_rows = _read_erqa_csv_keys_in_order(erqa_path)
+    if total_finished_rows == 0:
+        return ErqaIntegrityReport(
+            total_finished_rows=0,
+            total_finished_ayahs=0,
+            corrupted_rows=0,
+            corrupted_ayahs=0,
+            status="PASS",
+            duplicate_key_rows=0,
+            failures=[],
+        )
+
+    key_counts = Counter(ordered_keys)
+    duplicate_key_rows = sum(c - 1 for c in key_counts.values() if c > 1)
+
+    gold_by_key: Dict[Tuple[int, int, int], Any] = {}
+    for _, r in indexed:
+        gold_by_key[row_key(r)] = r
+
+    unique_keys = sorted(key_counts.keys())
+    finished_ayahs = sorted({(s, a) for s, a, _ in unique_keys})
+
+    failures: List[Dict[str, Any]] = []
+
+    def add_failure(
+        surah: int,
+        ayah: int,
+        idx: int,
+        *,
+        reason: str,
+        word: str = "",
+        detail: str = "",
+    ) -> None:
+        failures.append(
+            {
+                "surah": surah,
+                "ayah": ayah,
+                "ayah_word_index": idx,
+                "word": word,
+                "reason": reason,
+                "detail": detail[:500],
+            }
+        )
+
+    for k, c in key_counts.items():
+        if c > 1:
+            s, a, idx = k
+            add_failure(
+                s,
+                a,
+                idx,
+                reason="duplicate_erqa_key",
+                detail=f"key appears {c} times in {erqa_path}",
+            )
+
+    # Group keys by ayah for one pipeline run per ayah
+    keys_by_ayah: Dict[Tuple[int, int], List[int]] = {}
+    for s, a, idx in unique_keys:
+        keys_by_ayah.setdefault((s, a), []).append(idx)
+    for k in keys_by_ayah:
+        keys_by_ayah[k].sort()
+
+    strict_fail_keys: Set[Tuple[int, int, int]] = set()
+
+    for surah, ayah in finished_ayahs:
+        ayah_text = (ayah_text_fn(surah, ayah) or "").strip()
+        want_idx = sorted(keys_by_ayah.get((surah, ayah), []))
+
+        if not ayah_text:
+            for idx in want_idx:
+                rk = (surah, ayah, idx)
+                strict_fail_keys.add(rk)
+                add_failure(surah, ayah, idx, reason="missing_ayah_text")
+            continue
+
+        pipeline = run_pipeline(
+            ayah_text,
+            source={"entrypoint": "verify_erqa_integrity", "surah": surah, "ayah": ayah},
+        )
+        token_surfaces = get_token_surfaces(pipeline)
+        snapshots = extract_snapshots(pipeline)
+        full_rows = [r for _, r in indexed if r.surah == surah and r.ayah == ayah]
+        full_rows.sort(key=lambda x: x.index_in_ayah)
+
+        if not token_surfaces or not snapshots:
+            for idx in want_idx:
+                rk = (surah, ayah, idx)
+                strict_fail_keys.add(rk)
+                add_failure(surah, ayah, idx, reason="empty_pipeline_tokens_or_snapshots")
+            continue
+
+        gold_words = [r.word for r in full_rows]
+
+        for idx in want_idx:
+            rk = (surah, ayah, idx)
+            gr = gold_by_key.get(rk)
+            if gr is None:
+                strict_fail_keys.add(rk)
+                add_failure(surah, ayah, idx, reason="gold_row_missing_in_quran_i3rab_csv")
+                continue
+
+            best_detail = ""
+            ok_strict = False
+            last_aligned = False
+            for repair_pass in range(max(1, int(max_repair_attempts))):
+                rich_align = align_gold_words_to_pipeline_tokens(
+                    gold_words, token_surfaces, repair_pass=repair_pass
+                )
+                if idx < 0 or idx >= len(rich_align):
+                    best_detail = "alignment_index_out_of_range"
+                    continue
+                rr = rich_align[idx]
+                ok_al = rr.outcome in (
+                    AlignmentOutcome.ALIGNED_UNIQUE,
+                    AlignmentOutcome.ALIGNED_BY_OCCURRENCE,
+                )
+                if not ok_al:
+                    best_detail = rr.reason or rr.outcome.value
+                    continue
+                last_aligned = True
+                tok_i = rr.token_index
+                assert tok_i is not None
+                snap = snapshots[tok_i] if tok_i < len(snapshots) else None
+                dec = compare_token_conservative(gr.i3rab, snap, repair_pass=repair_pass)
+                best_detail = f"{dec.tier.value}|{dec.notes}"
+                if strict_acceptance_eligible(dec):
+                    ok_strict = True
+                    break
+
+            if not ok_strict:
+                strict_fail_keys.add(rk)
+                if best_detail == "alignment_index_out_of_range":
+                    rreason = "alignment_index_out_of_range"
+                elif last_aligned:
+                    rreason = "comparator_not_strict_eligible"
+                else:
+                    rreason = "alignment_failed"
+                add_failure(
+                    surah,
+                    ayah,
+                    idx,
+                    reason=rreason,
+                    word=gr.word,
+                    detail=best_detail,
+                )
+
+    corrupted_strict = len(strict_fail_keys)
+    corrupted_rows = duplicate_key_rows + corrupted_strict
+    dup_ayahs = {(s, a) for (s, a, _i), c in key_counts.items() if c > 1}
+    strict_ayahs = {(s, a) for s, a, _ in strict_fail_keys}
+    corrupted_ayahs = len(dup_ayahs | strict_ayahs)
+
+    status = "PASS" if corrupted_rows == 0 else "FAIL"
+
+    return ErqaIntegrityReport(
+        total_finished_rows=total_finished_rows,
+        total_finished_ayahs=len(finished_ayahs),
+        corrupted_rows=corrupted_rows,
+        corrupted_ayahs=corrupted_ayahs,
+        status=status,
+        duplicate_key_rows=duplicate_key_rows,
+        failures=failures,
     )

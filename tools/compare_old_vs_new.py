@@ -1,10 +1,7 @@
 """
-Phase 8.2 utility: compare CV patterns between engines.
+Verify CV output: ``src/word-2-cv.py`` (direct) vs FVAFK pipeline (``analyze_text_for_cv_after_phonology``).
 
-Old  = engine="c2a"         (C1Encoder + C2a gates → CV from final segments)
-New  = engine="phonology_v2" (Phonology V2 syllable lattice → CV)
-
-This script prints a side-by-side table per Arabic token in the input.
+Legacy c2a / phonology_v2 comparison was removed — the pipeline uses word-2-cv only.
 """
 
 from __future__ import annotations
@@ -13,15 +10,23 @@ import argparse
 from typing import Any, Dict, List, Optional, Tuple
 
 from fvafk.c1.cv_pattern import analyze_text_for_cv_after_phonology
+from fvafk.c1.word2cv_loader import analyze_token_for_pipeline
 from fvafk.c2b.word_boundary import WordBoundaryDetector
 
 
-def _one_word_cv(token: str, engine: str) -> Optional[Dict[str, str]]:
-    r = analyze_text_for_cv_after_phonology(token, engine=engine)
+def _pipeline_word_cv(token: str) -> Optional[Dict[str, str]]:
+    r = analyze_text_for_cv_after_phonology(token)
     words = r.get("words") or []
     if not words:
         return None
-    return words[0]  # single-token call => at most one result
+    return words[0]
+
+
+def _direct_word_cv(token: str) -> Optional[Dict[str, str]]:
+    row = analyze_token_for_pipeline(token)
+    if row.get("excluded"):
+        return None
+    return {"cv": row["cv"], "cv_advanced": row["cv_advanced"]}
 
 
 def _format_row(cols: List[str], widths: List[int]) -> str:
@@ -38,10 +43,10 @@ def compare_text(text: str) -> Tuple[List[Dict[str, Any]], List[str]]:
 
     for sp in spans:
         tok = sp.token
-        c2a = _one_word_cv(tok, "c2a")
-        v2 = _one_word_cv(tok, "phonology_v2")
+        direct = _direct_word_cv(tok)
+        pipe = _pipeline_word_cv(tok)
 
-        if c2a is None and v2 is None:
+        if direct is None and pipe is None:
             excluded.append(tok)
             continue
 
@@ -49,9 +54,9 @@ def compare_text(text: str) -> Tuple[List[Dict[str, Any]], List[str]]:
             {
                 "token": tok,
                 "span": (sp.start, sp.end),
-                "c2a": c2a,
-                "phonology_v2": v2,
-                "same": (c2a == v2),
+                "direct": direct,
+                "pipeline": pipe,
+                "same": (direct == pipe),
             }
         )
 
@@ -59,25 +64,35 @@ def compare_text(text: str) -> Tuple[List[Dict[str, Any]], List[str]]:
 
 
 def main() -> int:
-    p = argparse.ArgumentParser(description="Compare CV outputs: c2a vs phonology_v2.")
+    p = argparse.ArgumentParser(
+        description="Compare CV: src/word-2-cv.py direct vs FVAFK pipeline (must match)."
+    )
     p.add_argument("text", help="Arabic text (diacritized recommended)")
     args = p.parse_args()
 
     rows, excluded = compare_text(args.text)
 
-    headers = ["token", "span", "c2a.cv", "c2a.cv_advanced", "v2.cv", "v2.cv_advanced", "same?"]
+    headers = [
+        "token",
+        "span",
+        "direct.cv",
+        "direct.cv_adv",
+        "pipe.cv",
+        "pipe.cv_adv",
+        "same?",
+    ]
     data_rows: List[List[str]] = []
     for r in rows:
-        c2a = r["c2a"] or {}
-        v2 = r["phonology_v2"] or {}
+        d = r["direct"] or {}
+        pl = r["pipeline"] or {}
         data_rows.append(
             [
                 r["token"],
                 f"{r['span'][0]}:{r['span'][1]}",
-                c2a.get("cv", ""),
-                c2a.get("cv_advanced", ""),
-                v2.get("cv", ""),
-                v2.get("cv_advanced", ""),
+                d.get("cv", ""),
+                d.get("cv_advanced", ""),
+                pl.get("cv", ""),
+                pl.get("cv_advanced", ""),
                 "YES" if r["same"] else "NO",
             ]
         )
@@ -101,4 +116,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

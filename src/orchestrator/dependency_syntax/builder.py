@@ -37,10 +37,19 @@ from .relation_inventory import (
     REL_SIFA,
     REL_SUBJ,
 )
+from ..clause_locality import l10b_token_to_clause_map
+from ..l8b_verb_bab_governance import (
+    _get_letter_vowels,
+    _has_strong_finite_verb_surface,
+    is_fused_yaa_nida_vocative,
+)
 from ..l14_jamid_mushtaq import (
     has_strong_true_verb_evidence,
     is_detached_iyya_pronoun,
     is_imperative_amr_surface,
+    is_qul_family_amr_surface,
+    is_reporting_na_finite_surface,
+    is_reporting_speech_matrix_verb_surface,
 )
 
 
@@ -102,6 +111,7 @@ def _excluded_from_root(
 _PP_PREFIX_SEQUENCES = (
     "كال",
     "كٱل",
+    "بأ",
     "بال",
     "بٱل",
     "لل",
@@ -171,22 +181,6 @@ def _is_emphatic_inna_operator(surface: str, op_words: List[Dict[str, Any]]) -> 
         elif operator:
             return True
     return False
-
-
-def _token_to_clause(clause_units: List[Dict[str, Any]]) -> Dict[str, str]:
-    """Map token_id (str) to clause_id. Tokens not in any unit get 'main' or first unit id."""
-    out: Dict[str, str] = {}
-    for c in clause_units or []:
-        cid = c.get("clause_id") or c.get("type") or "main"
-        start = c.get("start_token_id")
-        end = c.get("end_token_id")
-        try:
-            s, e = int(start or 0), int(end or 0)
-            for t in range(s, e + 1):
-                out[str(t)] = cid
-        except (TypeError, ValueError):
-            pass
-    return out
 
 
 def _is_conjunction_token(surface: str, op_words: List[Dict[str, Any]]) -> bool:
@@ -304,6 +298,40 @@ def _normalize_surface(s: str) -> str:
             continue
         result.append(c)
     return "".join(result).strip()
+
+
+def _b28_31_reporting_speech_suppresses_matrix_args(
+    verb_idx: int,
+    tokens: List[str],
+    lo: Dict[str, Any],
+) -> bool:
+    """
+    Batch 28.31 — quoted speech after قَالَ/قُلْ must not receive matrix SUBJ/OBJ/PRED from the reporting verb.
+
+    Conservative: suppress only when the first post-verbal token looks like speech (vocative يَا,
+    fused vocative, finite verb evidence, or هُوَ-led nominal quote). Does **not** suppress when the
+    first token is a definite agent (ال…) so قَالَ الرَّسُولُ keeps a matrix SUBJ.
+    """
+    surf_v = (tokens[verb_idx] or "").strip()
+    if not is_reporting_speech_matrix_verb_surface(surf_v):
+        return False
+    if verb_idx + 1 >= len(tokens):
+        return False
+    j = verb_idx + 1
+    t = (tokens[j] or "").strip()
+    n = _normalize_surface(t)
+    for pfx in ("ال", "وال", "فال", "كال"):
+        if n.startswith(pfx):
+            return False
+    if is_fused_yaa_nida_vocative(t):
+        return True
+    if n == "يا":
+        return True
+    if has_strong_true_verb_evidence(str(j), t, lo):
+        return True
+    if n.startswith("هو") and len(n) <= 6:
+        return True
+    return False
 
 
 def _normalize_root_value(root: Any) -> str:
@@ -466,11 +494,21 @@ def _first_verb_index(
         word_to_kind[(w.get("word") or "").strip()] = (w.get("kind") or "").strip()
     node_by_id: Dict[str, Dict] = {n.get("token_id"): n for n in nodes if n.get("token_id") is not None}
     for i, surface in enumerate(tokens):
+        surf = (surface or "").strip()
+        # Batch 28.30 — fused يَا + munādā is not the clause verb (e.g. يَاآدَمُ after قَالَ).
+        if is_fused_yaa_nida_vocative(surf):
+            continue
+        # Detached إِيَّا… pronoun must not match finite-verb surface heuristics (28.30) as clause head.
+        if is_detached_iyya_pronoun(surf):
+            continue
         if l8b_map.get(i):
             return i
-        kind = word_to_kind.get((surface or "").strip(), "")
+        kind = word_to_kind.get(surf, "")
         pos_hint = (node_by_id.get(str(i)) or {}).get("pos_hint") or ""
         if _is_verb_like(kind, pos_hint, None):
+            return i
+        # Batch 28.30 — hollow/finite past (قَالَ) when L5 tags noun; must win over following L5-verb vocative.
+        if _has_strong_finite_verb_surface(surf):
             return i
     return 0 if tokens else None
 
@@ -577,6 +615,78 @@ def _looks_indefinite_object_cue(surface: str) -> bool:
     return n.startswith("احد") or n.startswith("شيئ")
 
 
+def _has_plural_imperative_verb_terminal_waw_alif_shape(surface: str) -> bool:
+    """
+    Batch 28.26 — plural / imperative-plural verbs often end with و + ا (e.g. فَعَلُوا، خَلَوْا، كُلُوا، كَفَرُوا).
+    ``_has_strong_finite_verb_surface`` often misses these; L5 may still tag them as ``noun``. Same exclusion
+    paths as 28.25 only. Requires at least 4 letter-slots so bare edge tokens are not matched.
+    """
+    surf = (surface or "").strip()
+    if not surf:
+        return False
+    pairs = _get_letter_vowels(surf)
+    if len(pairs) < 4:
+        return False
+    letters = [p[0] for p in pairs]
+    return letters[-2] == "\u0648" and letters[-1] == "\u0627"
+
+
+def _finite_verb_token_excluded_from_postverbal_noun_scan(
+    token_index: int,
+    surface: str,
+    lo: Dict[str, Any],
+) -> bool:
+    """
+    Batch 28.25 — finite verbs must not be counted as post-verbal *nominal* argument slots in Pass E2 /
+    verbal-root scans. L5 often tags real finite verbs as ``noun``; without a surface check, a following
+    noun (e.g. اللَّهُ after إِنْ شَاءَ) is treated as the ``second`` nominal argument → false OBJ where
+    gold expects فاعل on that noun.
+
+    Uses ``has_strong_true_verb_evidence`` when pipeline verb evidence exists, plus
+    ``_has_strong_finite_verb_surface`` (past / hollow / derived finite shapes) so mis-tagged قَالَ / شَاءَ
+    are skipped. Does not match accusative objects like عَمْرًا (28.23 regression).
+
+    Batch 28.26 — also ``_has_plural_imperative_verb_terminal_waw_alif_shape`` for plural / imperative-plural
+    …وا surfaces not covered by the strong finite heuristic.
+
+    Batch 28.30 — ``is_qul_family_amr_surface`` / ``is_reporting_na_finite_surface`` when L5 tags noun-like.
+    """
+    surf = (surface or "").strip()
+    if has_strong_true_verb_evidence(str(token_index), surf, lo):
+        return True
+    if _has_strong_finite_verb_surface(surf):
+        return True
+    if _has_plural_imperative_verb_terminal_waw_alif_shape(surf):
+        return True
+    if is_qul_family_amr_surface(surf):
+        return True
+    if is_reporting_na_finite_surface(surf):
+        return True
+    return False
+
+
+def _surface_accusative_object_likely(surface: str) -> bool:
+    """
+    Batch 28.23 — tanwīn fatḥ / alif, or definite ال… with accusative-like ending (not marfūʿ ḍamma on last syllable).
+    Used to prefer OBJ over SUBJ for a lone post-verbal noun after an active finite verb.
+    """
+    raw = (surface or "").strip()
+    if not raw:
+        return False
+    if "\u064b" in raw or raw.endswith(("ًا", "اً")):
+        return True
+    n = _normalize_surface(raw)
+    if len(n) >= 4 and (n.startswith("ال") or n.startswith("وال") or n.startswith("فال")):
+        tail = raw[-6:] if len(raw) >= 6 else raw
+        tail3 = raw[-3:] if len(raw) >= 3 else raw
+        # Last syllable damma (e.g. الْحَقُّ) → marfūʿ subject, not object.
+        if "\u064f" in tail3:
+            return False
+        if "\u064e" in tail and "\u064c" not in raw:
+            return True
+    return False
+
+
 def _is_skippable_pronoun_clitic_between_verb_args(surface: str) -> bool:
     """Skip bound pronoun / clitic chunks when scanning objects after a finite verb."""
     n = _normalize_surface(surface or "")
@@ -616,6 +726,8 @@ def _apply_strong_verb_local_subj_obj(
             continue
         if not has_strong_true_verb_evidence(str(verb_idx), surface or "", lo):
             continue
+        if _b28_31_reporting_speech_suppresses_matrix_args(verb_idx, tokens, lo):
+            continue
         has_subj = any(
             l.get("head_id") == str(verb_idx) and l.get("relation") == REL_SUBJ for l in dependency_links
         )
@@ -630,6 +742,13 @@ def _apply_strong_verb_local_subj_obj(
                 continue
             surf_j = (tokens[j] or "").strip()
             if _is_skippable_pronoun_clitic_between_verb_args(surf_j):
+                continue
+            if _finite_verb_token_excluded_from_postverbal_noun_scan(j, surf_j, lo):
+                continue
+            # Batch 28.30 — align with Pass E: PP / fused vocative are not matrix SUBJ/OBJ slots here.
+            if _has_pp_prefix(surf_j):
+                continue
+            if is_fused_yaa_nida_vocative(surf_j):
                 continue
             kind = word_to_kind.get(surf_j, "")
             pos_hint = (node_by_id.get(str(j)) or {}).get("pos_hint") or ""
@@ -694,6 +813,25 @@ def _apply_strong_verb_local_subj_obj(
                         rule="Pass_E2_transitive_lone_indefinite_maf3ul", inferred=True,
                     )
                     has_obj = True
+            elif (
+                second_n is None
+                and not is_passive
+                and not has_obj
+                and _surface_accusative_object_likely(first_surf)
+            ):
+                _add_link(
+                    dependency_links, corrections_log, str(verb_idx), str(first_n),
+                    relation=REL_OBJ, arabic_role=AR_MAF3UL_BIH, confidence=0.79,
+                    rule="Pass_B28_23_e2_single_accusative_object", inferred=True,
+                )
+                has_obj = True
+            elif any(
+                l.get("head_id") == str(verb_idx)
+                and str(l.get("dependent_id")) == str(first_n)
+                and l.get("relation") == REL_OBJ
+                for l in dependency_links
+            ):
+                pass
             else:
                 _add_link(
                     dependency_links, corrections_log, str(verb_idx), str(first_n),
@@ -836,6 +974,17 @@ def _strip_false_appos_structural_competition(
         if has_strong_true_verb_evidence(str(gov_i), surf_g, lo):
             strong_verb_obj_heads.add(dep_i)
 
+    def _obj_rule_for_matrix_obj(matrix_i: int, dep_i: int) -> str:
+        for lk in dependency_links:
+            if (lk.get("relation") or "").strip() != REL_OBJ:
+                continue
+            if str(lk.get("head_id")) != str(matrix_i):
+                continue
+            if str(lk.get("dependent_id")) != str(dep_i):
+                continue
+            return (lk.get("rule") or "").strip()
+        return ""
+
     to_remove: List[int] = []
     to_add_sifa: List[Tuple[str, str]] = []
 
@@ -888,6 +1037,18 @@ def _strip_false_appos_structural_competition(
             suppress = True
             reason = "Pass_C_appos_suppressed_ism_fail_obj_plus_sifa_mushabbaha"
             evidence = ["L14_ISM_FAIL_governor", "L14_SIFA_MUSHABBAHA_dependent"]
+
+        # R4 (Patch 16): **Pass_B28_32** double-accusative pair only — adjacent BADAL/APPOS is spurious.
+        elif (
+            (gv := obj_heads_by_dep.get(hi)) is not None
+            and gv == obj_heads_by_dep.get(di)
+            and gv not in (hi, di)
+            and "Pass_B28_32_verbal_root_double_accusative" in _obj_rule_for_matrix_obj(int(gv), hi)
+            and "Pass_B28_32_verbal_root_double_accusative" in _obj_rule_for_matrix_obj(int(gv), di)
+        ):
+            suppress = True
+            reason = "Pass_C_appos_suppressed_B28_32_double_accusative_pair"
+            evidence = ["Pass_B28_32_first_and_second_object", "adjacent_not_BADAL"]
 
         if suppress:
             to_remove.append(idx)
@@ -1060,8 +1221,7 @@ def build_dependency_syntax(lo: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     roots8 = _roots8_by_index(lo)
     node_by_id = {n.get("token_id"): n for n in nodes if n.get("token_id") is not None}
     op_words = _op_words(lo)
-    clause_units = tr10b.get("clause_units") or []
-    token_to_clause = _token_to_clause(clause_units)
+    token_to_clause = l10b_token_to_clause_map(lo)
     excluded_from_root = _excluded_from_root(tokens, op_words, edges)
 
     dependency_links: List[Dict[str, Any]] = []
@@ -1150,11 +1310,12 @@ def build_dependency_syntax(lo: Dict[str, Any]) -> Optional[Dict[str, Any]]:
                                 rule="Pass_B28_17_object_naat", inferred=True,
                             )
                 else:
-                    _add_link(
-                        dependency_links, corrections_log, str(first_idx), str(second_idx),
-                        relation=REL_PRED, arabic_role=AR_KHABAR, confidence=0.75,
-                        rule="nominal_mubtada_to_khabar", inferred=True,
-                    )
+                    if not _b28_31_reporting_speech_suppresses_matrix_args(first_idx, tokens, lo):
+                        _add_link(
+                            dependency_links, corrections_log, str(first_idx), str(second_idx),
+                            relation=REL_PRED, arabic_role=AR_KHABAR, confidence=0.75,
+                            rule="nominal_mubtada_to_khabar", inferred=True,
+                        )
 
     elif main_clause_type == "verbal":
         # Verbal: canonical directions — verb/root → SUBJ/OBJ/NAIB_SUBJ (governing verb is always head).
@@ -1189,6 +1350,7 @@ def build_dependency_syntax(lo: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         is_passive = (profile.get("voice") or "").strip().lower() == "passive"
         transitivity = (profile.get("transitivity") or "").strip().lower()
         transitive = "transitive" in transitivity or profile.get("objects", 0) or profile.get("exp_objects", 0)
+        speech_suppress = _b28_31_reporting_speech_suppresses_matrix_args(verb_idx, tokens, lo)
         # Batch 28.17: pre-verb detached إِيَّا… pronoun — object before finite verb (إِيَّاكَ نَعْبُدُ).
         if verb_idx > 0 and not is_passive:
             ps = (tokens[verb_idx - 1] or "").strip()
@@ -1209,6 +1371,15 @@ def build_dependency_syntax(lo: Dict[str, Any]) -> Optional[Dict[str, Any]]:
                 continue
             if l8b_map.get(j):
                 continue
+            sj = (tokens[j] or "").strip()
+            if _finite_verb_token_excluded_from_postverbal_noun_scan(j, sj, lo):
+                continue
+            # Batch 28.30 — jar–majrur / PP chunk (e.g. بِأَسْمَائِهِمْ) is not a matrix SUBJ slot after قَالَ.
+            if _has_pp_prefix(sj):
+                continue
+            # Batch 28.30 — fused يَا + munādā is not a فاعل slot after a matrix reporting verb.
+            if is_fused_yaa_nida_vocative(sj):
+                continue
             kind = next((w.get("kind") or "" for w in words5 if (w.get("word") or "").strip() == (tokens[j] or "").strip()), "")
             pos_hint = (node_by_id.get(str(j)) or {}).get("pos_hint") or ""
             if _is_noun_like(kind, pos_hint):
@@ -1218,19 +1389,28 @@ def build_dependency_syntax(lo: Dict[str, Any]) -> Optional[Dict[str, Any]]:
                     second_after_verb = j
                     break
         if first_after_verb is None and verb_idx + 1 < len(tokens) and _same_clause(token_to_clause, verb_idx, verb_idx + 1):
-            first_after_verb = verb_idx + 1
+            _fs = (tokens[verb_idx + 1] or "").strip()
+            if not is_fused_yaa_nida_vocative(_fs):
+                first_after_verb = verb_idx + 1
         if first_after_verb is not None and second_after_verb is None and first_after_verb + 1 < len(tokens):
             for j in range(first_after_verb + 1, len(tokens)):
                 if not _same_clause(token_to_clause, verb_idx, j):
                     continue
                 if l8b_map.get(j):
                     continue
+                sj = (tokens[j] or "").strip()
+                if _finite_verb_token_excluded_from_postverbal_noun_scan(j, sj, lo):
+                    continue
+                if _has_pp_prefix(sj):
+                    continue
+                if is_fused_yaa_nida_vocative(sj):
+                    continue
                 kind = next((w.get("kind") or "" for w in words5 if (w.get("word") or "").strip() == (tokens[j] or "").strip()), "")
                 pos_hint = (node_by_id.get(str(j)) or {}).get("pos_hint") or ""
                 if _is_noun_like(kind, pos_hint):
                     second_after_verb = j
                     break
-        if first_after_verb is not None:
+        if first_after_verb is not None and not speech_suppress:
             fsurf = (tokens[first_after_verb] or "").strip()
             fcore = fsurf[1:] if fsurf.startswith("\u0648") and len(fsurf) > 1 else fsurf
             if (
@@ -1248,6 +1428,47 @@ def build_dependency_syntax(lo: Dict[str, Any]) -> Optional[Dict[str, Any]]:
                     relation=REL_NAIB_SUBJ, arabic_role=AR_NAIB_FAIL, confidence=0.8,
                     rule="verbal_passive_post_verb_noun_naib_fail_L8B", inferred=True,
                 )
+            elif (
+                not is_passive
+                and second_after_verb is None
+                and _surface_accusative_object_likely(fsurf)
+            ):
+                _add_link(
+                    dependency_links, corrections_log, str(verb_idx), str(first_after_verb),
+                    relation=REL_OBJ, arabic_role=AR_MAF3UL_BIH, confidence=0.78,
+                    rule="Pass_B28_23_verbal_root_single_accusative_object", inferred=True,
+                )
+            # Master Execution Patch 16 — **mafool_bih** ∧ false «فاعل»:** two accusative objects after
+            # one matrix verb (**جَعَلَ الْأَرْضَ فِرَاشًا**); second **OBJ** still from
+            # **verbal_transitive_second_noun_maf3ul_bih_L8B** below.
+            elif (
+                not is_passive
+                and second_after_verb is not None
+                and _surface_accusative_object_likely(fsurf)
+                and _surface_accusative_object_likely((tokens[second_after_verb] or "").strip())
+                and not _is_maf3ul_mutlaq_candidate(verb_idx, second_after_verb, tokens, words5, roots8)
+            ):
+                _add_link(
+                    dependency_links, corrections_log, str(verb_idx), str(first_after_verb),
+                    relation=REL_OBJ, arabic_role=AR_MAF3UL_BIH, confidence=0.77,
+                    rule="Pass_B28_32_verbal_root_double_accusative_first_object", inferred=True,
+                )
+                _add_link(
+                    dependency_links, corrections_log, str(verb_idx), str(second_after_verb),
+                    relation=REL_OBJ, arabic_role=AR_MAF3UL_BIH, confidence=0.76,
+                    rule="Pass_B28_32_verbal_root_double_accusative_second_object", inferred=True,
+                )
+            elif (
+                not is_passive
+                and second_after_verb is not None
+                and _surface_accusative_object_likely(fsurf)
+                and is_imperative_amr_surface(root_form)
+            ):
+                _add_link(
+                    dependency_links, corrections_log, str(verb_idx), str(first_after_verb),
+                    relation=REL_OBJ, arabic_role=AR_MAF3UL_BIH, confidence=0.78,
+                    rule="Pass_B28_32_verbal_root_imperative_first_accusative_object", inferred=True,
+                )
             else:
                 _add_link(
                     dependency_links, corrections_log, str(verb_idx), str(first_after_verb),
@@ -1261,6 +1482,7 @@ def build_dependency_syntax(lo: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         }
         if (
             second_after_verb is not None
+            and not speech_suppress
             and transitive
             and not is_passive
             and str(second_after_verb) not in existing_core_dependents
