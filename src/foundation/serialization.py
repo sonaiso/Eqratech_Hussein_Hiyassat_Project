@@ -188,6 +188,7 @@ def _make_serializable(obj: Any) -> Any:
     if isinstance(obj, bytes):
         return obj.hex()
     if isinstance(obj, frozenset):
-        return list(obj)
+        # JSON لا يدعم frozenset — نُحوِّلها إلى قائمة مرتبة
+        return sorted(list(obj))
     # الكائنات الأخرى تُحوَّل إلى str
     return str(obj)

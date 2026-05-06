@@ -126,8 +126,9 @@ class TestOntology:
 
     def test_knowledge_universe_register_invalid(self):
         omega = KnowledgeUniverse()
-        with pytest.raises(TypeError):
+        with pytest.raises(TypeError) as exc_info:
             omega.register("not a reality")  # type: ignore
+        assert "Expected Reality or Trace" in str(exc_info.value)
 
 
 # ===========================================================================

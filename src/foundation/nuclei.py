@@ -438,6 +438,9 @@ class WaqiaNucleus(Nucleus):
         self.description = "الواقع المشهود — نقطة انطلاق الدالة الجامعة"
 
 
+_DEFAULT_LAYERS = ["صوتي", "صرفي", "نحوي", "دلالي"]
+
+
 @dataclass
 class LowerLayersNucleus(Nucleus):
     """
@@ -446,7 +449,7 @@ class LowerLayersNucleus(Nucleus):
     تُمثِّل ربط نظام «العقل الباني» بمحركات Eqratech الموجودة.
     """
     layers_active: List[str] = field(
-        default_factory=lambda: ["صوتي", "صرفي", "نحوي", "دلالي"]
+        default_factory=lambda: list(_DEFAULT_LAYERS)
     )
     engine_bindings: Dict[str, str] = field(default_factory=dict)
 

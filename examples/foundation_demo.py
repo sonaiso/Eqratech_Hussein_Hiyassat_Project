@@ -85,15 +85,10 @@ def run_example(
 
     # --- 2. تحليل يونيكود ---
     if show_units:
-        extractor = TraceExtractor()
-        rich_trace = extractor.extract(reality, level)
-        print(f"\n{format_trace_units.__module__}")
-        print(format_trace_units.__doc__ or "")
-        from foundation.serialization import format_trace_units as _fmt
-        print(_fmt.__doc__ or "")
-        print("\n" + "─" * 64)
         from foundation.unicode_units import ArabicText
         at = ArabicText.from_string(text)
+        print(f"\n{'─'*64}")
+        print("جدول وحدات يونيكود:")
         print(f"{'الحرف':^6} {'كود':^8} {'نوع':^12} {'اسم':^18} {'سبب':^18}")
         print("─" * 64)
         for unit in at.units:

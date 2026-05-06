@@ -46,6 +46,18 @@ from .unicode_units import ArabicText
 
 
 # ---------------------------------------------------------------------------
+# ثوابت حساب درجة الثقة
+# ---------------------------------------------------------------------------
+
+# المرحلة 2: حساب ثقة الأثر
+BASE_TRACE_CONFIDENCE: float = 0.5
+TOKEN_CONFIDENCE_INCREMENT: float = 0.1
+
+# الأفعال العربية — بادئات الفعل المضارع وصيغ الفعل الماضي
+VERB_PREFIXES = ("فَ", "يَ", "تَ", "نَ", "أَ", "سَ")
+
+
+# ---------------------------------------------------------------------------
 # أسماء المراحل
 # ---------------------------------------------------------------------------
 
@@ -344,7 +356,7 @@ class AnalysisPipeline:
                 ),
             )
         else:
-            conf = min(1.0, 0.5 + len(rich_trace.tokens) * 0.1)
+            conf = min(1.0, BASE_TRACE_CONFIDENCE + len(rich_trace.tokens) * TOKEN_CONFIDENCE_INCREMENT)
             result = StageResult(
                 stage=PipelineStage.CONFIRMED_TRACE,
                 output=Shahada(
@@ -401,8 +413,7 @@ class AnalysisPipeline:
 
         # تصنيف بسيط: هل الجملة فعلية أم اسمية؟
         first_token = trace.tokens[0] if trace.tokens else ""
-        verb_prefixes = ("فَ", "يَ", "تَ", "نَ", "أَ", "سَ")
-        is_verbal = any(first_token.startswith(p) for p in verb_prefixes)
+        is_verbal = any(first_token.startswith(p) for p in VERB_PREFIXES)
 
         concept = "جملة فعلية" if is_verbal else "جملة اسمية أو غير محددة"
 
