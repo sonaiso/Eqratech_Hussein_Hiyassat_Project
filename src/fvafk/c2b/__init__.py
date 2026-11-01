@@ -24,6 +24,11 @@ from .word_form import (
     Span,
 )
 from .word_form import WordFormBuilder
+from .operator_enrichment import (
+    EnrichedOperatorEntry,
+    OperatorEnrichmentPipeline,
+    get_enrichment_pipeline,
+)
 
 __all__ = [
     "Affix",
@@ -47,4 +52,7 @@ __all__ = [
     "SyntaxRole",
     "Span",
     "WordFormBuilder",
+    "EnrichedOperatorEntry",
+    "OperatorEnrichmentPipeline",
+    "get_enrichment_pipeline",
 ]

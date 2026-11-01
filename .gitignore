@@ -196,7 +196,7 @@ awzan_analysis*.txt
 awzan_matcher*.py
 
 # Local root-level scratch tests (keep real tests under tests/)
-test_*.py
+/test_*.py
 
 # Script backups / legacy
 scripts/*-old.py
